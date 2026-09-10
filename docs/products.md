@@ -9,7 +9,7 @@
 
 两件产品独立版本、独立接入、独立失败。Forge 不懂用例；Overlay 不管谁该 merge。接入方可以只装一件。
 
-**通用检查 ≠ 产品门。** 不是两个产品各搞一套对等 CI。仓级规格（标题 Conventional Commits、正文六节、`sop-lock`）永远跑。产品门（`overlay-check` / `forge-check`）在 `forge.yaml` `ci` 里选择执行或跳过（workflow 必启动，skip 记成功）。`python -m forge ci-select`。不要把标题检查只挂在 Forge 下。
+**通用检查 ≠ 产品门。** 文件归属是 **产品前缀分治**（[`ci-design.md`](ci-design.md)）：同前缀可合，跨产品不合。不是两个产品各搞一套对等 CI。仓级规格（标题 Conventional Commits、正文六节、`sop-lock`）永远跑。产品门（`overlay-check` / `forge-check`）在 `forge.yaml` `ci` 里选择执行或跳过（workflow 必启动，skip 记成功）。`python -m forge ci-select`。不要把标题检查只挂在 Forge 下。
 
 Overlay **Ops** Action CI（PR 且选中）顺序：规格 → CodeRabbit/Copilot 评论（只建议）→ 该 checkout 全量 Overlay CI → 人合。失败：PR 打回，Ops/CI 留 `ops-debug` / receipts。
 
@@ -195,7 +195,7 @@ overlay/                # 产品 B — 留在本仓 / fork
   receipt.py
 schema/                 # Overlay 契约，跨项目冻住；不打进产品仓
 examples/learning-guide/   # 第一个接入方 fixture，不是核心
-.github/workflows/
+.github/workflows/      # 产品前缀分治：同前缀可合，跨产品不合（ci-design.md）
   overlay.yml           # reusable；产品仓 uses: 本文件 @ pin（不要拷本工作本 ci.yml）
   overlay-check.yml     # Overlay 产品门 + Ops DAG（validate+select+run；ci-select 可 skip）
   forge-check.yml       # Forge 产品门（unit + apply --dry-run；ci-select 可 skip）
