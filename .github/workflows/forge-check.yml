@@ -1,4 +1,4 @@
-# Forge product gate. Common specs stay on pr-title.yml and sop-lock.yml.
+# Forge product gate. Common specs stay on ci.yml (pr-title + sop-lock).
 # This workflow always starts (no on.paths). Selector skip is success so the
 # required check name `forge-check` stays stable.
 # When selected: Forge unit tests + apply --dry-run.

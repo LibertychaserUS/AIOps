@@ -1,5 +1,5 @@
 # Overlay product gate + Overlay Ops PR chain.
-# Common title/SOP gates still live on pr-title.yml / sop-lock.yml (always).
+# Common title/SOP gates live on ci.yml (pr-title + sop-lock).
 # This workflow always starts (no on.paths). Selector skip is success so the
 # required check name `overlay-check` stays stable.
 #

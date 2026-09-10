@@ -110,6 +110,18 @@ class WorkflowLockTests(unittest.TestCase):
             issues = collect_issues(root)
             self.assertFalse(any("unittest" in item.message for item in issues), issues)
 
+    def test_ci_yml_unittest_on_push_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(
+                root / ".github" / "workflows" / "ci.yml",
+                "name: ci\non:\n  push:\njobs:\n  sop-lock:\n"
+                "    runs-on: ubuntu-latest\n    steps:\n"
+                "      - run: python3 -m unittest discover -s tests/forge -t .\n",
+            )
+            issues = collect_issues(root)
+            self.assertTrue(any("unittest" in item.message for item in issues), issues)
+
     def test_checkout_learningguideportal_is_red(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -134,13 +146,32 @@ class WorkflowLockTests(unittest.TestCase):
             issues = collect_issues(root)
             self.assertTrue(any("pin" in item.message or "main" in item.message for item in issues), issues)
 
+    def test_path_filtered_common_ci_yml_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root / "overlay" / "__init__.py", "")
+            _write(root / "forge" / "__init__.py", "")
+            _write(root / "docs" / "sop.md", "# sop\n")
+            _write(root / "skills" / "use-overlay" / "SKILL.md", "## Lock\n不绿不能合 overlay-check\n")
+            _write(
+                root / ".github" / "workflows" / "ci.yml",
+                "name: ci\non:\n  pull_request:\n    paths:\n      - docs/**\n"
+                "jobs:\n  pr-title:\n    if: github.event_name == 'pull_request'\n"
+                "    runs-on: ubuntu-latest\n"
+                "    steps:\n      - run: python -m forge pr-title --root .\n"
+                "  sop-lock:\n    runs-on: ubuntu-latest\n"
+                "    steps:\n      - run: python -m forge sop-lock --root .\n",
+            )
+            issues = collect_issues(root)
+            self.assertTrue(
+                any("path-filter" in item.message for item in issues),
+                issues,
+            )
+
     def test_path_filtered_product_workflow_is_red(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _write(
-                root / "overlay" / "__init__.py",
-                "",
-            )
+            _write(root / "overlay" / "__init__.py", "")
             _write(root / "forge" / "__init__.py", "")
             _write(root / "docs" / "sop.md", "# sop\n")
             _write(root / "skills" / "use-overlay" / "SKILL.md", "## Lock\n不绿不能合 overlay-check\n")
@@ -154,6 +185,45 @@ class WorkflowLockTests(unittest.TestCase):
             self.assertTrue(
                 any("path-filter" in item.message for item in issues),
                 issues,
+            )
+
+    def test_leftover_common_workflow_files_are_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root / "overlay" / "__init__.py", "")
+            _write(root / "forge" / "__init__.py", "")
+            _write(root / "docs" / "sop.md", "# sop\n")
+            _write(root / "skills" / "use-overlay" / "SKILL.md", "## Lock\n不绿不能合 overlay-check\n")
+            _write(
+                root / ".github" / "workflows" / "ci.yml",
+                "name: ci\non:\n  pull_request:\njobs:\n  pr-title:\n"
+                "    if: github.event_name == 'pull_request'\n"
+                "    runs-on: ubuntu-latest\n"
+                "    steps:\n      - run: python -m forge pr-title --root .\n"
+                "  sop-lock:\n    runs-on: ubuntu-latest\n"
+                "    steps:\n      - run: python -m forge sop-lock --root .\n",
+            )
+            _write(
+                root / ".github" / "workflows" / "pr-title.yml",
+                "name: pr-title\non:\n  pull_request:\njobs:\n  pr-title:\n"
+                "    runs-on: ubuntu-latest\n    steps:\n      - run: echo leftover\n",
+            )
+            _write(
+                root / ".github" / "workflows" / "sop-lock.yml",
+                "name: sop-lock\non:\n  push:\njobs:\n  sop-lock:\n"
+                "    runs-on: ubuntu-latest\n    steps:\n      - run: echo leftover\n",
+            )
+            issues = collect_issues(root)
+            leftovers = [item for item in issues if "leftover" in item.message]
+            self.assertTrue(any("pr-title.yml" in item.path for item in leftovers), issues)
+            self.assertTrue(any("sop-lock.yml" in item.path for item in leftovers), issues)
+            self.assertFalse(
+                any("forge-check.yml" in item.message for item in leftovers),
+                leftovers,
+            )
+            self.assertFalse(
+                any("overlay-check.yml" in item.message for item in leftovers),
+                leftovers,
             )
 
     def test_comment_no_generate_on_push_is_green(self) -> None:

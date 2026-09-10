@@ -546,7 +546,7 @@ spec (python -m forge pr-title，读 GitHub PR title/body)
 红 / 合失败：python -m forge bounce → PR 打回评论 + artifact `overlay-ops-debug` / receipts
 ```
 
-`pr-title.yml` 仍是仓级通用检查（Ruleset 名字 `pr-title`）。Overlay Ops 的 `spec` 再跑同一条 CLI，只为了 **needs** 卡住后面的全量 CI。CodeRabbit / Copilot 不是 required check。bounce 不合入。push（无 PR 面）跳过 spec / review-bots / bounce，直接全量 CI。
+本工作本把**通用检查**收进 `ci.yml`（jobs `pr-title` + `sop-lock`）。Forge 产品门仍是 `forge-check.yml`，Overlay 产品门 + Ops DAG 仍是 `overlay-check.yml`。不要把两件产品塞进同一个 workflow。Ruleset 检查名不变：`pr-title` / `sop-lock` / `forge-check` / `overlay-check`。`pr-title` 只在 `pull_request` 跑。Overlay Ops 的 `spec` 再跑同一条 CLI，只为了 **needs** 卡住后面的全量 CI。CodeRabbit / Copilot 不是 required check。bounce 不合入。push（无 PR 面）跳过 spec / review-bots / bounce，直接全量 CI。接入方 pin 的是 reusable `overlay.yml`，不要拷本工作本 `ci.yml`。
 
 ### 4.12 run（测试和 CI 同一条门）
 
@@ -650,11 +650,11 @@ examples/learning-guide/
   forge.yaml
 .github/workflows/
   forge-guard.yml
+  ci.yml                 # 本工作本通用检查：pr-title + sop-lock（检查名不变）
   forge-check.yml        # Forge 产品门：unit + apply --dry-run；ci-select 可 skip
-  overlay.yml
   overlay-check.yml      # Overlay 产品门 + Ops DAG：spec → review-bots → validate/select/run；失败 bounce
-  pr-title.yml           # 通用；永远跑
-  sop-lock.yml           # 通用仓级 SOP；永远跑；不是第三件产品
+  overlay.yml            # reusable；产品仓 uses: @ pin（不要拷本工作本 ci.yml）
+  release.yml            # 人点发布两条产品 tag；不是 CI
 invariants.yaml          # 可选：跨叶子性质；本工作本有一份
 docs/design.md           # 本文
 docs/inbox.md            # Overlay 输入面
