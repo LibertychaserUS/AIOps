@@ -1,0 +1,3 @@
+# Copy to the consuming repo as .github/CODEOWNERS and replace teams.
+* @your-org/reviewers
+/.github/ @your-org/admins

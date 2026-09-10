@@ -7,4 +7,4 @@ Workshop for two reusable products: **Forge** (ordered GitHub collab) and **Over
 - Do not edit Deepseek3.
 - Do not press production (`ilovelearningguide.com`).
 - Do not couple Forge/Overlay core to one product’s routes or domains.
-- Constraints: `docs/2026-09-10-对话整理.md`. Products: `docs/products.md`.
+- Constraints: `docs/2026-09-10-对话整理.md`. Full design: `docs/design.md`.

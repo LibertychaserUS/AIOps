@@ -11,8 +11,9 @@ Neither deploys. Neither attaches Proctor. Neither edits Learning Guide Verify.
 
 Status: design written; no installer or generator yet.
 
-- 两件产品怎么做、怎么接到别的仓：[`docs/products.md`](docs/products.md)
-- 系统设计：[`docs/architecture.md`](docs/architecture.md)
+- **完整详细设计：** [`docs/design.md`](docs/design.md)
+- 产品怎么接到别的仓：[`docs/products.md`](docs/products.md)
 - 约束：[`docs/2026-09-10-对话整理.md`](docs/2026-09-10-对话整理.md)
-- Overlay 契约：[`schema/suite.example.yaml`](schema/suite.example.yaml)、[`schema/receipt.example.yaml`](schema/receipt.example.yaml)
+- Overlay 契约：[`schema/suite.schema.json`](schema/suite.schema.json)、[`schema/receipt.example.yaml`](schema/receipt.example.yaml)
+- LG fixture：[`examples/learning-guide/`](examples/learning-guide/)
 - Forge 政策：[`forge/agent-policy.md`](forge/agent-policy.md)、[`forge/ruleset.protected-default.json`](forge/ruleset.protected-default.json)

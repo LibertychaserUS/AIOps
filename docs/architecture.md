@@ -1,7 +1,8 @@
 # AI CI Overlay — 架构、技术栈与系统设计
 
-对照约束：[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md)。  
-本文件是下一刀实现的设计依据，不是实现说明。
+**完整详细设计（实现对照）在 [`design.md`](design.md)。** 本文是演进过程稿。
+
+对照约束：[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md)。
 
 仓：`LibertychaserUS/AIOps`（工作本）。不代替空仓 `First-Light-TechHK/AIOps`。不改产品仓 `First-Light-TechHK/LearningGuidePortal` 的 Verify。不做 CD。不按生产站 `ilovelearningguide.com`。
 
@@ -32,7 +33,7 @@
 
 Git 是两层共同的账本。没有数据库、没有自建工作台、不改产品 Verify、不打生产。
 
-第一刀：第 1 层当天能产出一页人审用例（My Learning `armed`，支付/登录 `blocked`）；第 2 层先落地 **Rulesets（禁直推 main）+ 已有 CodeRabbit**，coding agent 只许开 PR。
+第一刀（产品可复用，Learning Guide 只当例子）：Overlay 当天能产出一页人审用例；Forge 能对任意仓 `apply` 出「禁直推 main」。支付/登录在 LG fixture 里保持 `blocked`。
 
 ---
 
@@ -115,7 +116,7 @@ Proctor 的规矩（没审过不跑、没证据不过）**只复用语义**，�
 
 **以后若要一本账：** 适配器只许住在本仓、只许读本仓 `receipts/`、只许在实习机本机把文件交给已有 Proctor。Deepseek3 源码仍不改。没有这条适配器之前，两本账并排已经算结合完成。
 
-### 2.3 第 2 层：GitHub 上把多人开发规范有序
+### 2.3 Forge：GitHub 上把多人开发规范有序（独立产品）
 
 协作面就是 **GitHub**，不另找编辑器、不自建门户。要借的是把「人 + agent 同时写同一个仓」关进已有原语里。
 
@@ -402,15 +403,13 @@ docs/architecture.md        # 本文件
 
 ## 8. 第一刀 / 第二刀
 
-**第一刀（对照对话成功标准）**
+**第一刀（对照对话成功标准 + 两件产品可装到别的仓）**
 
-1. 契约：`suite.yaml` 字段冻住；非法即红。
-2. Inbox：My Learning 摘录（指针指向产品仓 pin + 短 md）。
-3. 生成或手写一页 `cases.md`，人审。
-4. 支付 / 登录 suite：`blocked`。My Learning 已合且可测的切片：`armed`。
-5. `select main` 不含 `blocked`/`draft`。本仓 push 不因此红。
-6. 第 2 层：本仓（及产品仓能配的范围内）Rulesets 禁直推 `main`；agent 只开 PR。
-7. `select` 写出程序回执；不调用 Proctor。
+1. Overlay 契约冻住；非法即红。`select` 与接入方业务无关。
+2. `examples/learning-guide`：一篇 My Learning inbox；支付/登录 `blocked`。
+3. Forge：`ruleset.protected-default.json` + `forge apply` 能装到任意仓；agent-policy 可粘贴。
+4. `select main` 不含 `blocked`/`draft`。Overlay check 不因 `blocked` 红。
+5. 程序回执；不调用 Proctor。不改接入方构建 workflow。
 
 **第二刀（仍不做门户、不做舰队）**
 
