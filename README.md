@@ -11,7 +11,7 @@ Neither deploys. Neither attaches Proctor. Neither edits Learning Guide Verify.
 
 Overlay is a standard part: it freezes **contract fields**, not a product’s numbers, PRD chapter tree, IEEE filenames, or test folder layout. Agents read adopter docs and compile them into `inbox/` + `suites/`.
 
-Status: design written; no installer or generator yet.
+Status: design written; Forge first slice is `python -m forge apply --dry-run` (ruleset JSON only; no live apply in CI). Overlay generator is not in yet.
 
 - **完整详细设计：** [`docs/design.md`](docs/design.md)
 - Inbox 输入面：[`docs/inbox.md`](docs/inbox.md)
