@@ -1,5 +1,6 @@
 # Reusable Overlay CI: validate + select, and optionally run Overlay armed product_command.
 # Forge tests do not belong here — workshop Forge CI is forge-check.yml.
+# Adopters pin this file; do not copy this workshop's ci.yml.
 # Always checkout the caller (product). If overlay/ is absent (correct adopter
 # shape), checkout inputs.tool_repository into _aiops — do not vendor overlay/
 # into the product repo. Default is this workshop. Forks pass their own repo.

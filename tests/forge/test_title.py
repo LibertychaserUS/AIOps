@@ -212,13 +212,14 @@ class WorkshopConfigTests(unittest.TestCase):
         self.assertIn("sop-lock", text)
 
     def test_pr_title_workflow_is_pull_request_only(self) -> None:
-        text = (ROOT / ".github" / "workflows" / "pr-title.yml").read_text(encoding="utf-8")
+        text = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
         self.assertIn("name: pr-title", text)
-        self.assertIn("pull_request", text)
-        self.assertNotIn("\n  push:\n", text)
+        self.assertIn("if: github.event_name == 'pull_request'", text)
         self.assertIn("python -m forge pr-title", text)
         self.assertIn("pip install -r requirements.txt", text)
-        overlay = (ROOT / ".github" / "workflows" / "overlay-check.yml").read_text(encoding="utf-8")
+        overlay = (ROOT / ".github" / "workflows" / "overlay-check.yml").read_text(
+            encoding="utf-8"
+        )
         self.assertIn("forge ci-select", overlay)
         self.assertIn("python -m forge pr-title", overlay)
         self.assertIn("name: spec", overlay)

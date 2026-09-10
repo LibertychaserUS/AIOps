@@ -17,7 +17,7 @@ Overlay is a standard part. Freeze the contract, not a product’s numbers. Agen
 
 原则：[`docs/sop-lock.md`](../../docs/sop-lock.md)。只锁可机器判定的子集，不 NLP 扫散文。
 
-- Overlay Ops PR 链：规格 → CodeRabbit/Copilot 评论 → 本分支全量 Overlay CI → 人合。失败打回并留 `ops-debug`：`overlay-check.yml` + `python -m forge ops-review` / `bounce` → **`overlay-check`**
+- Overlay Ops PR 链：规格 → CodeRabbit/Copilot 评论 → 本分支全量 Overlay CI → 人合。失败打回并留 `ops-debug`：本工作本 `overlay-check.yml` + `python -m forge ops-review` / `bounce` → **`overlay-check`**
 - 契约 / 三技法 / invariant 点名 / blocked 不入选 / 回执 / `forbid_hosts`：`python -m overlay validate|cover|select|run` → CI **`overlay-check`**
 - push 不 generate、不 checkout LearningGuidePortal、不 `workflow_call` 产品 Verify、不另开 `self-test` 绕过 Overlay select：`python -m forge sop-lock` → CI **`sop-lock`**
 - Overlay 测试只走 Overlay armed `product_command`。Forge 单测走 **`forge-check`**。`sop-lock` 不是 Overlay 旁路 unittest。**通用检查 ≠ 产品门。** 产品门按 `forge.yaml` `ci` 选跑或跳过。
@@ -72,7 +72,7 @@ If you forked the workshop, `uses:` **your fork** at a pin and pass `tool_reposi
 
 ### CI — same gate as the tests
 
-7. Wire a **thin** caller that `uses:` the reusable overlay workflow from the tool repo (pin tag/SHA). This workshop’s `overlay-check.yml` uses `enable_run: true` and pins `branch: main` so agent branches still run the armed **tool** tests — that file is for this workshop, not something to copy the Python package from.
+7. Wire a **thin** caller that `uses:` the reusable overlay workflow from the tool repo (pin tag/SHA). This workshop’s `overlay-check.yml` uses `enable_run: true` and pins `branch: main` so agent branches still run the armed **tool** tests — that file is for this workshop, not something to copy the Python package from. Do not copy this workshop’s `ci.yml` (common checks only).
 8. Push runs **validate + select + run**. On **pull_request** (when selected) Overlay Ops is: **spec (`pr-title`) → review-bots (CodeRabbit + Copilot comments, advisory) → full Overlay CI on this checkout → human merge**. Red spec/CI: `python -m forge bounce` 打回 the PR and keeps `overlay-ops-debug` + receipts. `run` executes each selected suite’s `product_command` in the **caller (product) checkout**. It does not clone a foreign product repo (Learning Guide Portal is never checked out from here). It **does** checkout the tool repo when `overlay/` is not local. No generate. No token spend on push. Do not wait for CodeRabbit to be a required check.
 9. Local equivalent (tool next door):
    ```text

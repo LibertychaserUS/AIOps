@@ -13,7 +13,7 @@ GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge
 
 不声称用 NLP 锁住全部散文。只锁**可判定子集**。每个 skill 的 `## Lock` 指向程序。存货如下。
 
-**通用检查 ≠ 产品门。** `pr-title` 与 `sop-lock` 是仓级通用检查（`forge.yaml` `ci.common`），始终跑。`overlay-check` 与 `forge-check` 是两件产品的产品门（`ci.products`）；workflow 必启动，跳过由 `python -m forge ci-select` 写成 success，不靠 `on.paths`。
+**通用检查 ≠ 产品门。** 文件归属是 **产品前缀分治**（[`ci-design.md`](ci-design.md)）：同前缀可合，跨产品不合。`pr-title` 与 `sop-lock` 是仓级通用检查（`forge.yaml` `ci.common`），始终跑。`overlay-check` 与 `forge-check` 是两件产品的产品门（`ci.products`）；workflow 必启动，跳过由 `python -m forge ci-select` 写成 success，不靠 `on.paths`。本工作本把通用检查收进 `ci.yml`（jobs `pr-title` + `sop-lock`）；Forge 门是 `forge-check.yml`，Overlay 门 + Ops DAG 是 `overlay-check.yml`。不要把两件产品塞进同一个 workflow。接入方 pin reusable `overlay.yml`，不要拷本工作本 `ci.yml`。残留的 `pr-title.yml` / `sop-lock.yml` 会让 `sop-lock` 红。
 
 本工作本 Ruleset 要勾的检查名（`forge.yaml` `required_checks`）：
 
