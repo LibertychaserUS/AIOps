@@ -1,0 +1,3 @@
+# Overlay (+ later Forge YAML). CPython 3.12+.
+# Slice 1 has no HTTP client. Do not add generate deps to push CI.
+PyYAML>=6.0.1,<7

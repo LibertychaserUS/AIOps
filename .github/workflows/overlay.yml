@@ -1,0 +1,144 @@
+# Reusable Overlay preview. Slice 1: validate + select only.
+# enable_run defaults false. No product checkout. No generate. No tokens on push.
+# Do not workflow_call a product ci.yml / Verify.
+
+name: overlay
+
+on:
+  workflow_call:
+    inputs:
+      enable_run:
+        description: "Slice 2 only. Checkout product and run product_command."
+        type: boolean
+        default: false
+      root:
+        description: "Directory with overlay.yaml, inbox/, suites/."
+        type: string
+        default: "."
+      branch:
+        description: "Branch for select. Empty uses pull_request base_ref or ref_name."
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Detect Overlay package
+        id: pkg
+        run: |
+          if [ -f overlay/__init__.py ]; then
+            echo "local=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "local=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout Overlay product
+        if: steps.pkg.outputs.local == 'false'
+        uses: actions/checkout@v4
+        with:
+          repository: LibertychaserUS/AIOps
+          ref: ${{ github.workflow_sha }}
+          path: _aiops
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Overlay
+        run: |
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          elif [ -f _aiops/requirements.txt ]; then
+            pip install -r _aiops/requirements.txt
+          fi
+          if [ -d _aiops/overlay ]; then
+            echo "PYTHONPATH=${GITHUB_WORKSPACE}/_aiops" >> "$GITHUB_ENV"
+          fi
+
+      - name: overlay validate
+        run: python -m overlay validate --root "${{ inputs.root }}"
+
+  select:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Detect Overlay package
+        id: pkg
+        run: |
+          if [ -f overlay/__init__.py ]; then
+            echo "local=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "local=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout Overlay product
+        if: steps.pkg.outputs.local == 'false'
+        uses: actions/checkout@v4
+        with:
+          repository: LibertychaserUS/AIOps
+          ref: ${{ github.workflow_sha }}
+          path: _aiops
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Overlay
+        run: |
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          elif [ -f _aiops/requirements.txt ]; then
+            pip install -r _aiops/requirements.txt
+          fi
+          if [ -d _aiops/overlay ]; then
+            echo "PYTHONPATH=${GITHUB_WORKSPACE}/_aiops" >> "$GITHUB_ENV"
+          fi
+
+      - name: Resolve branch
+        id: br
+        run: |
+          B="${{ inputs.branch }}"
+          if [ -z "$B" ]; then B="${{ github.base_ref }}"; fi
+          if [ -z "$B" ]; then B="${{ github.ref_name }}"; fi
+          echo "name=$B" >> "$GITHUB_OUTPUT"
+
+      - name: overlay select
+        run: |
+          mkdir -p receipts
+          python -m overlay select --branch "${{ steps.br.outputs.name }}" --root "${{ inputs.root }}" --write-receipt receipts/
+
+      - name: Upload receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: overlay-receipt
+          path: receipts/
+          if-no-files-found: error
+
+  run:
+    if: ${{ inputs.enable_run }}
+    needs: select
+    runs-on: ubuntu-latest
+    steps:
+      - name: enable_run is slice 2
+        run: |
+          echo "enable_run is reserved for slice 2 (product checkout + product_command)."
+          echo "This workflow must not checkout a product repo in slice 1."
+          exit 1
