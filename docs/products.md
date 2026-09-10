@@ -11,6 +11,8 @@
 
 **通用检查 ≠ 产品门。** 不是两个产品各搞一套对等 CI。仓级规格（标题 Conventional Commits、正文六节、`sop-lock`）永远跑。产品门（`overlay-check` / `forge-check`）在 `forge.yaml` `ci` 里选择执行或跳过（workflow 必启动，skip 记成功）。`python -m forge ci-select`。不要把标题检查只挂在 Forge 下。
 
+Overlay **Ops** Action CI（PR 且选中）顺序：规格 → CodeRabbit/Copilot 评论（只建议）→ 该 checkout 全量 Overlay CI → 人合。失败：PR 打回，Ops/CI 留 `ops-debug` / receipts。
+
 完整详细设计：[`design.md`](design.md)。使用 skill（Codex `SKILL.md`）：[`sop.md`](sop.md)、[`../skills/use-forge/SKILL.md`](../skills/use-forge/SKILL.md)、[`../skills/use-overlay/SKILL.md`](../skills/use-overlay/SKILL.md)、[`../skills/design-cases/SKILL.md`](../skills/design-cases/SKILL.md)、管理端 [`../skills/manage-repo/SKILL.md`](../skills/manage-repo/SKILL.md)、开发端 [`../skills/dev-pr/SKILL.md`](../skills/dev-pr/SKILL.md)。Review / merge / RBAC：[`rbac.md`](rbac.md)。PR 解说规格：[`pr-brief.md`](pr-brief.md)。Inbox：[`inbox.md`](inbox.md)。测试规格：[`test-spec.md`](test-spec.md)。编译契约：[`agents/overlay-contract.md`](agents/overlay-contract.md)。IEEE 剖面：[`agents/ieee-test-system.md`](agents/ieee-test-system.md)。过程稿：[`architecture.md`](architecture.md)。约束：[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md)。
 
 ---
@@ -29,9 +31,9 @@
 
 本地：工具仓或 fork 与产品仓并排放。`PYTHONPATH=<工具仓>` 再跑 `python3 -m forge` / `python3 -m overlay`。不要为了 import 把包 `git add` 进产品树。
 
-CI：产品仓没有 `overlay/__init__.py` 时，reusable [`overlay.yml`](../.github/workflows/overlay.yml) 会 checkout `LibertychaserUS/AIOps` 到 `_aiops` 并设 `PYTHONPATH`。这是正确复用路径。不要为了让 `local=true` 把 `overlay/` 拷进产品仓。
+CI：产品仓没有 `overlay/__init__.py` 时，reusable [`overlay.yml`](../.github/workflows/overlay.yml) 会 checkout `tool_repository`（默认 `LibertychaserUS/AIOps`）到 `_aiops` 并设 `PYTHONPATH`。这是正确复用路径。不要为了让 `local=true` 把 `overlay/` 拷进产品仓。
 
-Fork 若已分叉、SHA 不在上游：`uses:` 指向该 fork 的 pin；fork 里的 workflow 把工具 checkout 改成自己的 fork。
+Fork 若已分叉、SHA 不在上游：`uses:` 指向该 fork 的 pin，并把 `tool_repository` / `tool_ref` 指到该 fork。永不 checkout LearningGuidePortal。
 
 ---
 
@@ -53,7 +55,7 @@ Fork 若已分叉、SHA 不在上游：`uses:` 指向该 fork 的 pin；fork 里
 
 人多了、再加会写代码的 agent，GitHub 上会直推 `main`、互踩、无人审就合。Forge 分两侧，不自建协作网站，也不做 Graphite 克隆 / 自动合入机器人：
 
-- **开发侧**：先 `python -m forge check` 绿，且宿主已注入 GitHub 写权限（代推锁），再 `python -m forge submit` 代推当前功能分支，开/更新 draft PR（对齐 [`gh pr create`](https://cli.github.com/manual/gh_pr_create)）。Forge 不保管密钥。check 红或无凭证（含 `--dry-run`）不 push。Ops merge 是另一套权限。
+- **开发侧**：先 `python -m forge check` 绿，且持有 `FORGE_SUBMIT_TOKEN`（代推锁），再 `python -m forge submit` 代推当前功能分支，开/更新 draft PR（对齐 [`gh pr create`](https://cli.github.com/manual/gh_pr_create)）。Forge 不保管密钥。check 红或无凭证（含 `--dry-run`）不 push。Ops merge 是另一套权限。
 - **Ops 侧**：Ruleset required checks（合入锁）+ 人点 merge（对齐 [GitHub Ruleset required checks](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#require-status-checks-to-pass-before-merging)）。
 
 完整分工：[`rbac.md`](rbac.md)、[`design.md`](design.md) §3。
@@ -70,7 +72,7 @@ Fork 若已分叉、SHA 不在上游：`uses:` 指向该 fork 的 pin；fork 里
 | `.github/workflows/forge-guard.yml` | reusable：校验 PR 来自允许的前缀、没有改保护 workflow | 产品仓一条薄 `uses:`（pin tag/SHA） |
 | `python -m forge apply --repo owner/name` | Ops：用 GitHub API 安装 Ruleset（幂等）。不合入 | 本机 `PYTHONPATH` 指向工具仓；admin token |
 | `python -m forge check` | 开发侧提交前本地门 | 红则不 push；`submit` 先跑 |
-| `python -m forge submit --repo owner/name` | 开发侧代推：check 绿且宿主已注入写权限后 push 功能分支 + `gh pr create` | 标题过 `pr-title`；无凭证含 `--dry-run` 也红；CI `GITHUB_TOKEN` 不是代推 |
+| `python -m forge submit --repo owner/name` | 开发侧代推：check 绿且持有非空 `FORGE_SUBMIT_TOKEN`后 push 功能分支 + `gh pr create` | 标题过 `pr-title`；无凭证含 `--dry-run` 也红；CI `GITHUB_TOKEN` 不是代推 |
 
 评审：继续用接入方已有的 **CodeRabbit**（或同等 PR review）。Forge 不重做 diff 审。Copilot review 只当建议，不当 merge 门。
 

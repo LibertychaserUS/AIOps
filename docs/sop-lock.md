@@ -6,7 +6,7 @@
 
 | 锁 | 命令 | 挡住什么 |
 |---|---|---|
-| **代推锁（提交前）** | `python -m forge check` 绿，且宿主已注入 GitHub 写权限（`submit` 先探测再跑 check） | 不绿或无宿主凭证则 **不 push、不开 PR**（含 `--dry-run`） |
+| **代推锁（提交前）** | `python -m forge check` 绿，且持有 `FORGE_SUBMIT_TOKEN`（`submit` 先探测再跑 check） | 不绿或缺 `FORGE_SUBMIT_TOKEN`则 **不 push、不开 PR**（含 `--dry-run`） |
 | **合入锁** | GitHub required checks / Ruleset | 不绿则 **不能合** |
 
 GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge check` 才是开发侧代推门。
@@ -19,7 +19,7 @@ GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge
 
 | 检查名 | 类 | 命令 | 何时 |
 |---|---|---|---|
-| **`overlay-check`** | 产品门 | `overlay validate` + `select` + `run`（Overlay armed `product_command`） | push / pull_request；selector 可 skip-success |
+| **`overlay-check`** | 产品门 + Overlay Ops 链 | PR 上：规格 `pr-title` → `ops-review`（CodeRabbit/Copilot，只建议）→ 本分支全量 Overlay CI（validate/select/run）；失败 `bounce` 打回并留 `ops-debug` | push 无 PR 面，直接全量 CI；selector 可 skip-success |
 | **`forge-check`** | 产品门 | Forge 单测（`unittest discover -s tests/forge`）+ `forge apply --dry-run` | push / pull_request；selector 可 skip-success |
 | **`pr-title`** | 通用 | `python -m forge pr-title`（Conventional Commits `type(product/actor): subject` + 正文六节） | 仅 `pull_request` |
 | **`sop-lock`** | 通用 | `python -m forge sop-lock` | push / pull_request |
@@ -30,7 +30,7 @@ GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge
 
 | 何时 | 程序 | 红了怎样 |
 |---|---|---|
-| **代推**（push + 开 PR） | `python -m forge check` 绿，且宿主已注入写权限 | `forge submit` 拒绝，不 push、不开 PR |
+| **代推**（push + 开 PR） | `python -m forge check` 绿，且持有非空 `FORGE_SUBMIT_TOKEN` | `forge submit` 拒绝，不 push、不开 PR |
 | **合入**（merge） | GitHub required checks：通用 `pr-title` + `sop-lock`（永远跑）；产品 `overlay-check` + `forge-check`（选跑或 skip 成功） | Ruleset 挡 merge |
 
 ---
@@ -52,19 +52,21 @@ GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge
 | 不 `workflow_call` 产品 `ci.yml` / Verify；不 checkout `LearningGuidePortal` | `sop-lock` | 改别的仓的 Verify | |
 | reusable `uses:` 不钉浮动 `main`/`master`/`HEAD`/`latest` | `sop-lock` | 接入方仓是否 pin | 相对路径合法 |
 | Overlay push 上不另开 `self-test` / 旁路 `unittest discover` | `sop-lock` | — | Overlay 单测进 Overlay armed `product_command`；Forge 单测进 **`forge-check`** |
-| 本工作本 `forge.yaml` 列出 `overlay-check`、`pr-title`、`forge-check`、`sop-lock`；CodeRabbit 不能当唯一门 | `sop-lock` | Ruleset UI 是否勾上 | 不 live apply |
+| 本工作本 `forge.yaml` 列出 `overlay-check`、`pr-title`、`forge-check`、`sop-lock`；`apply` 写入 Ruleset `required_status_checks`；CodeRabbit 不能当唯一门 | `sop-lock` + `forge apply --dry-run` | 目标仓是否真跑过 apply | 不 live apply LearningGuidePortal |
 | 每个 `skills/*/SKILL.md` 有 `## Lock` 并指向程序 | `sop-lock` | Lock 段落写得清不清 | |
 | PR 标题 `type(product/actor): subject` | `python -m forge pr-title` → **`pr-title`** | 祈使句好不好读 | `[开发][Overlay]` 红 |
+| 进 `main` 的 PR 必须封顶；squash 后换底；不从即将被压掉的旧头再叠 | `sop-lock` 扫 `pr-brief` / skill；`submit` base=`protect` | GitHub UI 是否把 PR base 指到另一条 `cursor/` 枝 | 提交内容规格化；默认 squash。不 NLP 验「这单够不够封顶」 |
 | PR 正文六个 `##` 原样且按序 | 同上（`docs/pr-brief.md` 存在才锁） | 各节内容是否说清 | 不 NLP 验「不做什么」名单 |
 | 代推前本地门必须绿 | `python -m forge check`（代推锁；`submit` 调用） | 人是否绕过 CLI 直 push | GitHub required checks 只锁合入；可选 `forge/hooks/pre-submit`，不装 husky |
-| Live / dry-run `submit` 必须有宿主注入的写权限 | `python -m forge submit` + `sop-lock` 扫源码 | 人是否直 `git push` | 人：`gh auth login`；代理：`GH_TOKEN` / extraheader。CI `GITHUB_TOKEN` 不是代推。不发明第二把提交环境变量 |
+| Live / dry-run `submit` 必须有`FORGE_SUBMIT_TOKEN` | `python -m forge submit` + `sop-lock` 扫源码 | 人是否直 `git push` | `gh auth login` / `GH_TOKEN` / 本机 extraheader / CI `GITHUB_TOKEN` 都不够。同一把 `FORGE_SUBMIT_TOKEN` 开 PR 并注入 HTTPS push。永不打印 token |
 | LearningGuidePortal live `forge apply` 拒绝 | `python -m forge apply` + Forge 单测 → **`forge-check`**（产品门） | 人是否打别的仓 | |
 | Forge 不写 Overlay `status` / `reviewed_by` | Forge 单测 → **`forge-check`**（产品门） | — | |
 | 产品门按 `forge.yaml` `ci` 选跑或跳过 | `python -m forge ci-select` | 标题 product 写错 | 通用层不跳过 |
 | 不装 husky / npm 当合入锁 | `sop-lock` | 开发本机自愿 hook | |
 | Agent 不自 Approve / 不自 merge | — | **仅人审** | GitHub 人 + Ruleset |
 | 开发不合自己让 agent 开的 PR | — | **仅人审** | |
-| CodeRabbit 只建议 | `sop-lock`：不得当 `required_checks` 唯一项 | 人是否把它当审 | |
+| Overlay Ops：规格 → CodeRabbit/Copilot 评论 → 分支全量 CI → 人合 | `overlay-check.yml` job DAG + `python -m forge ops-review` / `bounce` → **`overlay-check`** | 人点 merge | 机器人评论不当合入门 |
+| CI/合入失败：PR 打回；Ops/CI 留日志准备 debug | `python -m forge bounce` 写 `ops-debug.yaml` + artifact | 人是否真去看 artifact | 不合入 |
 | 不 vendor 工具进产品仓 | — | **仅人审**（本仓 CI 看不见别的仓） | |
 | 不 attach Proctor；不改 Deepseek3 | — | **仅人审** | |
 | 不做 CD、不打生产（人手） | 命令命中 `forbid_hosts` 已锁 | 人在 runner 外打域名 | |
@@ -84,4 +86,4 @@ python3 -m overlay validate --root .
 python3 -m overlay cover --root .
 ```
 
-`forge check` 在有 `overlay.yaml` 时跑 validate + cover；有标题时跑 `pr-title`；工具仓有 `schema/` 时跑 `schema/check.py`；本工作本有 `tests/` 时跑快单测子集；并跑 `sop-lock`。退出 2 则 `submit` 拒绝。可选：`forge/hooks/pre-submit`（opt-in，不默认安装）。
+`forge check` 在有 `overlay.yaml` 时跑 validate + cover；有 `--title` / `PR_TITLE` 时跑 `pr-title`；有 `docs/pr-brief.md` 且有 `--body` / `PR_BODY` 时 lint 正文；工具仓有 `schema/` 时跑 `schema/check.py`；本工作本有 `tests/` 时跑快单测子集；并跑 `sop-lock`。省略标题/正文会 skip，并写明 CI 会 lint `PR_TITLE` / `PR_BODY`——本地绿 ≠ CI 已过同一把锁。退出 2 则 `submit` 拒绝。可选：`forge/hooks/pre-submit`（opt-in，不默认安装）。

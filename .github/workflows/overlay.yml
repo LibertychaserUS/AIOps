@@ -1,8 +1,9 @@
 # Reusable Overlay CI: validate + select, and optionally run Overlay armed product_command.
 # Forge tests do not belong here — workshop Forge CI is forge-check.yml.
 # Always checkout the caller (product). If overlay/ is absent (correct adopter
-# shape), checkout LibertychaserUS/AIOps into _aiops — do not vendor overlay/
-# into the product repo. No foreign product clone (never LearningGuidePortal).
+# shape), checkout inputs.tool_repository into _aiops — do not vendor overlay/
+# into the product repo. Default is this workshop. Forks pass their own repo.
+# No foreign product clone (never LearningGuidePortal).
 # No generate. No tokens on push. Do not workflow_call a product ci.yml / Verify.
 
 name: overlay
@@ -26,6 +27,14 @@ on:
         description: "Artifact name prefix (must be unique when this workflow is called twice)."
         type: string
         default: overlay
+      tool_repository:
+        description: "Workshop or fork that holds overlay/ (never LearningGuidePortal)."
+        type: string
+        default: LibertychaserUS/AIOps
+      tool_ref:
+        description: "Git ref of the tool checkout. Empty uses github.workflow_sha."
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -53,8 +62,8 @@ jobs:
         if: steps.pkg.outputs.local == 'false'
         uses: actions/checkout@v4
         with:
-          repository: LibertychaserUS/AIOps
-          ref: ${{ github.workflow_sha }}
+          repository: ${{ inputs.tool_repository }}
+          ref: ${{ inputs.tool_ref != '' && inputs.tool_ref || github.workflow_sha }}
           path: _aiops
           persist-credentials: false
 
@@ -100,8 +109,8 @@ jobs:
         if: steps.pkg.outputs.local == 'false'
         uses: actions/checkout@v4
         with:
-          repository: LibertychaserUS/AIOps
-          ref: ${{ github.workflow_sha }}
+          repository: ${{ inputs.tool_repository }}
+          ref: ${{ inputs.tool_ref != '' && inputs.tool_ref || github.workflow_sha }}
           path: _aiops
           persist-credentials: false
 
@@ -165,8 +174,8 @@ jobs:
         if: steps.pkg.outputs.local == 'false'
         uses: actions/checkout@v4
         with:
-          repository: LibertychaserUS/AIOps
-          ref: ${{ github.workflow_sha }}
+          repository: ${{ inputs.tool_repository }}
+          ref: ${{ inputs.tool_ref != '' && inputs.tool_ref || github.workflow_sha }}
           path: _aiops
           persist-credentials: false
 

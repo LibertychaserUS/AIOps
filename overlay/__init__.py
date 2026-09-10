@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
 EXIT_OK = 0
 EXIT_CONTRACT = 2

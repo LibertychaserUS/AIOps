@@ -1,60 +1,38 @@
-# 代推需要写权限密钥；Forge 不保管，只消费宿主注入
+# 代推必须持有 `FORGE_SUBMIT_TOKEN`
 
-一页说清：**密钥存在哪、谁注入、`forge submit` 怎么用、没有会怎样。**
+开发侧代理提交（`python -m forge submit`，含 `--dry-run`）必须显式持有 **`FORGE_SUBMIT_TOKEN`**（PAT / fine-grained / GitHub App token）。缺或空：退出码 2（fail closed）。
 
-Forge **不是**密钥库，也不是 GitHub 已经有的协作产品（`gh auth`、Actions secrets、Cursor 注入）的替代品。不要做 Forge vault，不要第二套权限库，不要让模型粘贴 PAT。
+**Forge 不保管** 这把密钥：不写进 git、不写进 `forge.yaml`、不写进回执。程序只读环境变量名 `FORGE_SUBMIT_TOKEN`，永不打印值。
+
+这不是「只靠 git + gh」。本机 `gh auth login`、平台注入的 `GH_TOKEN`、git https extraheader、CI `GITHUB_TOKEN`、Ops 的 `FORGE_GITHUB_TOKEN` **都不够**。
 
 Overlay「token 只在人点 `generate`」是**另一把密钥**（模型 API：`OPENAI_API_KEY` / `OPENROUTER_API_KEY`）。那不是 GitHub 写权限，不是 `submit` 的凭证。不要混为一谈。
 
-`forge apply` 的管理员钥匙（`FORGE_GITHUB_TOKEN`，Administration: write）也是另一把，只给 Ops 装 Ruleset。不是代推。
+`forge apply` 的管理员钥匙（`FORGE_GITHUB_TOKEN`，Administration: write）也是另一把，只给 Ops 装 Ruleset。不是代推。Ops merge 用 GitHub 写权限 + Ruleset，不是这把提交密钥。
 
 ---
 
-## 保存方式 / 使用方式
+## 保存 / 使用
 
-| Actor | 密钥存在哪（保存） | 谁注入 | submit 怎么用（使用） |
-|---|---|---|---|
-| 人，本机 | `gh auth login` → gh 凭据库 / OS keychain（`~/.config/gh`，**不在 git 仓里**） | 开发者自己登录一次 | `forge submit` 跑 `git push` + `gh pr create`，沿用这次登录。`gh auth status` 未登录则拒绝 |
-| Cursor / 云代理 | Cursor GitHub App / 平台注入的 token（`GH_TOKEN` 或 git https `extraheader`）。活在 **agent 运行时**，不在 workshop git、不在 `overlay.yaml` / `forge.yaml`、不在聊天、不在回执 | 宿主（Cursor / 云平台），不是模型 | `forge submit` 用已经注入的 git/gh 凭证。git 和 gh 都不能认证则拒绝。**不要**向模型粘贴 PAT |
-| CI Actions | job 权限里的 `GITHUB_TOKEN` | Actions | **合入锁**（check + merge），**不是代推**。overlay / pr-title / sop-lock workflow **不得**调用 `forge submit` |
+| Actor | 必须持有 | 不是这个 |
+|---|---|---|
+| 人 / agent 本机或云 | 环境变量 `FORGE_SUBMIT_TOKEN`（运行时注入，不进 git） | `gh auth login`、`GH_TOKEN`、git extraheader、`GITHUB_TOKEN` |
+| CI overlay-check / forge-check | 工作流本身不得 live-submit。单测用假值证明密钥名 | job 的 `GITHUB_TOKEN`（合入锁，不是代推） |
 
 禁止：
 
-- 把 token、`.env`、Forge 密钥文件提交进 git
+- 把 token、`.env`、真实密钥提交进 git
 - 打印 token
 - 把 token 写进 PR 正文 / 回执 / traces / suite yaml
-- 发明第二把 Forge 专用提交环境变量当产品故事
-- 自动合入、自 Approve、直推保护默认分支
+- 用 `gh auth` 或 CI `GITHUB_TOKEN` 冒充代推产品故事
+- 自动合入、自 Approve、直推保护默认分支、live-apply Rulesets
 
 ---
 
 ## 没有密钥时的行为
 
-`python -m forge submit`（**包括 `--dry-run`**）fail-closed：
+1. 先跑本地 `python -m forge check`。红 → 退出 2，不 push。check 不读密钥。
+2. 再要求 `FORGE_SUBMIT_TOKEN`。缺或空 → 退出 2，打印 `would require FORGE_SUBMIT_TOKEN` / `missing FORGE_SUBMIT_TOKEN`。`--dry-run` 同样红。
+3. 都过：`--dry-run` 打印计划后退出 0；live 则同一把 `FORGE_SUBMIT_TOKEN` 注入 HTTPS extraheader 推功能分支，并开/更新 **draft** PR。本机已有 extraheader 不是凭证。永不打印 token。永不 merge，永不 approve，永不 arm，永不 apply Ruleset。
 
-1. 探测宿主写权限（只报有无和来源名：`gh-login` / `GH_TOKEN` / `git-extraheader`，**不打印值**）。
-2. 没有可用写权限 → 退出码 `2`，不 push、不开 PR。`--dry-run` 同样失败。
-3. 有凭证再跑 `python -m forge check`。本地 check 红 → 退出码 `2`，不 push、不开 PR。
-4. 都过：`--dry-run` 打印计划后退出 `0`；live 则 `git push` 功能分支 + `gh pr create`（已有则更新）开 **draft** PR。永不 merge，永不 `apply` Ruleset，永不推 protect / `main`。
-
-CI 里 `GITHUB_ACTIONS=true` 时，submit 一律视为没有代推凭证（`GITHUB_TOKEN` 不是代推钥匙）。
-
----
-
-## 一条命令
-
-开发者本地（先 `gh auth login` 一次）：
-
-```text
-python3 -m forge check --root . --title "feat(forge/dev): subject"
-python3 -m forge submit --repo OWNER/NAME --title "feat(forge/dev): subject"
-```
-
-云代理（宿主已注入 `GH_TOKEN` 或 extraheader；不要向模型要 PAT）：
-
-```text
-python3 -m forge check --root . --title "feat(forge/agent): subject"
-python3 -m forge submit --repo OWNER/NAME --title "feat(forge/agent): subject"
-```
-
-对照：[`design.md`](design.md) §3.4、[`rbac.md`](rbac.md)、[`../skills/dev-pr/SKILL.md`](../skills/dev-pr/SKILL.md)。
+对照：[`design.md`](design.md) §3.4、[`rbac.md`](rbac.md)、[`../skills/dev-pr/SKILL.md`](../skills/dev-pr/SKILL.md)、[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md) §10。

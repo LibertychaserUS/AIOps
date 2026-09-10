@@ -2,6 +2,8 @@
 
 GitHub PR 是解说面。DevOps 和其他 agent 读**标题 + 正文**就知道做了什么，不靠翻 diff。不是门户，不另做解说站。
 
+本规格锁的是 **进 `main` 的那颗提交**，不是功能枝上每一颗中间 commit。默认落地是 **squash**：一单 PR 压成 `main` 上的一颗，标题就是那颗的 Conventional Commits header。这是提交内容的规格化，和标题语法同一层。
+
 「分工」写在 **GitHub PR 标题** 的 Conventional Commits scope（`product/actor` 的 `actor`）。只这一处。不是分支名，不是 workflow 的 `name:`，不是 `skills/<name>/`。不要另造 `管理/`、`开发/`、`agent/` 分支前缀。Forge 已有的 `agent_branch_prefixes`（默认 `cursor/`、`copilot/`，如 `cursor/overlay-architecture-6842`）管谁的分支能推，不是本规格；这类分支名不要改。
 
 标题 `actor` 只标明这单活戴哪顶帽子；`product` 标明碰哪件产品。谁审、谁合仍是 GitHub 上的人 + Ruleset，见 [`rbac.md`](rbac.md)。不要把标题当成权限。
@@ -15,15 +17,50 @@ python -m forge check --root . --title "feat(overlay/dev): add cover triad and i
 python -m forge pr-title --title "feat(overlay/dev): add cover triad and invariants"
 ```
 
-退出 `0` 绿、`2` 红。CI 同名检查 **`pr-title`**（只跑 `pull_request`）。本工作本 `forge.yaml` `required_checks` 已列入 `overlay-check`、`pr-title`、`forge-check`、`sop-lock`；Ruleset 勾上之后，红则不能合。代推前 `python -m forge check` 红则不能提交；宿主未注入写权限也不能提交（含 `--dry-run`）。不要 live `forge apply`。不要用 husky/npm 挡 `git commit`。
+退出 `0` 绿、`2` 红。CI 同名检查 **`pr-title`**（只跑 `pull_request`）。本工作本 `forge.yaml` `required_checks` 已列入 `overlay-check`、`pr-title`、`forge-check`、`sop-lock`；Ruleset 勾上之后，红则不能合。代推前 `python -m forge check` 红则不能提交；缺 `FORGE_SUBMIT_TOKEN` 也不能提交（含 `--dry-run`）。不要 live `forge apply`。不要用 husky/npm 挡 `git commit`。
 
-本仓 PR #3 的 GitHub 标题必须改成下面这一行（Agents 的 GitHub write 会 404，需要人在 UI 改名）：
+本仓 PR #3 的 GitHub 标题已由人在 UI 定为（不要再改，除非完全不准）：
 
 ```text
-feat(ci/agent): split overlay and forge CI workflows
+feat(overlay/agent): adopt Overlay CI and Conventional Commit PR titles
 ```
 
-（若这单以 Forge submit 为主，也可用 `feat(forge/dev): add submit middleware and lock the Forge/Ops split`。不要另造第二种语法。）
+不要改成 `feat(ci/agent): split overlay and forge CI workflows`。那是「两个产品各搞一套对等 CI」的旧说法。
+
+标题 `product` 同时驱动 `python -m forge ci-select`（`forge.yaml` `ci.select.title`）：`overlay` → `overlay-check`；`forge` → `forge-check`；`ci` → 两个都跑；`docs` → 只跑通用。**通用检查 ≠ 产品门。** 不要另造第二种标题语法。
+
+---
+
+## 进 main 的提交（squash 封顶）
+
+核心原理（提交内容规格化）：
+
+**要进 `main` 的 PR，必须是整段工作的封顶。合完立刻以 `main` 上那颗新 SHA 为底再开下一枝。不要从即将被压掉的旧头再叠。**
+
+| 锁 | 意思 |
+|---|---|
+| 封顶 | 这一单 PR 是整段工作。squash 之后 `main` 上只多一颗，标题就是那颗 header |
+| 压完换底 | 下一枝从 `main` 的新 SHA 开。旧功能枝头不再当 base |
+| 不叠旧头 | 禁止把未合 / 即将 squash 的 `cursor/…` 当下一单的 base。血缘在 squash 后断开 |
+
+`python -m forge submit` 的 base 是 `forge.yaml` `protect`（默认 `main`），不开到另一条功能枝。GitHub 合入默认 squash。merge commit / rebase 也能用，但不改变这条：封顶再压，压完换底。
+
+非法：#3 squash 之后还拿旧架构枝开 #4 / #5。合法：#5 squash 进 `main`，下一单从新的 `main` 头开。
+
+没有单独的 ISO / RFC 叫「封顶换底」。行业权威锁的是**进主干的那颗提交**，拓扑后果写在平台文档里：
+
+| 权威 | 锁什么 | 和本仓 |
+|---|---|---|
+| [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) FAQ | 规格管 **commit message**。允许 squash：维护者在合入时整理信息，「automatically squash commits from a pull request」 | 标题语法锁的是 squash 进 `main` 的那颗，不是功能枝每一颗 WIP |
+| [GitHub · About pull request merges](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/about-pull-request-merges) | Squash：**one logical change**。短命枝。合完还在同一 head 上继续开 PR，会把已经压进 base 的提交再带进来 | 「封顶」= one logical change；「换底」= 官方对 long-running branch 的警告 |
+| [GitHub · squash 默认用 PR 标题](https://github.blog/changelog/2022-05-11-default-to-pr-titles-for-squash-merge-commit-messages/) + 仓设置 `squash_merge_commit_title=PR_TITLE` | squash 提交的 subject 默认是 PR 标题 | 所以 `pr-title` 锁标题 = 锁 `main` 上的 commit header |
+| [amannn/action-semantic-pull-request](https://github.com/amannn/action-semantic-pull-request) | 为 squash + [semantic-release](https://github.com/semantic-release/semantic-release) 而写；建议仓设置 Default to PR title | 本仓用 CPython 做同一件事，不引入 Node |
+| [GitLab · Squash and merge](https://docs.gitlab.com/ee/user/project/merge_requests/squash_and_merge/) | 一单 MR 合成一颗有意义的提交；多功能分开压，主干只留逻辑单元 | 同一句：一单 = 一颗 |
+| [Graphite · restack / merge stack](https://graphite.com/docs/restack-branches) | 叠枝产品。底 squash 之后必须 `gt sync` / restack 到**新的 trunk SHA**。从 GitHub 直接合、不 restack，上枝会坐在已消失的旧父 SHA 上 | 这就是 #3 之后 #4/#5 的事故。本仓不接 Graphite；用「不叠旧头 + 换底」代替自动 restack |
+
+Linux `gitworkflows(7)` 是 merge-commit / 集成枝模型，和 squash-to-trunk 不是同一套，不拿来当本仓合入法。
+
+合入默认仍 squash。要叠，必须像 Graphite 那样在底合入后 restack 到新 `main`；本仓第一刀不做 restack 机器人，所以 `submit` 只开到 `protect`。
 
 ---
 
@@ -48,7 +85,7 @@ type(product/actor): subject
 | 槽 | 取值 | 写什么 |
 |---|---|---|
 | `type` | `build` \| `chore` \| `ci` \| `docs` \| `feat` \| `fix` \| `perf` \| `refactor` \| `revert` \| `style` \| `test` | Angular / commitlint conventional。小写 |
-| `product` | `forge` \| `overlay` \| `ci` \| `docs` | 主产品。混改写在「做了什么」，不要叠第二个产品 |
+| `product` | `forge` \| `overlay` \| `ci` \| `docs` | 主产品，也是产品门选择器。`overlay` / `forge` 各跑对应门；`ci` 两门都跑；`docs` 只跑通用。混改写在「做了什么」，不要叠第二个产品 |
 | `actor` | `dev` \| `admin` \| `agent` | 这单戴哪顶帽子。映射：开发端=`dev`，管理端=`admin`，agent=`agent` |
 | `!` | 可选 | Conventional Commits breaking，紧贴 `)` 与 `:` |
 | `subject` | 非空、不以空白开头 | 祈使、一事。不要散文标题 |
@@ -64,7 +101,7 @@ type(product/actor): subject
 
 混改：标题只标主产品。其余列在「做了什么」。不要写成 `feat(overlay+docs/dev):`。
 
-可选本地包装（不默认安装 git hook）：`forge/hooks/pr-title "feat(overlay/dev): …"`；提交前整门：`forge/hooks/pre-submit --title "…"`。代推锁是 `python -m forge check` 绿，且宿主已注入写权限（`gh auth login` / `GH_TOKEN` / extraheader）。合并锁是 GitHub 上的 required checks，不是本机 hook。
+可选本地包装（不默认安装 git hook）：`forge/hooks/pr-title "feat(overlay/dev): …"`；提交前整门：`forge/hooks/pre-submit --title "…"`。代推锁是 `python -m forge check` 绿，**并且** 持有 `FORGE_SUBMIT_TOKEN`。`gh auth` / `GH_TOKEN` / extraheader 都不够。合并锁是 GitHub 上的 required checks，不是本机 hook。
 
 ---
 

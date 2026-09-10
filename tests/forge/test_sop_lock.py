@@ -184,14 +184,14 @@ class SubmitSecretLockTests(unittest.TestCase):
                 issues,
             )
 
-    def test_workshop_submit_has_a_credential_gate(self) -> None:
+    def test_workshop_submit_requires_named_secret(self) -> None:
         text = (ROOT / "forge" / "submit.py").read_text(encoding="utf-8")
-        self.assertTrue(
-            "FORGE_SUBMIT_TOKEN" in text or "probe_write_credential" in text,
-            "submit must gate on a write credential",
-        )
+        self.assertIn("FORGE_SUBMIT_TOKEN", text)
         self.assertNotIn('get("GITHUB_TOKEN"', text)
         self.assertNotIn("resolve_token(", text)
+        cred = (ROOT / "forge" / "credential.py").read_text(encoding="utf-8")
+        self.assertIn("FORGE_SUBMIT_TOKEN", cred)
+        self.assertNotIn('source="gh-login"', cred)
 
 
 class KernelLockTests(unittest.TestCase):

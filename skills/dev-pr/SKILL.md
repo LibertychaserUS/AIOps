@@ -7,7 +7,7 @@ metadata:
 
 # Dev PR（开发端）
 
-You write code and draft Overlay files. You do **not** manage merge gates. Review and merge stay on **GitHub** ([`docs/rbac.md`](../../docs/rbac.md)). Product SOP: [`../use-forge/SKILL.md`](../use-forge/SKILL.md), [`../use-overlay/SKILL.md`](../use-overlay/SKILL.md). Agent rules: [`forge/agent-policy.md`](../../forge/agent-policy.md). **提交前**必须 `python -m forge check` 绿 **并且** 宿主已注入写权限；缺任一则不 push、不开 PR（`--dry-run` 同样 fail closed）。PR 标题必须过 `python -m forge pr-title`（Conventional Commits `type(product/actor): subject`）：[`docs/pr-brief.md`](../../docs/pr-brief.md)。模板：[`.github/PULL_REQUEST_TEMPLATE.md`](../../.github/PULL_REQUEST_TEMPLATE.md)。
+You write code and draft Overlay files. You do **not** manage merge gates. Review and merge stay on **GitHub** ([`docs/rbac.md`](../../docs/rbac.md)). Product SOP: [`../use-forge/SKILL.md`](../use-forge/SKILL.md), [`../use-overlay/SKILL.md`](../use-overlay/SKILL.md). Agent rules: [`forge/agent-policy.md`](../../forge/agent-policy.md). **提交前**必须 `python -m forge check` 绿 **并且** 持有非空 `FORGE_SUBMIT_TOKEN`；缺任一则不 push、不开 PR（`--dry-run` 同样 fail closed）。PR 标题必须过 `python -m forge pr-title`（Conventional Commits `type(product/actor): subject`）：[`docs/pr-brief.md`](../../docs/pr-brief.md)。模板：[`.github/PULL_REQUEST_TEMPLATE.md`](../../.github/PULL_REQUEST_TEMPLATE.md)。
 
 ## Instructions
 
@@ -27,9 +27,9 @@ Do not `git add` `forge/`, `overlay/`, `schema/`, or `prompts/` into the product
    PYTHONPATH=../AIOps python3 -m forge submit --repo OWNER/NAME --title "feat(overlay/dev): fix armed select" --dry-run
    PYTHONPATH=../AIOps python3 -m forge submit --repo OWNER/NAME --title "feat(overlay/dev): fix armed select"
    ```
-   `--dry-run` 先跑 `forge check`；红则退出 2。check 绿后仍必须已有宿主注入的写权限（PAT / fine-grained / GitHub App token）。缺或空：退出 2，打印 `credential: <source>` / `no usable GitHub write credential`，不 push。人用 `gh auth login`，代理用宿主注入，不回落 `GITHUB_TOKEN` 或 Ops 的 `FORGE_GITHUB_TOKEN`。密钥在且 check 绿：打印计划 + `credential: <source>`；不 push。永不打印 token 值。Live 同样先 check，再 push 功能分支并开/更新 **draft** PR。永不 merge / approve / arm。Aligns with [`gh pr create`](https://cli.github.com/manual/gh_pr_create) **consuming host-injected git/gh credential**. Title must pass `python -m forge pr-title`. Grammar: Conventional Commits `type(product/actor): subject` ([`docs/pr-brief.md`](../../docs/pr-brief.md)). Example: `feat(overlay/dev): add overlay run to overlay-check`. Body headings: `做了什么` `为什么` `动了哪些门` `怎么验` `不做什么` `分工`. 开发写。管理拒收 `pr-title` 红或正文缺节的 PR。Do not push protected branches. Do not force-push those branches. Do not self-merge. Ops merge 用另一套权限，不是这把提交密钥。
-3. **Lock the title locally** with `python -m forge pr-title --title "…"` (also inside `forge check`) before you ask for review. Do not install husky to block `git commit`.
-4. **Request a human review.** CodeRabbit is advisory. It is never enough to merge by itself.
+   `--dry-run` 先跑 `forge check`（**通用** + **产品门**）；红则退出 2。check 绿后仍必须持有非空 `FORGE_SUBMIT_TOKEN`（PAT / fine-grained / GitHub App token）。缺或空：退出 2，打印 `would require FORGE_SUBMIT_TOKEN` / `missing FORGE_SUBMIT_TOKEN`，不 push。不回落 `GITHUB_TOKEN`、`gh auth`、`GH_TOKEN` 或 Ops 的 `FORGE_GITHUB_TOKEN`。密钥在且 check 绿：打印计划 + `would require FORGE_SUBMIT_TOKEN`；不 push。永不打印 token 值。Live 同样先 check，再 push 功能分支并开/更新 **draft** PR（base 是 `protect` / `main`）。永不 merge / approve / arm。Aligns with [`gh pr create`](https://cli.github.com/manual/gh_pr_create) 的「推分支 + 开 draft PR」，但必须持钥。Title must pass `python -m forge pr-title`. Grammar: Conventional Commits `type(product/actor): subject` ([`docs/pr-brief.md`](../../docs/pr-brief.md)). 标题规格化的是 squash 进 `main` 的那颗。这一单必须是整段工作的**封顶**；合完从 `main` 新 SHA **换底**。不要从即将被压掉的旧头再叠。Example: `feat(overlay/dev): add overlay run to overlay-check`. Body headings: `做了什么` `为什么` `动了哪些门` `怎么验` `不做什么` `分工`. 开发写。管理拒收 `pr-title` 红或正文缺节的 PR。Do not push protected branches. Do not force-push those branches. Do not self-merge. Ops merge 用另一套权限，不是这把提交密钥。
+3. **Lock the title locally** with `python -m forge pr-title --title "…"` (also inside `forge check`) before you ask for review. Title `product` also selects product gates (`overlay` / `forge` / `ci`=both / `docs`=common only). **通用检查 ≠ 产品门。** Do not install husky to block `git commit`.
+4. **Request a human review.** CodeRabbit and Copilot comments run after PR spec and before Overlay full CI. They are advisory. They are never enough to merge by themselves. If Overlay Ops **打回** (`bounce` comment), fix that failed stage (title/body or armed Overlay CI); do not merge. Ops keeps `overlay-ops-debug` / receipts on the run.
 5. **Do not merge your own agent PRs.** Do not approve them. Do not write a review as `reviewed_by` on behalf of the model.
 6. **Do not edit Rulesets, required checks, or CODEOWNERS** unless you are also the 管理端 — then switch to `$manage-repo`.
 7. **Do not live `forge apply`.** No admin token on a developer laptop for apply. Dry-run only if a human asked and you are diagnosing; default is: do not run apply.
@@ -44,7 +44,7 @@ Do not `git add` `forge/`, `overlay/`, `schema/`, or `prompts/` into the product
 
 ### Agent extras (Copilot / Cursor)
 
-13. Draft PR only, via `forge submit`. `python -m forge check` must be green first (submit runs it). You must hold 宿主注入的写权限. Use the host-injected login (`gh auth login` / `GH_TOKEN` / extraheader). Title must pass `python -m forge pr-title`. Fill the six headings. No self-approve. No self-merge. No Ruleset write. No Overlay arm. `generate` only when a human asked (not shipped). Missing token: `--dry-run` is still red. Never live apply.
+13. Draft PR only, via `forge submit`. `python -m forge check` must be green first (submit runs it). You must hold `FORGE_SUBMIT_TOKEN`. Ambient `gh auth` / `GH_TOKEN` / extraheader are not enough. Title must pass `python -m forge pr-title`. Fill the six headings. No self-approve. No self-merge. No Ruleset write. No Overlay arm. `generate` only when a human asked (not shipped). Missing token: `--dry-run` is still red. Never live apply.
 
 ### Never
 
@@ -58,7 +58,7 @@ Do not `git add` `forge/`, `overlay/`, `schema/`, or `prompts/` into the product
 - Do not generate on push. CI only; no CD.
 - Do not open a PR that fails `pr-title` or lacks the six headings.
 - Do not `forge submit` (dry-run or live) when `python -m forge check` is red. 不绿不 push、不开 PR。
-- Do not `forge submit` without 宿主注入的写权限. Do not fall back to `GITHUB_TOKEN` / `gh auth`.
+- Do not `forge submit` without `FORGE_SUBMIT_TOKEN`. Do not fall back to `GITHUB_TOKEN` / `gh auth`.
 - Do not add mandatory husky / npm commit hooks on this workshop.
 
 ## Examples
@@ -68,17 +68,17 @@ Do not `git add` `forge/`, `overlay/`, `schema/`, or `prompts/` into the product
 git switch -c cursor/fix-armed-select
 # edit product code or suites/*/cases.md as draft
 PYTHONPATH=../AIOps python3 -m forge check --root . --title "fix(overlay/dev): fix armed select"
-# requires 宿主注入的写权限 (even --dry-run)
+# requires `FORGE_SUBMIT_TOKEN` (even --dry-run)
 PYTHONPATH=../AIOps python3 -m forge submit --repo OWNER/NAME --title "fix(overlay/dev): fix armed select" --dry-run
 PYTHONPATH=../AIOps python3 -m forge submit --repo OWNER/NAME --title "fix(overlay/dev): fix armed select"
 # request a human; do not merge
 ```
 
-Illegal: `git push origin main`. Illegal: `forge submit` on `main`. Illegal: `forge submit` when `forge check` is red. Illegal: `forge submit` without 宿主注入的写权限. Illegal: merge the agent PR you just opened. Illegal: `status: armed` in a suite you did not review as a human. Illegal: `python3 -m forge apply` without being 管理端. Illegal: branch `开发/overlay-fix` as a 分工 scheme. Illegal: title `[开发][Overlay] fix armed select`.
+Illegal: `git push origin main`. Illegal: `forge submit` on `main`. Illegal: `forge submit` when `forge check` is red. Illegal: `forge submit` without `FORGE_SUBMIT_TOKEN`. Illegal: merge the agent PR you just opened. Illegal: `status: armed` in a suite you did not review as a human. Illegal: `python3 -m forge apply` without being 管理端. Illegal: branch `开发/overlay-fix` as a 分工 scheme. Illegal: title `[开发][Overlay] fix armed select`.
 
 ## Performance Notes
 
-Overlay 模型 token 不在 push 上花。Forge 代推必须另持 宿主注入的写权限。validate/select are local YAML. Title lint is a regex. Fix the armed command that failed; do not start generate or apply.
+Overlay 模型 token 不在 push 上花。Forge 代推必须另持 `FORGE_SUBMIT_TOKEN`。validate/select are local YAML. Title lint is a regex. Fix the armed command that failed; do not start generate or apply.
 
 ## Troubleshooting
 
@@ -86,7 +86,7 @@ Overlay 模型 token 不在 push 上花。Forge 代推必须另持 宿主注入�
 |---|---|
 | 想直推 main | 停。先 `python -m forge check`，再 `forge submit --dry-run`，再 submit。 |
 | `forge check` 红了 | 停。不 push、不开 PR。按清单修红项。 |
-| 缺 宿主注入的写权限 | 停。`--dry-run` 也红。不要用 `GITHUB_TOKEN` / `gh auth` 凑。Ops merge 不是这把钥匙。 |
+| 缺 `FORGE_SUBMIT_TOKEN` | 停。`--dry-run` 也红。不要用 `GITHUB_TOKEN` / `gh auth` 凑。Ops merge 不是这把钥匙。 |
 | 想合自己的 agent PR | 停。等人。Agent 不自 merge。 |
 | armed check 红了 | 修那个 `function_id` 的代码或 `product_command`。不要改 Ruleset。 |
 | `pr-title` 红了 | 改 **PR 名** 为 `type(product/actor): subject`。本地先跑 `python -m forge pr-title --title "…"`。不要改分支名。 |
@@ -97,6 +97,7 @@ Overlay 模型 token 不在 push 上花。Forge 代推必须另持 宿主注入�
 | 想把 overlay/ 拷进产品仓 | 停。`$use-overlay`。 |
 | CodeRabbit 批了就想合 | 还要人 Approve + required checks（构建门 + 已勾的 `pr-title`，不是只有 CodeRabbit）。 |
 | 支付/登录 suite 想 armed | 停。功能没就绪就 `blocked`，不当红。 |
+| 想从还没合进 main 的 cursor/ 旧头再开一单 | 停。进 main 的 PR 必须封顶。squash 后换底。见 [`docs/pr-brief.md`](../../docs/pr-brief.md)。 |
 | 想写散文标题 | 停。`type(product/actor): subject` 一行。见 [`docs/pr-brief.md`](../../docs/pr-brief.md)。 |
 | 管理说缺规格 | 按 [`.github/PULL_REQUEST_TEMPLATE.md`](../../.github/PULL_REQUEST_TEMPLATE.md) 补六节。 |
 | 想装 husky 挡 commit | 停。本工作本不强制 commit hook。代推锁是 `python -m forge check`；合入锁是 GitHub required checks。 |
@@ -105,9 +106,10 @@ Overlay 模型 token 不在 push 上花。Forge 代推必须另持 宿主注入�
 
 原则：[`docs/sop-lock.md`](../../docs/sop-lock.md)。只锁可机器判定的子集。
 
-- **代推锁（提交前）：** `python -m forge check` 必须绿 **并且** 宿主已注入写权限。缺密钥或 check 红：`forge submit`（含 `--dry-run`）拒绝，不 push、不开 PR。CI `GITHUB_TOKEN` 是合入锁，不是代推。Ops merge 是另一套权限。
-- 标题 `type(product/actor): subject` + 正文六节：`python -m forge pr-title`（也在 check 里）→ CI **`pr-title`**（合入锁）
+- **代推锁（提交前）：** `python -m forge check` 必须绿 **并且** 持有非空 `FORGE_SUBMIT_TOKEN`。缺密钥或 check 红：`forge submit`（含 `--dry-run`）拒绝，不 push、不开 PR。CI `GITHUB_TOKEN` 是合入锁，不是代推。Ops merge 是另一套权限。
+- 标题 `type(product/actor): subject` + 正文六节：`python -m forge pr-title`（也在 check 里）→ CI **`pr-title`**（合入锁）。进 `main` 默认 squash：**封顶**再压，压完**换底**。`submit` base 是 `protect`。
+- 不要从即将被压掉的旧头再叠。GitHub UI 把 base 指到另一条 `cursor/` 枝：仅人审。
 - 代推 dry-run / protect 拒绝：`python -m forge submit --dry-run` + Forge 单测 → **`forge-check`**（合入锁）
 - Overlay armed 红：修那个 `function_id`，门仍是 **`overlay-check`**
 - 仓级 SOP：`python -m forge sop-lock` → **`sop-lock`**（**通用**合入锁，永远跑；不是 forge-check 的一层）
-- GitHub required checks 锁**合入**，不锁提交。本地 check + 宿主注入的写权限（`gh auth login` / `GH_TOKEN` / extraheader） 锁**代推**。**通用检查 ≠ 产品门。** 产品门按 `forge.yaml` 选跑或跳过。不绿不能提交。不绿不能合。不要装 husky。不要自合。
+- GitHub required checks 锁**合入**，不锁提交。本地 check + `FORGE_SUBMIT_TOKEN` 锁**代推**。`gh auth` / `GH_TOKEN` / extraheader 都不够。**通用检查 ≠ 产品门。** 产品门按 `forge.yaml` 选跑或跳过。不绿不能提交。不绿不能合。不要装 husky。不要自合。

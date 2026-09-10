@@ -314,12 +314,27 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
             issues.append(Issue("docs/sop-lock.md", "must list human-only (cannot machine-lock) rows"))
         if "forge check" not in text:
             issues.append(Issue("docs/sop-lock.md", "must document python -m forge check as 代推锁"))
+        if "FORGE_SUBMIT_TOKEN" not in text:
+            issues.append(Issue("docs/sop-lock.md", "must name FORGE_SUBMIT_TOKEN as the 代推 secret"))
         if "forge-check" not in text:
             issues.append(Issue("docs/sop-lock.md", "must list forge-check as a product gate"))
         if "通用" not in text or "产品门" not in text:
             issues.append(Issue("docs/sop-lock.md", "must state 通用检查 ≠ 产品门"))
         if "ci-select" not in text and "forge.yaml" not in text:
             issues.append(Issue("docs/sop-lock.md", "must document the forge.yaml CI selector"))
+        if "封顶" not in text or "换底" not in text or "squash" not in text:
+            issues.append(
+                Issue("docs/sop-lock.md", "must state squash 封顶 / 换底 as commit 规格化")
+            )
+    brief = root / "docs" / "pr-brief.md"
+    if not brief.is_file():
+        issues.append(Issue("docs/pr-brief.md", "missing PR brief spec"))
+    else:
+        brief_text = brief.read_text(encoding="utf-8")
+        if "封顶" not in brief_text or "换底" not in brief_text or "squash" not in brief_text:
+            issues.append(
+                Issue("docs/pr-brief.md", "must specify squash 封顶 / 换底 (commit 规格化)")
+            )
     forge_yaml = root / "forge.yaml"
     if not forge_yaml.is_file():
         issues.append(Issue("forge.yaml", "missing workshop forge.yaml"))
@@ -407,6 +422,25 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
             issues.append(
                 Issue(_rel(root, overlay_check), "overlay-check must not run Forge unit tests")
             )
+        if "name: spec" not in text or "python -m forge pr-title" not in text:
+            issues.append(
+                Issue(_rel(root, overlay_check), "Overlay Ops must run PR spec (pr-title) before full CI")
+            )
+        if "name: review-bots" not in text or "python -m forge ops-review" not in text:
+            issues.append(
+                Issue(_rel(root, overlay_check), "Overlay Ops must run review-bots after spec")
+            )
+        if "python -m forge bounce" not in text:
+            issues.append(
+                Issue(_rel(root, overlay_check), "Overlay Ops must bounce + keep ops-debug on failure")
+            )
+        if "needs: [select, spec, review-bots]" not in text:
+            issues.append(
+                Issue(
+                    _rel(root, overlay_check),
+                    "full Overlay CI must need spec and review-bots (DAG)",
+                )
+            )
     for name in ("dev-pr", "use-forge"):
         skill = root / "skills" / name / "SKILL.md"
         rel = _rel(root, skill)
@@ -416,12 +450,14 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
         text = skill.read_text(encoding="utf-8")
         if "python -m forge check" not in text:
             issues.append(Issue(rel, "must require python -m forge check before submit (代推锁)"))
-        if "FORGE_SUBMIT_TOKEN" not in text and "宿主" not in text:
+        if "FORGE_SUBMIT_TOKEN" not in text:
             issues.append(
-                Issue(rel, "must name FORGE_SUBMIT_TOKEN or a host-injected 宿主 credential")
+                Issue(rel, "must name FORGE_SUBMIT_TOKEN for agent 代推")
             )
         if "通用" not in text or "产品门" not in text:
             issues.append(Issue(rel, "must state 通用检查 ≠ 产品门"))
+        if "封顶" not in text or "换底" not in text:
+            issues.append(Issue(rel, "must state squash 封顶 / 换底 (commit 规格化)"))
     manage = root / "skills" / "manage-repo" / "SKILL.md"
     if manage.is_file():
         text = manage.read_text(encoding="utf-8")
@@ -436,12 +472,49 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
             )
         if "通用" not in text or "产品门" not in text:
             issues.append(Issue(_rel(root, manage), "must state 通用检查 ≠ 产品门"))
+        if "封顶" not in text or "换底" not in text:
+            issues.append(
+                Issue(_rel(root, manage), "must state squash 封顶 / 换底 (commit 规格化)")
+            )
     overlay_skill = root / "skills" / "use-overlay" / "SKILL.md"
     if overlay_skill.is_file():
         text = overlay_skill.read_text(encoding="utf-8")
         if "通用" not in text or "产品门" not in text:
             issues.append(Issue(_rel(root, overlay_skill), "must state 通用检查 ≠ 产品门"))
     return issues
+
+
+
+_SUBMIT_DOC_NEEDLES = (
+    "FORGE_SUBMIT_TOKEN",
+    "Forge 不保管",
+    "gh auth login",
+    "GH_TOKEN",
+    "extraheader",
+    "OPENAI_API_KEY",
+    "GITHUB_TOKEN",
+)
+
+
+def check_submit_custody_docs(root: Path) -> list[Issue]:
+    path = root / "docs" / "submit-credential.md"
+    if not path.is_file():
+        return [
+            Issue(
+                "docs/submit-credential.md",
+                "missing docs/submit-credential.md: 代推锁要求点名 FORGE_SUBMIT_TOKEN",
+            )
+        ]
+    text = path.read_text(encoding="utf-8")
+    missing = [n for n in _SUBMIT_DOC_NEEDLES if n not in text]
+    if missing:
+        return [
+            Issue(
+                "docs/submit-credential.md",
+                "docs/submit-credential.md missing custody needles: " + ", ".join(missing),
+            )
+        ]
+    return []
 
 
 def check_submit_source(root: Path) -> list[Issue]:
@@ -453,16 +526,35 @@ def check_submit_source(root: Path) -> list[Issue]:
     rel = _rel(root, submit)
     if "run_check" not in text:
         issues.append(Issue(rel, "submit must refuse when forge check is red"))
-    if "FORGE_SUBMIT_TOKEN" not in text and "probe_write_credential" not in text:
+    if "FORGE_SUBMIT_TOKEN" not in text:
         issues.append(
-            Issue(rel, "submit must require FORGE_SUBMIT_TOKEN or probe a host-injected credential")
+            Issue(rel, "submit must require FORGE_SUBMIT_TOKEN (no silent gh / GITHUB_TOKEN fallback)")
         )
+    if "封顶" not in text or "protect" not in text:
+        issues.append(Issue(rel, "submit base must be protect (squash 封顶)"))
     if re.search(r"""\.get\(\s*['\"]GITHUB_TOKEN['\"]""", text):
         issues.append(Issue(rel, "submit must not read GITHUB_TOKEN"))
     if re.search(r"""\.get\(\s*['\"]FORGE_GITHUB_TOKEN['\"]""", text):
         issues.append(Issue(rel, "submit must not read FORGE_GITHUB_TOKEN (Ops apply)"))
     if "resolve_token(" in text:
         issues.append(Issue(rel, "submit must not call apply.resolve_token"))
+    cred = root / "forge" / "credential.py"
+    if cred.is_file():
+        cred_text = cred.read_text(encoding="utf-8")
+        if "FORGE_SUBMIT_TOKEN" not in cred_text:
+            issues.append(
+                Issue(
+                    _rel(root, cred),
+                    "credential.py must treat FORGE_SUBMIT_TOKEN as the only write credential",
+                )
+            )
+        if 'source="gh-login"' in cred_text or "source='gh-login'" in cred_text:
+            issues.append(
+                Issue(
+                    _rel(root, cred),
+                    "credential.py must not treat ambient gh auth as a valid submit credential",
+                )
+            )
     return issues
 
 
@@ -474,6 +566,8 @@ def collect_issues(root: Path) -> list[Issue]:
     issues.extend(check_husky(root))
     issues.extend(check_skills(root))
     issues.extend(check_submit_source(root))
+    if is_workshop_root(root):
+        issues.extend(check_submit_custody_docs(root))
     issues.extend(check_workshop_docs_and_checks(root))
     issues.sort(key=lambda item: (item.path, item.message))
     return issues

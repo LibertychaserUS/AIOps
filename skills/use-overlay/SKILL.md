@@ -17,6 +17,7 @@ Overlay is a standard part. Freeze the contract, not a product’s numbers. Agen
 
 原则：[`docs/sop-lock.md`](../../docs/sop-lock.md)。只锁可机器判定的子集，不 NLP 扫散文。
 
+- Overlay Ops PR 链：规格 → CodeRabbit/Copilot 评论 → 本分支全量 Overlay CI → 人合。失败打回并留 `ops-debug`：`overlay-check.yml` + `python -m forge ops-review` / `bounce` → **`overlay-check`**
 - 契约 / 三技法 / invariant 点名 / blocked 不入选 / 回执 / `forbid_hosts`：`python -m overlay validate|cover|select|run` → CI **`overlay-check`**
 - push 不 generate、不 checkout LearningGuidePortal、不 `workflow_call` 产品 Verify、不另开 `self-test` 绕过 Overlay select：`python -m forge sop-lock` → CI **`sop-lock`**
 - Overlay 测试只走 Overlay armed `product_command`。Forge 单测走 **`forge-check`**。`sop-lock` 不是 Overlay 旁路 unittest。**通用检查 ≠ 产品门。** 产品门按 `forge.yaml` `ci` 选跑或跳过。
@@ -40,7 +41,7 @@ The product repo commits **only**:
 - `invariants.yaml` (optional)
 - a thin workflow that `uses:` [`.github/workflows/overlay.yml`](../../.github/workflows/overlay.yml) from the **tool** repo — pin a **tag or commit SHA**, not floating `main`
 
-That is the whole adoption surface. Do **not** copy `overlay/` into the product tree so that CI sees `local=true`. When `overlay/__init__.py` is absent, the reusable workflow checkouts `LibertychaserUS/AIOps` into `_aiops` and sets `PYTHONPATH`. **That checkout is the correct reuse path.**
+That is the whole adoption surface. Do **not** copy `overlay/` into the product tree so that CI sees `local=true`. When `overlay/__init__.py` is absent, the reusable workflow checkouts `tool_repository` (default `LibertychaserUS/AIOps`) into `_aiops` and sets `PYTHONPATH`. **That checkout is the correct reuse path.**
 
 Local CLI: checkout the tool repo or fork **beside** the product. Set `PYTHONPATH`. Do not `git add` the tool tree.
 
@@ -54,7 +55,7 @@ PYTHONPATH=../AIOps python3 -m overlay validate --root .
 PYTHONPATH=../AIOps python3 -m overlay cover --root .
 ```
 
-If you forked the workshop, `uses:` **your fork** at a pin. A fork that diverges from upstream should point the workflow's tool checkout at that fork (the default in this workshop checkouts `LibertychaserUS/AIOps`). Never pin floating `main`.
+If you forked the workshop, `uses:` **your fork** at a pin and pass `tool_repository` / `tool_ref` to that fork. The default tool checkout is `LibertychaserUS/AIOps`. Never pin floating `main`. Never checkout LearningGuidePortal.
 
 ### Humans / agents — write
 
@@ -72,7 +73,7 @@ If you forked the workshop, `uses:` **your fork** at a pin. A fork that diverges
 ### CI — same gate as the tests
 
 7. Wire a **thin** caller that `uses:` the reusable overlay workflow from the tool repo (pin tag/SHA). This workshop’s `overlay-check.yml` uses `enable_run: true` and pins `branch: main` so agent branches still run the armed **tool** tests — that file is for this workshop, not something to copy the Python package from.
-8. Push / PR runs **validate + select + run**. `run` executes each selected suite’s `product_command` in the **caller (product) checkout**. It does not clone a foreign product repo (Learning Guide Portal is never checked out from here). It **does** checkout the tool repo when `overlay/` is not local. No generate. No token spend on push.
+8. Push runs **validate + select + run**. On **pull_request** (when selected) Overlay Ops is: **spec (`pr-title`) → review-bots (CodeRabbit + Copilot comments, advisory) → full Overlay CI on this checkout → human merge**. Red spec/CI: `python -m forge bounce` 打回 the PR and keeps `overlay-ops-debug` + receipts. `run` executes each selected suite’s `product_command` in the **caller (product) checkout**. It does not clone a foreign product repo (Learning Guide Portal is never checked out from here). It **does** checkout the tool repo when `overlay/` is not local. No generate. No token spend on push. Do not wait for CodeRabbit to be a required check.
 9. Local equivalent (tool next door):
    ```text
    PYTHONPATH=../AIOps python3 -m overlay select --branch main --root . --write-receipt receipts/
@@ -137,7 +138,7 @@ validate / select are local YAML. `run` is local subprocess in the caller checko
 
 | 现象 | 处理 |
 |---|---|
-| 想把 `overlay/` 拷进产品仓好过 CI | 停。让 `local=false`，reusable workflow 会 checkout `LibertychaserUS/AIOps`。 |
+| 想把 `overlay/` 拷进产品仓好过 CI | 停。让 `local=false`，reusable workflow 会 checkout `tool_repository`（默认本工作本）。 |
 | validate 找不到 `overlay` 模块 | 本地设 `PYTHONPATH` 指向工作本或 fork；不要 `git add overlay/`。 |
 | validate 退出 2 | 契约红。读打印的路径。不是业务功能红。 |
 | blocked 把 check 染红 | bug。blocked 必须丢弃。 |

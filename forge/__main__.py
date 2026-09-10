@@ -1,4 +1,4 @@
-"""python -m forge apply|status|submit|check|pr-title|sop-lock|ci-select"""
+"""python -m forge apply|status|submit|check|pr-title|sop-lock|ci-select|ops-review|bounce"""
 
 from __future__ import annotations
 
@@ -50,7 +50,12 @@ def _parser() -> argparse.ArgumentParser:
     check_p.add_argument(
         "--title",
         default=None,
-        help="PR title to lint (same as pr-title). Default: env PR_TITLE. Skip if omitted.",
+        help="PR title to lint (same as pr-title). Default: env PR_TITLE. Skip if omitted (CI still lints PR_TITLE).",
+    )
+    check_p.add_argument(
+        "--body",
+        default=None,
+        help="PR body to lint when docs/pr-brief.md exists. Default: env PR_BODY. Skip if omitted (CI still lints PR_BODY).",
     )
 
     submit_p = sub.add_parser(
@@ -75,7 +80,7 @@ def _parser() -> argparse.ArgumentParser:
         dest="dry_run",
         help=(
             "print intended remote branch + PR title/body headings; no push. "
-            "Fail-closed if no host-injected GitHub write credential or if check is red."
+            "Still requires FORGE_SUBMIT_TOKEN (fail-closed if missing). Red if check is red."
         ),
     )
 
@@ -138,6 +143,33 @@ def _parser() -> argparse.ArgumentParser:
         dest="github_output",
         help="append run=true|false to $GITHUB_OUTPUT (skip is success)",
     )
+
+    review_p = sub.add_parser(
+        "ops-review",
+        help="Overlay Ops: observe CodeRabbit/Copilot comments (advisory). Never a merge gate.",
+    )
+    review_p.add_argument("--repo", required=True, help="OWNER/NAME")
+    review_p.add_argument("--sha", default="", help="head SHA for check-runs")
+    review_p.add_argument("--pr", type=int, default=0, help="pull number")
+    review_p.add_argument("--write-report", required=True, help="directory for review-bots.yaml")
+    review_p.add_argument("--wait", type=int, default=0, dest="wait_s", help="seconds to poll")
+    review_p.add_argument("--poll", type=int, default=5, dest="poll_s")
+
+    bounce_p = sub.add_parser(
+        "bounce",
+        help="Overlay Ops: 打回 PR + write ops-debug.yaml. Never merges.",
+    )
+    bounce_p.add_argument("--repo", required=True, help="OWNER/NAME")
+    bounce_p.add_argument("--pr", type=int, required=True)
+    bounce_p.add_argument("--failed", default="", help="comma-separated failed job names")
+    bounce_p.add_argument("--write-report", required=True, help="directory for ops-debug.yaml")
+    bounce_p.add_argument("--run-url", default="", dest="run_url")
+    bounce_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        help="write the report only; no PR comment",
+    )
     return parser
 
 
@@ -194,38 +226,30 @@ def main(
         )
     if args.command == "check":
         title = args.title if args.title is not None else env_dict.get("PR_TITLE")
+        body = args.body if args.body is not None else env_dict.get("PR_BODY")
         return run_check(
             Path(args.root),
             title=title,
+            body=body,
             stdout=out,
             stderr=err,
             environ=env_dict,
         )
     if args.command == "submit":
-        kwargs = {
-            "repo": args.repo,
-            "title": args.title,
-            "dry_run": args.dry_run,
-            "path": args.path,
-            "head": args.head,
-            "stdout": out,
-            "stderr": err,
-            "environ": env_dict,
-        }
-        import inspect as _inspect
-        params = _inspect.signature(run_submit).parameters
-        if "urlopen" in params:
-            kwargs["urlopen"] = opener
-            kwargs["base_url"] = api
-        if "check_fn" in params:
-            kwargs["check_fn"] = check_fn
-        if "credential_probe" in params:
-            kwargs["credential_probe"] = credential_probe
-        if "pusher" in params:
-            kwargs["pusher"] = pusher
-        if "pr_create" in params:
-            kwargs["pr_create"] = pr_create
-        return run_submit(**kwargs)
+        return run_submit(
+            repo=args.repo,
+            title=args.title,
+            dry_run=args.dry_run,
+            path=args.path,
+            head=args.head,
+            urlopen=opener,
+            base_url=api,
+            stdout=out,
+            stderr=err,
+            environ=env_dict,
+            check_fn=check_fn,
+            pusher=pusher,
+        )
     if args.command in {"pr-title", "title"}:
         title = args.title
         body = args.body
@@ -280,6 +304,39 @@ def main(
             stdout=out,
             stderr=err,
             environ=env_dict,
+        )
+    if args.command == "ops-review":
+        from forge.ops_chain import run_review_bots
+
+        return run_review_bots(
+            repo=args.repo,
+            sha=args.sha,
+            pr=args.pr,
+            write_report=Path(args.write_report),
+            urlopen=opener,
+            base_url=api,
+            environ=env_dict,
+            stdout=out,
+            stderr=err,
+            wait_s=args.wait_s,
+            poll_s=args.poll_s,
+        )
+    if args.command == "bounce":
+        from forge.ops_chain import run_bounce
+
+        failed = [part.strip() for part in str(args.failed).split(",") if part.strip()]
+        return run_bounce(
+            repo=args.repo,
+            pr=args.pr,
+            failed=failed,
+            write_report=Path(args.write_report),
+            urlopen=opener,
+            base_url=api,
+            environ=env_dict,
+            stdout=out,
+            stderr=err,
+            run_url=args.run_url,
+            dry_run=args.dry_run,
         )
     parser.print_help(err)
     return EXIT_CONFIG

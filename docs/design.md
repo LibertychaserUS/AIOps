@@ -61,7 +61,7 @@ PR 的 review 和 merge 由 **GitHub Ruleset + 有写权限的人** 管理，不
 |---|---|
 | 可用 | 当天能审一页用例；`forge apply` 当天能挡住直推 |
 | 少闲活 | 开发不注册、不填工单；审选用改一行 yaml |
-| token | Overlay 模型密钥只在 `overlay generate`；push 零模型。Forge 代推消费宿主注入的 GitHub 写权限（`gh auth login` / `GH_TOKEN` / extraheader），不保管。两把钥匙不要混。 |
+| token | Overlay 模型密钥只在 `overlay generate`；push 零模型。Forge 代推必须持有 `FORGE_SUBMIT_TOKEN`。`gh auth` / `GH_TOKEN` / extraheader / CI `GITHUB_TOKEN` 都不够。两把钥匙不要混。 |
 | 速度 | 无服务、无 TS 工具链、无第一刀 C 扩展 |
 
 ---
@@ -129,13 +129,18 @@ agent_branch_prefixes:
   - copilot/
 deny_paths:
   - .github/workflows/ci.yml          # 接入方构建门；LG = Verify
-required_checks:                      # 只声明名字；本工作本合入锁可并列两件产品
+required_checks:                      # apply 写入 Ruleset required_status_checks
   - Verify                            # 接入方自己的构建门
   # - overlay-check                   # 若同时装 Overlay
   # - forge-check                     # 若同时装 Forge CI（本工作本有）
 review:
   min_approvals: 1
   code_owners: false                  # 第一刀默认关；有 CODEOWNERS 再开
+ci:
+  common: [pr-title, sop-lock]        # 永远跑
+  products:                           # 未声明的检查名 skip（不当红）
+    overlay: { check: overlay-check, paths: [overlay.yaml, inbox/, suites/] }
+    forge: { check: forge-check, paths: [forge.yaml] }
 ```
 
 ### 3.3 Ruleset 行为（安装后由 GitHub 执行）
@@ -159,7 +164,7 @@ Merge Queue：第一刀不装。人多了由接入方在同一 Ruleset 上打开
 ```text
 python -m forge apply  --repo OWNER/NAME [--path forge.yaml] [--dry-run]
 python -m forge status --repo OWNER/NAME
-python -m forge check  --root . [--title T]
+python -m forge check  --root . [--title T] [--body B]
 python -m forge submit --repo OWNER/NAME [--title T] [--dry-run]
 python -m forge pr-title --title "feat(overlay/dev): subject"
 python -m forge ci-select --check overlay-check --title "feat(overlay/dev): subject"
@@ -169,23 +174,26 @@ python -m forge revoke --repo OWNER/NAME --name forge-protected-default
 `check`（开发侧提交前本地门，不写 GitHub）：
 
 1. 有 `overlay.yaml`：`overlay validate` + `overlay cover`。
-2. 提供了 `--title` / `PR_TITLE`：`forge pr-title`（submit 必须过标题）。
-3. 根上有 `schema/check.py`（工具仓）：跑它。接入方产品根没有 `schema/` 则跳过。
-4. 本工作本有 `tests/forge/test_title.py`：跑快单测子集。
-5. 打印清单。任一红退出 2。无模型。
+2. 提供了 `--title` / `PR_TITLE`：`forge pr-title`（submit 必须过标题）。省略则跳过，并写明 CI 会 lint `PR_TITLE`。
+3. 有 `docs/pr-brief.md` 且提供了 `--body` / `PR_BODY`：lint 正文六节。有 brief 无 body：跳过，并写明 CI 会 lint `PR_BODY`。本地省略标题/正文 ≠ CI 已过同一把锁。
+4. 根上有 `schema/check.py`（工具仓）：跑它。接入方产品根没有 `schema/` 则跳过。
+5. 本工作本有 `tests/forge/test_title.py`：跑快单测子集。
+6. 打印清单。任一红退出 2。无模型。
 
-`submit`（开发侧代推；对齐 [`gh pr create`](https://cli.github.com/manual/gh_pr_create)；Forge **不保管**密钥，只消费宿主注入的写权限）：
+`submit`（开发侧代推；对齐 [`gh pr create`](https://cli.github.com/manual/gh_pr_create) 的「推分支 + 开 draft PR」；**必须**持有命名密钥 `FORGE_SUBMIT_TOKEN`）：
 
 1. 读当前分支与 `forge.yaml` `protect`。protect 或 `First-Light-TechHK/LearningGuidePortal`：拒绝。
-2. 探测宿主是否已注入 GitHub 写权限（`gh auth status` / `GH_TOKEN` / git extraheader）。只报来源名，不打印密钥。没有 → 退出码 2，**即使 `--dry-run` 也红**。CI（`GITHUB_ACTIONS`）一律视为没有代推凭证。
-3. 再跑本地 `forge check`（含标题）。红则拒绝：不 push、不开 PR，退出 2。check 不读密钥。
-4. `--dry-run` 且凭证在且 check 绿：打印将推的远程分支、PR 标题、正文六节、`credential:` 来源；不 push、不调 `gh pr create`；退出 0。
-5. 非 dry-run：`git push` 当前功能分支，再 `gh pr create` / `gh pr edit` 开 **draft** PR。永不 merge，永不 approve，永不 arm，永不 apply Ruleset。
+2. 先跑本地 `forge check`（含标题）。红则拒绝：不 push、不开 PR，退出 2。check 不读密钥。
+3. 再要求 `FORGE_SUBMIT_TOKEN`。缺或空 → 退出码 2，打印 `would require FORGE_SUBMIT_TOKEN` / `missing FORGE_SUBMIT_TOKEN`，**即使 `--dry-run` 也红**。不回落 `GITHUB_TOKEN`、`FORGE_GITHUB_TOKEN`、`gh auth`、`GH_TOKEN`、本机已有 extraheader。
+4. `--dry-run` 且密钥在且 check 绿：打印将推的远程分支、PR 标题、正文六节、`would require FORGE_SUBMIT_TOKEN`；不 push；退出 0。永不打印 token 值。
+5. 非 dry-run：同一把 `FORGE_SUBMIT_TOKEN` 注入 HTTPS `git -c extraheader` 推功能分支，再开/更新 **draft** PR。永不打印 token。永不 merge，永不 approve，永不 arm，永不 apply Ruleset。
 6. Overlay / pr-title / sop-lock / forge-check workflow **不得**调用 `forge submit`。CI 的 `GITHUB_TOKEN` 是合入锁，不是代推。
 
 `apply` 认证仍是 `FORGE_GITHUB_TOKEN` 或 `GITHUB_TOKEN`（Administration: write）。那是 Ops 装 Ruleset 的钥匙，不是代推密钥。
 
 `pr-title`：纯函数锁 GitHub **PR 标题**（Conventional Commits + 必填 scope `product/actor`）。退出 `0`/`2`。不写 GitHub。规格：[`pr-brief.md`](pr-brief.md)。Actions 检查名 `pr-title`，只跑 `pull_request`。这是**通用检查**，不属于 Forge 产品门。
+
+进 `main` 的落地默认 **squash**。标题规格化的是 squash 之后那一颗，不是功能枝上每一颗中间 commit。要进 `main` 的 PR 必须是整段工作的**封顶**；合完以 `main` 新 SHA **换底**再开下一枝。不要从即将被压掉的旧头再叠。`submit` 的 base 是 `protect`（默认 `main`）。不借 Graphite stack / merge-when-ready；Forge 仍不合入。
 
 `ci-select`：读 `forge.yaml` `ci`。**通用检查 ≠ 产品门。** 不是两个产品各搞一套对等 CI。
 
@@ -194,17 +202,18 @@ common  →  pr-title (+ sop-lock)     always
 product →  overlay-check | forge-check   start, then skip-success via forge.yaml
 ```
 
-标题 product：`overlay` → overlay-check；`forge` → forge-check；`ci` → 两个都跑；`docs` → 只跑通用。无合法标题时按 `ci.products.*.paths`。产品 workflow 不得用 `on.paths` 让检查根本不启动。不要发明第三个产品。
+标题 product：`overlay` → overlay-check；`forge` → forge-check；`ci` → 两个都跑；`docs` → 只跑通用。无合法标题时按 `ci.products.*.paths`。未在 `ci.common` / `ci.products` 里声明的检查名 **skip**（`unknown-check-skip`），不当红。产品 workflow 不得用 `on.paths` 让检查根本不启动。不要发明第三个产品。薄 `forge.yaml` 应抄 `forge.example.yaml` 的 `ci` 段。
 
 `apply`：
 
 1. 读 `forge.yaml`（缺省则用默认 protect=`main`）。
 2. `GET` 该仓已有 Rulesets；若存在同名 `forge-protected-default` 则 `PUT`，否则 `POST`。幂等。
-3. 不创建 CODEOWNERS / AGENTS.md（只打印「请复制这些文件」）。避免覆盖接入方已有政策。
-4. 不修改任何 workflow YAML。
-5. 成功打印 Ruleset id 与保护分支。失败非 0。
+3. `required_checks` 非空时写入 Ruleset `required_status_checks`（每个名字一个 `context`）。空列表不写这条 rule。
+4. 不创建 CODEOWNERS / AGENTS.md（只打印「请复制这些文件」）。避免覆盖接入方已有政策。
+5. 不修改任何 workflow YAML。
+6. 成功打印 Ruleset id 与保护分支。失败非 0。
 
-`apply` 认证：`FORGE_GITHUB_TOKEN` 或 `GITHUB_TOKEN`。需要 `Administration: write`（Rulesets）。缺 token：退出码 `2`，不部分写入。不要把这把钥匙和代推用的宿主注入写权限混用。
+`apply` 认证：`FORGE_GITHUB_TOKEN` 或 `GITHUB_TOKEN`。需要 `Administration: write`（Rulesets）。缺 token：退出码 `2`，不部分写入。不要把这把钥匙和代推用的`FORGE_SUBMIT_TOKEN`混用。
 
 `status`：只读，列出是否已装、保护哪些分支。
 
@@ -269,7 +278,7 @@ jobs:
 ### 3.9 测试（Forge 自己的，不测接入方业务）
 
 - `apply` 对假 API：无 Ruleset 则 POST，有则 PUT，第二次无 POST。
-- `submit --dry-run` 先探测宿主写权限，再跑 `forge check`；缺凭证或 check 红退出 2。绿了才打印 head / title / 正文六节 / credential 来源，不 push。protect 与 LearningGuidePortal 拒绝。
+- `submit --dry-run` 先跑 `forge check`，再要求 `FORGE_SUBMIT_TOKEN`；缺密钥或 check 红退出 2。绿了才打印 head / title / 正文六节 / `would require FORGE_SUBMIT_TOKEN`，不 push。protect 与 LearningGuidePortal 拒绝。
 - `submit` 对假 Pulls API：POST draft；第二次 PATCH；永不打 `/merge`；不打印 token。`GITHUB_TOKEN` 单独不够。check 红则不 POST。
 - 默认 JSON 保护 `main`，含 PR 规则，bypass 为空。
 - `forge.yaml` 缺字段用默认；非法枚举失败。
@@ -502,7 +511,9 @@ CI：validate + select；`enable_run` 时在**调用方 checkout**里跑 `produc
 
 ### 4.11 reusable workflow
 
-`LibertychaserUS/AIOps/.github/workflows/overlay.yml@overlay-v1`
+`LibertychaserUS/AIOps/.github/workflows/overlay.yml@overlay-v1.0.0`
+
+接入方 fork 时把 `tool_repository`（及可选 `tool_ref`）指到该 fork。默认 checkout 本工作本。永不 checkout LearningGuidePortal。
 
 ```text
 on: 由接入方映射 pull_request + push（及其分支）
@@ -521,9 +532,21 @@ jobs:
     禁止请求 forbid_hosts；不 checkout 外国产品仓
 ```
 
-接入方产品仓只 `uses:` 本文件（pin `overlay-v1` / SHA），不要 vendor `overlay/`。接入方构建 workflow **不得** `workflow_call` 本文件。本文件也 **不得** `workflow_call` 接入方 Verify。
+接入方产品仓只 `uses:` 本文件（pin `overlay-v1.0.0` / SHA），不要 vendor `overlay/`。接入方构建 workflow **不得** `workflow_call` 本文件。本文件也 **不得** `workflow_call` 接入方 Verify。可传 `tool_repository` / `tool_ref`。
 
 `enable_run` 默认 `false`。本工作本的 `overlay-check` 打开它，并把 `branch` 钉成 `main`，这样 agent 分支仍跑 armed **Overlay** 工具测试。Forge 单测不走这条门。
+
+Overlay **Ops Action CI**（`pull_request` 且 selector 选中）是这条 DAG，不是和 Forge 对等的第二套标题门：
+
+```text
+spec (python -m forge pr-title，读 GitHub PR title/body)
+  → review-bots (python -m forge ops-review：等/记录 CodeRabbit + Copilot 评论，只建议)
+  → 本 checkout 上的全量 Overlay CI（reusable overlay.yml：validate → select → run）
+  → 人 Ops 审，绿了才 merge
+红 / 合失败：python -m forge bounce → PR 打回评论 + artifact `overlay-ops-debug` / receipts
+```
+
+`pr-title.yml` 仍是仓级通用检查（Ruleset 名字 `pr-title`）。Overlay Ops 的 `spec` 再跑同一条 CLI，只为了 **needs** 卡住后面的全量 CI。CodeRabbit / Copilot 不是 required check。bounce 不合入。push（无 PR 面）跳过 spec / review-bots / bounce，直接全量 CI。
 
 ### 4.12 run（测试和 CI 同一条门）
 
@@ -629,7 +652,7 @@ examples/learning-guide/
   forge-guard.yml
   forge-check.yml        # Forge 产品门：unit + apply --dry-run；ci-select 可 skip
   overlay.yml
-  overlay-check.yml      # Overlay 产品门：validate + select + run Overlay armed
+  overlay-check.yml      # Overlay 产品门 + Ops DAG：spec → review-bots → validate/select/run；失败 bounce
   pr-title.yml           # 通用；永远跑
   sop-lock.yml           # 通用仓级 SOP；永远跑；不是第三件产品
 invariants.yaml          # 可选：跨叶子性质；本工作本有一份
@@ -641,8 +664,8 @@ docs/agents/ieee-test-system.md
 schema/check.py          # 形状检查；不是产品 CLI
 docs/products.md
 docs/rbac.md
-docs/submit-credential.md  # 代推密钥：Forge 不保管，只消费宿主注入             # GitHub-native review/merge；管理端 vs 开发端
-docs/pr-brief.md          # PR 解说规格（标题分工 + 六节正文）
+docs/submit-credential.md  # 代推密钥：Forge 不保管，要求 `FORGE_SUBMIT_TOKEN`             # GitHub-native review/merge；管理端 vs 开发端
+docs/pr-brief.md          # PR 解说规格（进 main 的提交：squash 封顶 + 标题分工 + 六节正文）
 .github/PULL_REQUEST_TEMPLATE.md
 docs/2026-09-10-对话整理.md
 skills/use-forge/ SKILL.md
@@ -658,7 +681,7 @@ skills/dev-pr/ SKILL.md
 ## 8. 安全
 
 - 不提交 `.env`、token、真实支付数据。永不打印 token，不写入回执 / 痕迹 / PR 正文。
-- 开发侧代推：Forge **不保管**密钥，只消费宿主注入（`gh auth login` / `GH_TOKEN` / extraheader）。见 [`submit-credential.md`](submit-credential.md)。
+- 开发侧代推：Forge **不保管**密钥，要求 `FORGE_SUBMIT_TOKEN`。`gh auth login` / `GH_TOKEN` / 本机 extraheader 都不够。同一把密钥注入 HTTPS push 并开 draft PR。见 [`submit-credential.md`](submit-credential.md)。
 - Ops apply token（`FORGE_GITHUB_TOKEN`）只在管理员本机或受保护的 `workflow_dispatch`。不 live-apply Rulesets from agents。
 - Overlay generate 的密钥：仓库 Secret；日志禁止打印 inbox 全文和模型原文（截断 + 打码）。与 Forge GitHub 凭据不是一把。
 - Overlay run 禁止生产 host、禁止生产 Stripe/SES。

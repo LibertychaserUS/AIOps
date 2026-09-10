@@ -10,7 +10,7 @@
 | **Overlay** | [`skills/use-overlay/SKILL.md`](../skills/use-overlay/SKILL.md) | 同一文件 + [`agents/overlay-contract.md`](agents/overlay-contract.md) + [`../skills/design-cases/SKILL.md`](../skills/design-cases/SKILL.md) |
 | **用例设计** | [`skills/design-cases/SKILL.md`](../skills/design-cases/SKILL.md) | 同一文件（旧入口 [`agents/case-design.md`](agents/case-design.md)） |
 | **管理端**（Ruleset / merge / arm） | [`skills/manage-repo/SKILL.md`](../skills/manage-repo/SKILL.md) | 不扮演管理端：不 apply、不合、不写 `reviewed_by`、不替开发 push |
-| **开发端**（`forge check` + 宿主注入写权限 + `forge submit` / 修 armed 红） | [`skills/dev-pr/SKILL.md`](../skills/dev-pr/SKILL.md) | 同一文件 + [`../forge/agent-policy.md`](../forge/agent-policy.md)；提交前 `check` 必须绿，且宿主已注入写权限（人：`gh auth login`）；`submit` 开草稿 PR；不自合 |
+| **开发端**（`forge check` + `FORGE_SUBMIT_TOKEN` + `forge submit` / 修 armed 红） | [`skills/dev-pr/SKILL.md`](../skills/dev-pr/SKILL.md) | 同一文件 + [`../forge/agent-policy.md`](../forge/agent-policy.md)；提交前 `check` 必须绿，且持有非空 `FORGE_SUBMIT_TOKEN`（`FORGE_SUBMIT_TOKEN`）；`submit` 开草稿 PR；不自合 |
 | **PR 名 / 解说规格** | [`pr-brief.md`](pr-brief.md) + `python -m forge pr-title` + [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md) | Conventional Commits `type(product/actor): subject`。检查名 `pr-title`。正文六节。不改分支 / workflow / skill 名 |
 | **程序锁** | [`sop-lock.md`](sop-lock.md) | skill 能机器判定的标准必须有检查。**代推锁** `python -m forge check`（不绿不 push）。**通用检查 ≠ 产品门。** 通用合入锁 `pr-title`、`sop-lock`（永远跑）。产品门 `overlay-check` / `forge-check`（`forge.yaml` `ci` 选跑或跳过） |
 
