@@ -57,6 +57,50 @@ Proctor 的规矩（没审过不跑、没证据不过）**只复用语义**，�
 
 本仓要的另半边是：**人审过的需求对齐用例** + **按状态决定谁能红**。两半可以并排，不要焊成一个进程。
 
+### 2.2 怎么结合（契约对齐，进程隔离）
+
+结合 = **同一套规矩、两本账、一个单向回执**。不是 `import` Deepseek3，不是 Actions 里起 Proctor，不是让监考给用例升格。
+
+```text
+人审 / 生成 / push
+        │
+        ▼
+  本仓 overlay（Git + Actions）
+  draft → blocked|armed → select →（后一刀）run
+        │
+        │ 程序写 receipts/*.yaml（无模型）
+        ▼
+  回执文件（本仓产物）
+        │
+        │ 可选、本机、单向：人把回执拷去实习机
+        ▼
+  Proctor 原进程（Deepseek3，不改、不 attach）
+  七段生命周期 / gate / 未查 —— 只读回执，不写 suite.yaml
+```
+
+**语义怎么对上**（这是第一刀真正的结合）：
+
+| Proctor 规矩 | 本仓落点 | 谁执行 |
+|---|---|---|
+| 没审过不跑 | `status=draft` → `select` 丢弃 | 本仓 Selector |
+| 没证据不过 | `blocked`/`armed` 必须有 `reviewed_by`；缺字段本仓契约红 | 本仓校验（程序） |
+| 未查 | `draft` | 人还没审 |
+| gate 拦住（功能没就绪） | `blocked`：审过、不跑、不当红 | 人标；Selector 丢弃 |
+| gate 放行 | `armed`：配置分支才跑，红了修 diff | 人标；Runner 后一刀 |
+| 回执 | `suite.yaml` 的审核字段 + `receipts/*.yaml` | 只许程序写 |
+| 七段生命周期 | **不复制**。本仓只发四个事件：`generated` / `reviewed` / `selected` / `ran` | — |
+| `eval` | **不跑**。本仓测 `select` 纯函数，不测 Proctor | — |
+
+**单向，禁止反过来：**
+
+- Proctor 没有理解能力，不能把 `draft` 改成 `armed`，也不能因为本机 gate 绿就给支付/登录解禁。
+- 模型不能写回执、不能写 `reviewed_by`。
+- 本仓 Actions 不 `attach`、不 `subprocess`、不 checkout Deepseek3。
+
+**第一刀结合到哪：** 映射表生效 + `select` 写出一份程序回执（选中谁、因何状态丢掉谁）。没有回执文件，预演可以绿（选择器本身有测试），但后一刀 `ran` 必须带回执，否则按「没证据不过」处理。
+
+**以后若要一本账：** 适配器只许住在本仓、只许读本仓 `receipts/`、只许在实习机本机把文件交给已有 Proctor。Deepseek3 源码仍不改。没有这条适配器之前，两本账并排已经算结合完成。
+
 ---
 
 ## 3. 目标与非目标
@@ -296,6 +340,7 @@ config/overlay.yaml
 src/aiops/generate.py
 src/aiops/select.py         # 纯函数：branch → armed ids
 src/aiops/review.py         # 只帮改字段，不自动通过
+receipts/                   # 程序回执；select/run 写，模型不写
 .github/workflows/overlay.yml
 docs/2026-09-10-对话整理.md
 docs/architecture.md        # 本文件
@@ -340,6 +385,6 @@ docs/architecture.md        # 本文件
 - [ ] Generate 不在 `on: push` 里调用模型。
 - [ ] 本仓任何 workflow 不修改、不 `workflow_call` 产品 Verify。
 - [ ] 无对 `ilovelearningguide.com` 的 URL。
-- [ ] 无 Proctor attach、无 Deepseek3 路径。
+- [ ] 无 Proctor attach、无 Deepseek3 路径；回执只由 `select`/`run` 写。
 - [ ] 支付 / 登录 suite 在被标 `armed` 之前，main 预演保持绿。
 - [ ] 丢 My Learning inbox 能得到一页人能审的用例。

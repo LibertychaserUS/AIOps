@@ -8,4 +8,4 @@ Status: initialized. Architecture is written (standard CPython; C only if a meas
 
 - 约束与第一刀：[`docs/2026-09-10-对话整理.md`](docs/2026-09-10-对话整理.md)
 - 架构 / 技术栈 / 系统设计：[`docs/architecture.md`](docs/architecture.md)
-- 契约示例：[`schema/suite.example.yaml`](schema/suite.example.yaml)、[`config/overlay.example.yaml`](config/overlay.example.yaml)
+- 契约示例：[`schema/suite.example.yaml`](schema/suite.example.yaml)、[`schema/receipt.example.yaml`](schema/receipt.example.yaml)、[`config/overlay.example.yaml`](config/overlay.example.yaml)

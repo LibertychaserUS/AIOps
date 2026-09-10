@@ -1,0 +1,30 @@
+# Program-written overlay receipt. Not a Proctor ledger and not model output.
+# First slice: select writes this. Later: run appends a ran event.
+# Proctor may ingest a copy locally; it must not write suite.yaml.
+
+schema: overlay-receipt/v1
+wrote_by: select              # select | run  — never model
+git_sha: pin-me
+branch: main
+at: 2026-09-10T00:00:00Z
+
+events:
+  - type: selected
+    suite: my-learning
+    status: armed
+    kind: functional
+  - type: dropped
+    suite: payment
+    status: blocked
+    rule: never_red_statuses
+  - type: dropped
+    suite: login
+    status: blocked
+    rule: never_red_statuses
+
+evidence:
+  - type: human-review
+    suite: my-learning
+    reviewed_by: required-on-disk-in-suite.yaml
+  - type: contract
+    rule: missing reviewed_by on blocked|armed is overlay-red
