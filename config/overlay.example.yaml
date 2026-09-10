@@ -1,8 +1,8 @@
-# Copy to config/overlay.yaml when implementing.
+# Per-consuming-repo Overlay config. Learning Guide is one adapter, not the product.
 # Push/select reads this. No LLM on this path.
 
 product:
-  repo: First-Light-TechHK/LearningGuidePortal
+  repo: owner/name
   default_ref: pin-me
 
 branches:

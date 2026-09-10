@@ -1,11 +1,18 @@
 # AIOps
 
-Personal AI CI overlay (`LibertychaserUS/AIOps`). Not the empty First-Light `AIOps` repo.
+Workshop for two reusable GitHub products. Not the empty First-Light `AIOps` repo. Learning Guide is the first fixture, not the product.
 
-This repo is the place for generated, human-reviewed test suites and the workflow that runs **armed** suites on configured branches. It does **not** replace Learning Guide’s GitHub **Verify** (`Typecheck → Lint → Build and test`). It does **not** replace local Proctor (process ledger). It does **not** deploy.
+| Product | Job |
+|---|---|
+| **Forge** | Make multi-person (and agent) GitHub work ordered: PR-only, reviewed, no direct push to protected branches |
+| **Overlay** | Generate reviewable tests; run only `armed` suites. Does not replace a repo’s existing build gate |
 
-Status: initialized. Architecture is written (standard CPython; C only if a measured hot path appears). No generator or runner yet.
+Neither deploys. Neither attaches Proctor. Neither edits Learning Guide Verify.
 
-- 约束与第一刀：[`docs/2026-09-10-对话整理.md`](docs/2026-09-10-对话整理.md)
-- 架构 / 技术栈 / 系统设计：[`docs/architecture.md`](docs/architecture.md)（两层：GitHub 上规范多人开发 + 自动测例生成/CI）
-- 契约示例：[`schema/suite.example.yaml`](schema/suite.example.yaml)、[`schema/receipt.example.yaml`](schema/receipt.example.yaml)、[`config/overlay.example.yaml`](config/overlay.example.yaml)
+Status: design written; no installer or generator yet.
+
+- 两件产品怎么做、怎么接到别的仓：[`docs/products.md`](docs/products.md)
+- 系统设计：[`docs/architecture.md`](docs/architecture.md)
+- 约束：[`docs/2026-09-10-对话整理.md`](docs/2026-09-10-对话整理.md)
+- Overlay 契约：[`schema/suite.example.yaml`](schema/suite.example.yaml)、[`schema/receipt.example.yaml`](schema/receipt.example.yaml)
+- Forge 政策：[`forge/agent-policy.md`](forge/agent-policy.md)、[`forge/ruleset.protected-default.json`](forge/ruleset.protected-default.json)

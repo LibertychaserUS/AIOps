@@ -9,10 +9,10 @@
 
 ## 1. 先给结论
 
-本质就两件事，叠在 GitHub 上（对话路线 A），不要揉成一只万能云 agent，也不要做成产品门户：
+本质就两件事，做成 **两件可复用产品**（不是 Learning Guide 插件）。叠在 GitHub 上（对话路线 A），不要揉成一只万能云 agent，也不要做成门户。产品怎么交付、怎么接到别的仓：[`products.md`](products.md)。
 
-1. **把多人（和 agent）在 GitHub 上的协作开发处理规范、有序**
-2. **再做一套自动测试生成 + CI（本仓 overlay，不改产品 Verify）**
+1. **Forge** — 把多人（和 agent）在 GitHub 上的协作开发处理规范、有序
+2. **Overlay** — 自动测试生成 + CI（不替代接入方已有构建门）
 
 ```text
 第 2 层  Agent DevOps + reviewer + 管仓
@@ -25,10 +25,10 @@
          自写：CPython CLI + YAML 契约 + 程序回执
 ```
 
-| 层 | 干什么 | 不干什么 |
+| 产品 | 干什么 | 不干什么 |
 |---|---|---|
-| **1 测例** | 需求变可审用例；push 只跑 `armed` | 不管分支策略、不审产品 diff、不管谁该 merge |
-| **2 管仓** | 多人 + agent 怎么安全写同一仓；DevOps 触发第 1 层；reviewer 审代码 PR | 不从 PRD 生用例；不能把支付/登录标 `armed`；不做 CD |
+| **Overlay** | 需求变可审用例；push 只跑 `armed` | 不管分支策略、不审产品 diff、不管谁该 merge |
+| **Forge** | 多人 + agent 怎么安全写同一仓；DevOps 触发 Overlay；reviewer 审代码 PR | 不从 PRD 生用例；不能改 `armed`；不做 CD |
 
 Git 是两层共同的账本。没有数据库、没有自建工作台、不改产品 Verify、不打生产。
 
@@ -431,3 +431,4 @@ docs/architecture.md        # 本文件
 - [ ] 无 Proctor attach、无 Deepseek3 路径；回执只由 `select`/`run` 写。
 - [ ] 支付 / 登录 suite 在被标 `armed` 之前，main 预演保持绿。
 - [ ] 丢 My Learning inbox 能得到一页人能审的用例。
+- [ ] 受保护分支禁直推；agent 只能开 PR，不能自 merge、不能写 `reviewed_by`。

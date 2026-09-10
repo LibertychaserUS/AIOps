@@ -1,9 +1,10 @@
 # AIOps
 
-AI CI overlay for First-Light. Not the Learning Guide product repo. Not Proctor.
+Workshop for two reusable products: **Forge** (ordered GitHub collab) and **Overlay** (testgen + armed CI). Learning Guide is the first fixture, not the product. Not Proctor.
 
 - Do not change LearningGuidePortal Verify.
 - Do not attach/run/gate the intern workspace Proctor from here.
 - Do not edit Deepseek3.
 - Do not press production (`ilovelearningguide.com`).
-- Constraints from the 2026-09-10 conversation: `docs/2026-09-10-对话整理.md`.
+- Do not couple Forge/Overlay core to one product’s routes or domains.
+- Constraints: `docs/2026-09-10-对话整理.md`. Products: `docs/products.md`.
