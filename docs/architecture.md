@@ -101,28 +101,22 @@ Proctor 的规矩（没审过不跑、没证据不过）**只复用语义**，�
 
 **以后若要一本账：** 适配器只许住在本仓、只许读本仓 `receipts/`、只许在实习机本机把文件交给已有 Proctor。Deepseek3 源码仍不改。没有这条适配器之前，两本账并排已经算结合完成。
 
-### 2.3 多人协作、GitLens / CodeRabbit、云上 agent
+### 2.3 多人协作已经有 git 工具
 
-痛点是 **产品写的需求和几个人推的代码对不齐**，加上 AI 直推 `main` 会踩踏。GitLens / CodeRabbit 盖住一部分，本仓只补它们不做的。
+**协作不本仓做。** Git + GitHub 已经是多人工具：分支、PR、review、blame、`CODEOWNERS`、GitLens、CodeRabbit。再造「谁碰了包」评论区或协作后台，是闲活。
 
-| 工具 | 盖住 | 不盖 |
-|---|---|---|
-| **GitLens** | 谁改过这文件、本地历史 | 这条需求该不该测、支付能不能红 |
-| **CodeRabbit** | PR diff 上的代码病、风格、浅层风险 | PRD → 可审用例；`draft`/`blocked`/`armed` |
-| **产品 Verify** | 构建门：tsc / lint / build / 已有 test:ci | 未就绪集解禁；需求对齐 |
-| **本仓 overlay** | 需求 → 人审用例；push 只跑 `armed`；comment「碰了谁的包」 | 不替代上面三个 |
+踩踏的解法也是 git 自带的：人（和以后的 agent）走 PR，不直推产品 `main`。不靠一只看 `main` 的云交警。
 
-「本质上做一个云上 agent DevOps + reviewer」——**作为以后的操作员外形成立，作为第一套系统不成立。** 对话里的路线 B（先做看 `main` 的云 agent）能防踩踏，但不产出用例，和主目标错位。先做 agent 等于自研一只较弱的 CodeRabbit，还是没有人审过的集。
+本仓只补 git 工具不做的两件事：需求 → 可审用例；push 只跑 `armed`。`suite.yaml` 的 `packages` 是给选择器用的索引（后一刀可按 PR 已有的文件列表去对），不是新的协作产品。第一刀不用发自定义「碰了谁的包」comment——PR 的 Files 就是。
 
-若以后加一只云 agent，必须关在 overlay 笼子里（和「先不做复杂舰队」一致）：
+| 已有 | 本仓 |
+|---|---|
+| 分支 / PR / review / blame / GitLens | 不重做 |
+| CodeRabbit 审 diff | 不重做、不替代 |
+| `CODEOWNERS` 点名谁该看 | 能用就用，不自建值班表 |
+| 本仓 overlay | inbox → `draft`/`blocked`/`armed` → `select` |
 
-| 角色 | 许 | 不许 |
-|---|---|---|
-| DevOps | 调 `generate`（人点或 dispatch）；跑 `select`/`run`；PR 上写 `packages` | 直推产品 `main`；改 Verify；deploy；打生产 |
-| Reviewer | 对 `draft` 提出「建议 blocked / 建议 armed」+ 理由 | 自己写 `reviewed_by`；自动把支付/登录标 `armed`；用模型写回执 |
-| 协作 | 一笔提交只碰声明过的包；撞包就停、等人 | 多 agent 并行改同一 suite；舰队抢 `main` |
-
-多人协作第一刀不靠 agent，靠两件程序：`suite.yaml` 的 `packages` + push/PR comment 列出碰了谁。开发只修自己 `armed` 红的 diff。GitLens 继续看历史，CodeRabbit 继续看 diff，两样都留下，不重做。
+云上 agent 若以后出现，也是 **git 上的一个提交者**：开 PR、等人审、调 `generate`/`select`。不许直推 `main`，不许自己写 `reviewed_by`，不许给支付/登录自动 `armed`。它不是协作层，是笼子里的操作员。路线 B（先做看 `main` 的云 agent）仍然不做。
 
 ---
 
@@ -148,7 +142,7 @@ Proctor 的规矩（没审过不跑、没证据不过）**只复用语义**，�
 - 对 `ilovelearningguide.com` 发请求或当测试环境。
 - 搬 First-Light 空仓、搬整站开源测试平台。
 - 覆盖率 agent、流量录制、自然语言 E2E 框架（对话表里第一刀标「不用」的那些）。
-- 重做 GitLens / CodeRabbit；云 agent 直推 `main` 或自动 `armed`。
+- 重做 GitLens / CodeRabbit / PR 协作；云 agent 直推 `main` 或自动 `armed`。
 
 ---
 
@@ -158,7 +152,7 @@ Proctor 的规矩（没审过不跑、没证据不过）**只复用语义**，�
 
 ```text
 产品经理                 开发
-   │  inbox/*.md            │  push / PR comment「碰了谁的包」
+   │  inbox/*.md            │  普通 PR（已有 git 协作）
    ▼                        ▼
 ┌─────────────────────────────────────────┐
 │  LibertychaserUS/AIOps  (Git + Actions) │
@@ -279,7 +273,7 @@ inbox md
   → 后一刀：checkout 产品仓 pin，跑与 suite 声明对应的已有测试
 ```
 
-「碰了谁的包」：PR / push comment 列出本次 diff 命中的 `packages`，减轻多人踩踏。这是路线 B 里唯一要并进 A 的部分。不做看 `main` 的云 agent。
+踩踏用已有 PR / blame / `CODEOWNERS` 解，不另做 comment 产品。后一刀若要按改动收窄集，对 PR 已有的文件列表和 `packages` 索引即可。不做看 `main` 的云 agent。
 
 ### 4.6 和产品仓测试的衔接（不改 Verify）
 
@@ -391,7 +385,7 @@ docs/architecture.md        # 本文件
 3. 生成或手写一页 `cases.md`，人审。
 4. 支付 / 登录 suite：`blocked`。My Learning 已合且可测的切片：`armed`。
 5. `select main` 不含 `blocked`/`draft`。本仓 push 不因此红。
-6. PR comment 能列出 `packages`。
+6. 协作走已有 PR / GitLens / CodeRabbit，不自建评论区。
 7. `select` 写出程序回执（`schema/receipt.example.yaml`）；不调用 Proctor。
 
 **第二刀（仍不做门户、不做舰队）**
