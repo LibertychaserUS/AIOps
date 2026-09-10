@@ -9,6 +9,7 @@ product: Forge | Overlay | CI | docs
 
 不是分支名、不是 workflow 名、不是 skill 名。
 不要改 cursor/…-6842 或 copilot/ 分支前缀。
+不要改成 feat(overlay/dev): … 或新开 pr-title workflow。
 
 六个二级标题必须原样保留，便于 grep。
 正文「分工」写谁审 / 谁合（人，见 docs/rbac.md），不是标题前缀。
