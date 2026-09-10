@@ -2,7 +2,7 @@
 
 Workshop for two reusable products: **Forge** (ordered GitHub collab) and **Overlay** (testgen + armed CI). Learning Guide is the first fixture, not the product. Not Proctor.
 
-**Start:** public README [`README.md`](README.md). Pin **two** tags, not `main`: [`overlay-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.0) and [`forge-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.0). GitHub shows one Latest badge; Overlay is not unpublished. Do not vendor the tool into a product repo.
+**Start:** public README [`README.md`](README.md). Pin **two** tags after publish: `overlay-v1.0.1` and `forge-v1.0.1` (until then `overlay-v1.0.0` / `forge-v1.0.0` still exist). Native skills: `.agents/skills` (Codex), `.cursor/skills` (Cursor), `.claude/skills` (Claude Code) → `skills/use-forge` + `skills/use-overlay`. Do not vendor the tool into a product repo.
 
 - Do not change LearningGuidePortal Verify.
 - Do not attach/run/gate the intern workspace Proctor from here.

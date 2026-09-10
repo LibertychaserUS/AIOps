@@ -1,0 +1,60 @@
+# Publish Overlay and Forge GitHub Releases. Not production CD.
+# Human / Ops only: workflow_dispatch on main after a capstone merge.
+# Never on push. Never generate. Never forge submit. Never merge.
+
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver without prefix (e.g. 1.0.1). Creates overlay-vX and/or forge-vX."
+        required: true
+        type: string
+      products:
+        description: "Which product tags to publish"
+        required: true
+        type: choice
+        default: both
+        options:
+          - both
+          - overlay
+          - forge
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "release is dispatch-only on main (got ${{ github.ref }})"
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Publish product tags
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          python -m forge release
+          --repo "${{ github.repository }}"
+          --version "${{ inputs.version }}"
+          --products "${{ inputs.products }}"
+          --sha "${{ github.sha }}"
+          --root .

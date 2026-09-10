@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 RULESET_JSON = PACKAGE_DIR / "ruleset.protected-default.json"

@@ -20,6 +20,15 @@ def _write(path: Path, text: str) -> None:
 
 
 class WorkshopSopLockTests(unittest.TestCase):
+    def test_skill_discovery_dirs_point_at_skills(self) -> None:
+        from forge.sop_lock import check_skill_discovery
+
+        issues = check_skill_discovery(ROOT)
+        self.assertEqual(issues, [])
+        for rel in (".agents/skills", ".cursor/skills", ".claude/skills"):
+            self.assertTrue((ROOT / rel / "use-forge" / "SKILL.md").is_file())
+            self.assertTrue((ROOT / rel / "use-overlay" / "SKILL.md").is_file())
+
     def test_workshop_is_green(self) -> None:
         stdout = io.StringIO()
         stderr = io.StringIO()

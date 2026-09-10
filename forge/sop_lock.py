@@ -558,6 +558,73 @@ def check_submit_source(root: Path) -> list[Issue]:
     return issues
 
 
+DISCOVERY_SKILL_DIRS = (".agents/skills", ".cursor/skills", ".claude/skills")
+
+
+def check_skill_discovery(root: Path) -> list[Issue]:
+    """Codex=.agents/skills, Cursor=.cursor/skills, Claude Code=.claude/skills."""
+    if not is_workshop_root(root):
+        return []
+    canonical = root / "skills"
+    names = sorted(path.name for path in canonical.iterdir() if (path / "SKILL.md").is_file())
+    issues: list[Issue] = []
+    if not names:
+        issues.append(Issue("skills/", "no SKILL.md packages to expose"))
+        return issues
+    for rel in DISCOVERY_SKILL_DIRS:
+        folder = root / rel
+        if not folder.is_dir():
+            issues.append(Issue(rel, "missing native skill discovery directory"))
+            continue
+        for name in names:
+            link = folder / name
+            if not link.exists():
+                issues.append(Issue(f"{rel}/{name}", "must point at skills/" + name))
+                continue
+            target = (canonical / name).resolve()
+            try:
+                resolved = link.resolve()
+            except OSError:
+                issues.append(Issue(f"{rel}/{name}", "cannot resolve skill path"))
+                continue
+            if resolved != target:
+                issues.append(Issue(f"{rel}/{name}", f"must resolve to skills/{name}"))
+    return issues
+
+
+def check_release_workflow(root: Path) -> list[Issue]:
+    if not is_workshop_root(root):
+        return []
+    path = root / ".github" / "workflows" / "release.yml"
+    rel = _rel(root, path)
+    if not path.is_file():
+        return [Issue(rel, "missing release workflow (publish product tags, not production CD)")]
+    issues: list[Issue] = []
+    text = path.read_text(encoding="utf-8")
+    data = _load_workflow(path)
+    on_field = (data or {}).get("on") or (data or {}).get(True)
+    if not _on_has(on_field, "workflow_dispatch"):
+        issues.append(Issue(rel, "release must be workflow_dispatch (human publish)"))
+    if _on_has(on_field, "push"):
+        issues.append(Issue(rel, "release must not run on push"))
+    if not re.search(r"python[0-9.]*\s+-m\s+forge\s+release", text):
+        issues.append(Issue(rel, "must call python -m forge release"))
+    if SUBMIT_RUN_RE.search(text):
+        issues.append(Issue(rel, "must not call forge submit"))
+    if GENERATE_RUN_RE.search(text):
+        issues.append(Issue(rel, "must not run overlay generate"))
+    lock = root / "docs" / "release.md"
+    if not lock.is_file():
+        issues.append(Issue("docs/release.md", "missing publish SOP (two product tags, not production CD)"))
+    else:
+        doc = lock.read_text(encoding="utf-8")
+        if "overlay-v" not in doc or "forge-v" not in doc:
+            issues.append(Issue("docs/release.md", "must name overlay-v* and forge-v*"))
+        if "workflow_dispatch" not in doc or "生产" not in doc:
+            issues.append(Issue("docs/release.md", "must say dispatch-only and 不打生产"))
+    return issues
+
+
 def collect_issues(root: Path) -> list[Issue]:
     root = root.resolve()
     issues: list[Issue] = []
@@ -565,9 +632,11 @@ def collect_issues(root: Path) -> list[Issue]:
     issues.extend(check_kernel(root))
     issues.extend(check_husky(root))
     issues.extend(check_skills(root))
+    issues.extend(check_skill_discovery(root))
     issues.extend(check_submit_source(root))
     if is_workshop_root(root):
         issues.extend(check_submit_custody_docs(root))
+        issues.extend(check_release_workflow(root))
     issues.extend(check_workshop_docs_and_checks(root))
     issues.sort(key=lambda item: (item.path, item.message))
     return issues

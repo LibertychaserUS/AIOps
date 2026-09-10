@@ -421,7 +421,14 @@ class GitHubClient:
         self.urlopen = urlopen or default_urlopen
         self.base_url = base_url.rstrip("/")
 
-    def request(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
+    def request(
+        self,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+        *,
+        not_found_ok: bool = False,
+    ) -> Any:
         url = f"{self.base_url}{path}"
         data = None if body is None else json.dumps(body).encode("utf-8")
         headers = {
@@ -440,6 +447,8 @@ class GitHubClient:
         except ForgeError:
             raise
         except urllib.error.HTTPError as exc:
+            if not_found_ok and exc.code == 404:
+                return None
             raw = exc.read() or b""
             message = _api_message(raw, fallback=str(exc.reason or exc))
             if exc.code in (401, 403):

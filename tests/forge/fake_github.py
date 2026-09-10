@@ -38,10 +38,13 @@ class FakeGitHub:
         self.issue_comments: list[dict] = []
         self.review_comments: list[dict] = []
         self.check_runs: list[dict] = []
+        self.releases: list[dict] = []
+        self.main_sha = "abc1234deadbeef"
         self.calls: list[tuple[str, str, dict | None]] = []
         self.next_id = 1
         self.next_pr = 1
         self.next_comment = 1
+        self.next_release = 1
         self.fail_status: int | None = None
         self.fail_on: set[str] = set()
 
@@ -102,6 +105,17 @@ class FakeGitHub:
 
         if parts[3] == "pulls":
             return self._handle_pulls(method, parts, parsed.query, body, req)
+
+        if parts[3] == "releases":
+            return self._handle_releases(method, parts, body, req)
+
+        if parts[3] == "git" and len(parts) >= 6 and parts[4] == "ref":
+            ref = "/".join(parts[5:])
+            if method != "GET":
+                raise HTTPError(req.full_url, 405, "method", hdrs=None, fp=io.BytesIO(b"{}"))
+            if ref == "heads/main":
+                return FakeResponse(200, {"ref": "refs/heads/main", "object": {"sha": self.main_sha}})
+            raise HTTPError(req.full_url, 404, "not found", hdrs=None, fp=io.BytesIO(b'{"message":"not found"}'))
 
         if parts[3] != "rulesets":
             raise HTTPError(req.full_url, 404, "not a ruleset route", hdrs=None, fp=io.BytesIO(b'{"message":"not found"}'))
@@ -186,6 +200,32 @@ class FakeGitHub:
                 if "body" in body:
                     found_one["body"] = body["body"]
             return FakeResponse(200, found_one)
+        raise HTTPError(req.full_url, 405, "method not allowed", hdrs=None, fp=io.BytesIO(b'{"message":"method"}'))
+
+    def _handle_releases(
+        self,
+        method: str,
+        parts: list[str],
+        body: dict | None,
+        req: Request,
+    ) -> FakeResponse:
+        if len(parts) >= 6 and parts[4] == "tags":
+            tag = parts[5]
+            if method != "GET":
+                raise HTTPError(req.full_url, 405, "method", hdrs=None, fp=io.BytesIO(b"{}"))
+            found = next((item for item in self.releases if item.get("tag_name") == tag), None)
+            if found is None:
+                raise HTTPError(req.full_url, 404, "not found", hdrs=None, fp=io.BytesIO(b'{"message":"not found"}'))
+            return FakeResponse(200, found)
+        if method == "POST" and len(parts) == 4:
+            created = dict(body or {})
+            created["id"] = self.next_release
+            created["html_url"] = (
+                f"https://forge.test/{parts[1]}/{parts[2]}/releases/tag/{created.get('tag_name')}"
+            )
+            self.next_release += 1
+            self.releases.append(created)
+            return FakeResponse(201, created)
         raise HTTPError(req.full_url, 405, "method not allowed", hdrs=None, fp=io.BytesIO(b'{"message":"method"}'))
 
     def _pull_by_number(self, number: int) -> dict | None:

@@ -6,10 +6,10 @@ Public workshop for two reusable GitHub products: **Forge** (ordered PRs) and **
 
 | Product | Pin this tag | Release | Job |
 |---|---|---|---|
-| **Overlay** | [`overlay-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.0) | [Overlay 1.0.0](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.0) | Inbox → reviewable suites. Push runs only `armed`. No `generate` in 1.0.0. |
-| **Forge** | [`forge-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.0) | [Forge 1.0.0](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.0) | Local `check` then `submit` opens a draft PR. Humans + Ruleset merge. Never auto-merges. |
+| **Overlay** | `overlay-v1.0.1` | published after this slice lands on `main` | Inbox → reviewable suites. Push runs only `armed`. No `generate`. |
+| **Forge** | `forge-v1.0.1` | published after this slice lands on `main` | Local `check` then `submit` opens a draft PR. Humans + Ruleset merge. Never auto-merges. |
 
-These are **two tags**. GitHub allows only one **Latest** badge per repository, so `/releases/latest` currently lands on Forge. Overlay is not missing; open the Overlay link above. After a squash/merge onto `main`, retarget both tags (or cut `v1.0.1`) onto the new `main` SHA — do not pin `main`.
+Still on GitHub today: [`overlay-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.0) and [`forge-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.0) (same old SHA). After this PR merges, a human publishes **1.0.1** on the new `main` SHA — see [Publish](#8-publish-after-merge-not-production-cd). GitHub Latest is one badge; pin the two tags, not `main`.
 
 Need: CPython **3.12+**. Clone this repo (or your fork) **beside** the product repo.
 
@@ -20,13 +20,43 @@ Need: CPython **3.12+**. Clone this repo (or your fork) **beside** the product r
 
 ---
 
+## Native skills (Codex / Cursor / Claude Code)
+
+Canonical packages: [`skills/*/SKILL.md`](skills/) ([Agent Skills](https://agentskills.io/specification) `name` + `description`; `name` = folder). This workshop mirrors them into the three project discovery dirs (symlinks, not copies):
+
+| Agent | Native project path in **this** repo |
+|---|---|
+| Codex | [`.agents/skills/`](.agents/skills/) |
+| Cursor | [`.cursor/skills/`](.cursor/skills/) (also reads `.agents/skills/`) |
+| Claude Code | [`.claude/skills/`](.claude/skills/) |
+
+`use-forge` and `use-overlay` teach the two CLIs: `python -m forge` / `python -m overlay` with `PYTHONPATH` to this workshop. Opening this repo in those agents is enough — no extra install.
+
+**Import into another product repo** (skills only; still do not vendor `forge/` / `overlay/`):
+
+```text
+# GitHub CLI (discovers skills/*/SKILL.md). Pin a tag, not main.
+gh skill install LibertychaserUS/AIOps --pin overlay-v1.0.1
+# or pick a host: --agent cursor | claude-code | copilot | …
+
+# Manual: sibling checkout, then symlink the two CLI skills
+ln -s ../AIOps/skills/use-forge .agents/skills/use-forge
+ln -s ../AIOps/skills/use-overlay .agents/skills/use-overlay
+# Cursor-only extra: also .cursor/skills/
+# Claude Code-only extra: also .claude/skills/
+```
+
+Cursor Customize → Skills can also add this GitHub repo as a remote skill source.
+
+---
+
 ## 1. What you are allowed to change
 
 | Lives in this workshop (or your fork) | Lives in the product repo |
 |---|---|
 | `forge/`, `overlay/`, `schema/`, `prompts/` | `forge.yaml` and/or `overlay.yaml` |
 | reusable `.github/workflows/overlay.yml` | `inbox/`, `suites/`, optional `invariants.yaml` |
-| skills and docs | one thin workflow: `uses: LibertychaserUS/AIOps/.github/workflows/overlay.yml@overlay-v1.0.0` |
+| skills and docs | one thin workflow: `uses: LibertychaserUS/AIOps/.github/workflows/overlay.yml@overlay-v1.0.1` |
 
 Local CLI: `PYTHONPATH=../AIOps`. Do not `git add` the tool tree so imports work. When the product repo has no `overlay/__init__.py`, the reusable workflow checkouts `tool_repository` (default `LibertychaserUS/AIOps`) into `_aiops`. That checkout is the correct reuse path.
 
@@ -43,7 +73,7 @@ States: `draft` (AI/human draft, not run) · `blocked` (reviewed, not ready — 
 ```text
 git clone https://github.com/LibertychaserUS/AIOps.git
 cd AIOps
-git checkout overlay-v1.0.0
+git checkout overlay-v1.0.1
 python3 -m overlay validate --root .
 python3 -m overlay cover --root .
 python3 -m overlay select --branch main --root .
@@ -54,10 +84,10 @@ Use `-t .` so `tests/overlay` does not shadow the `overlay` package.
 
 ### In a product repo (first hour)
 
-1. Checkout this workshop next door. `git checkout overlay-v1.0.0`.
+1. Checkout this workshop next door. `git checkout overlay-v1.0.1`.
 2. In the product repo add `overlay.yaml` (copy shape from this workshop’s [`overlay.yaml`](overlay.yaml); set `product.repo` to **that** product).
 3. Add one `inbox/<id>.md` (one slice, one id). Contract: [`docs/inbox.md`](docs/inbox.md). `function_id` is whatever stable unique string the adopter docs already use — do not invent `REQ-n`.
-4. Hand-write `suites/<id>/` (`suite.yaml` starts `draft`). 1.0.0 has **no** `generate`. Cover method: [`skills/design-cases/SKILL.md`](skills/design-cases/SKILL.md).
+4. Hand-write `suites/<id>/` (`suite.yaml` starts `draft`). 1.0.x has **no** `generate`. Cover method: [`skills/design-cases/SKILL.md`](skills/design-cases/SKILL.md).
 5. A human (not the agent) sets `blocked` or `armed` and writes `reviewed_by`.
 6. Validate, then pin CI:
 
@@ -74,11 +104,11 @@ name: overlay-check
 on: [push, pull_request]
 jobs:
   overlay:
-    uses: LibertychaserUS/AIOps/.github/workflows/overlay.yml@overlay-v1.0.0
+    uses: LibertychaserUS/AIOps/.github/workflows/overlay.yml@overlay-v1.0.1
     with:
       enable_run: true
       tool_repository: LibertychaserUS/AIOps
-      tool_ref: overlay-v1.0.0
+      tool_ref: overlay-v1.0.1
 ```
 
 If you forked the workshop, point `uses:`, `tool_repository`, and `tool_ref` at **your fork** and a pin. Never checkout `First-Light-TechHK/LearningGuidePortal`. Never `workflow_call` a product Verify job.
@@ -97,7 +127,7 @@ Skill (read next): [`skills/use-forge/SKILL.md`](skills/use-forge/SKILL.md).
 ### In this workshop (smoke)
 
 ```text
-git checkout forge-v1.0.0
+git checkout forge-v1.0.1
 python3 -m forge check --root . --title "docs(docs/agent): example title" --body "$(cat .github/PULL_REQUEST_TEMPLATE.md)"
 python3 -m forge sop-lock --root .
 python3 -m unittest discover -s tests/forge -t . -q
@@ -168,6 +198,17 @@ Codex also loads `.agents/skills/` (symlinks to `skills/`).
 
 ---
 
-## 7. What 1.0.0 does not include
+## 7. What 1.0.1 does not include
 
-Overlay `generate` is not shipped. There is no “drop a PRD, get reviewed cases today” loop yet — hand-write suites. Forge `apply` is live only when a human runs it with an admin token; this workshop’s CI is dry-run only. Guard workflow is a later slice.
+Overlay `generate` is not shipped. There is no “drop a PRD, get reviewed cases today” loop yet — hand-write suites. Forge `apply` is live only when a human runs it with an admin token; this workshop’s CI is dry-run only. Guard workflow is a later slice. Tags `overlay-v1.0.1` / `forge-v1.0.1` are created **after** this slice is on `main` (human `forge release` / Actions `release`).
+
+## 8. Publish after merge (not production CD)
+
+Spec: [`docs/release.md`](docs/release.md). After squash/merge to `main`:
+
+```text
+python3 -m forge release --repo LibertychaserUS/AIOps --version 1.0.1 --dry-run
+# or Actions: workflow "release" → Run workflow → version=1.0.1, products=both
+```
+
+Does not deploy. Does not run on push. Does not merge.

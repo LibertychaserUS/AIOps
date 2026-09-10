@@ -78,6 +78,15 @@ PYTHONPATH=../AIOps python3 -m overlay validate --root .
 
 Merge: GitHub PR page, squash, after the brief is present, checks green (`overlay-check`、`pr-title`、`forge-check`、`sop-lock`), and approval. 封顶再压，压完换底. Not Overlay. Not a custom 管理端.
 
+After a capstone lands on `main`, publish **two** product tags (not production CD):
+
+```text
+PYTHONPATH=../AIOps python3 -m forge release --repo LibertychaserUS/AIOps --version X.Y.Z --dry-run
+PYTHONPATH=../AIOps python3 -m forge release --repo LibertychaserUS/AIOps --version X.Y.Z
+```
+
+Or Actions workflow `release` → Run workflow (`workflow_dispatch` only). Spec: [`docs/release.md`](../../docs/release.md).
+
 ## Performance Notes
 
 `forge apply` is one GET + one POST/PUT. Title lint is a regex. Overlay arm is a yaml edit + local `validate`. No model. Token only on explicit apply.
