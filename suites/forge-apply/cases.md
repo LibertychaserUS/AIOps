@@ -6,9 +6,9 @@
 - Title: dry-run prints payload
 - Steps: `python -m forge apply --repo LibertychaserUS/AIOps --path forge.yaml --dry-run`
 - Expected: exit 0; payload mentions forge-protected-default; no API write
-- Title: CI run executes forge unit tests then dry-run
-- Steps: overlay-check `product_command` for this suite
-- Expected: fake-API tests green; dry-run exit 0; no Ruleset write
+- Title: Forge CI runs unit tests then dry-run
+- Steps: `.github/workflows/forge-check.yml` layers `unittest discover -s tests/forge` then `forge apply --dry-run`
+- Expected: fake-API tests green; dry-run exit 0; no Ruleset write; Overlay select does not run this suite
 - Title: conventional PR title with product/actor passes
 - Steps: `python -m forge pr-title --title "feat(overlay/dev): add cover triad and invariants"`
 - Expected: exit 0; no GitHub write
@@ -83,7 +83,7 @@
 ### Functional
 - Title: workshop sop-lock is green
 - Steps: `python -m forge sop-lock --root .`
-- Expected: exit 0; required_checks list overlay-check, pr-title, sop-lock
+- Expected: exit 0; required_checks list overlay-check, pr-title, forge-check, sop-lock
 - FN-forge-apply dry-run stays the apply leaf; this leaf locks SOP files
 
 ### Negative
@@ -100,6 +100,6 @@
 - Title: comment "No generate" on push is green
 - Steps: push workflow whose only generate token is a comment
 - Expected: not a generate-on-push failure
-- Title: unittest discover on push is red
+- Title: Overlay-bypass unittest discover on push is red
 - Steps: a `self-test` workflow runs `unittest discover` on push
-- Expected: exit 2; tests belong in armed product_command
+- Expected: exit 2; Overlay tests stay in Overlay armed `product_command`; Forge tests stay on `forge-check`

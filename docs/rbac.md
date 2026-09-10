@@ -5,7 +5,7 @@ PR 的 **review 和 merge 由 GitHub 上的人 + Repository Ruleset 管**，不�
 控制面只有这一套：
 
 - GitHub org **teams**（谁是 admin / maintainer / writer）
-- Repository **Ruleset**（禁直推、必须 PR、批准数、required checks）。本工作本声明的 check 名：`overlay-check`、`pr-title`、`sop-lock`（见 `forge.yaml`）。任一红则不合。代推锁是本地 `python -m forge check`，红则不提交。
+- Repository **Ruleset**（禁直推、必须 PR、批准数、required checks）。本工作本声明的 check 名：`overlay-check`、`pr-title`、`forge-check`、`sop-lock`（见 `forge.yaml`）。任一红则不合。代推锁是本地 `python -m forge check`，红则不提交。
 - **CODEOWNERS**（哪条路径必须谁审）
 - Overlay `suite.yaml` 的人审字段（`reviewed_by`、`armed` / `blocked`）
 
@@ -21,12 +21,12 @@ PR 的 **review 和 merge 由 GitHub 上的人 + Repository Ruleset 管**，不�
 
 | 侧 | 谁 | 做什么 | 不做什么 |
 |---|---|---|---|
-| **开发侧** | 人 / agent + `python -m forge check` + `python -m forge submit` | 提交前本地检查绿，再代推当前功能分支，开/更新 **draft** PR，标题过 `pr-title` | 不直推 protect；check 红不 push；不自合；不 `forge apply` |
+| **开发侧** | 人 / agent + `python -m forge check` + `python -m forge submit` | 提交前本地检查绿，且宿主已注入 GitHub 写权限，再代推当前功能分支，开/更新 **draft** PR，标题过 `pr-title` | 不直推 protect；check 红不 push；无宿主凭证不 push（含 `--dry-run`）；不自合；不 `forge apply` |
 | **Ops 侧** | 管理端 + Ruleset required checks | 勾 check、等人 Approve，绿了在 GitHub 点 merge | 不替开发 push；Forge **不合入** |
 
 对齐已有工具，不另造协议：
 
-- 开发侧代推：[GitHub CLI `gh pr create`](https://cli.github.com/manual/gh_pr_create)（推当前分支并开 PR）。同类参考 [Graphite `gt submit`](https://graphite.com/docs/create-submit-prs)，只借「推分支 + 开/更新 PR」，不借 stack，不借 merge-when-ready。
+- 开发侧代推：`python -m forge submit` 对齐 [GitHub CLI `gh pr create`](https://cli.github.com/manual/gh_pr_create)。Forge **不保管**密钥：人用 `gh auth login`，云代理用宿主注入的 `GH_TOKEN` / extraheader。同类参考 [Graphite `gt submit`](https://graphite.com/docs/create-submit-prs)，只借「推分支 + 开/更新 PR」，不借 stack，不借 merge-when-ready。密钥页：[`submit-credential.md`](submit-credential.md)。
 - Ops 侧合入门：[GitHub Ruleset — Require status checks to pass](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#require-status-checks-to-pass-before-merging)。人点 merge。
 
 ---

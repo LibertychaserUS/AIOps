@@ -84,6 +84,18 @@ class WorkflowLockTests(unittest.TestCase):
             issues = collect_issues(root)
             self.assertTrue(any("unittest" in item.message for item in issues), issues)
 
+    def test_forge_check_unit_layer_on_push_is_green(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(
+                root / ".github" / "workflows" / "forge-check.yml",
+                "name: forge-check\non:\n  push:\njobs:\n  forge-check:\n"
+                "    runs-on: ubuntu-latest\n    steps:\n"
+                "      - run: python3 -m unittest discover -s tests/forge -t .\n",
+            )
+            issues = collect_issues(root)
+            self.assertFalse(any("unittest" in item.message for item in issues), issues)
+
     def test_checkout_learningguideportal_is_red(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -139,20 +151,28 @@ class SkillAndHuskyTests(unittest.TestCase):
             self.assertTrue(any(".husky" in item.path for item in issues), issues)
 
 
-class SubmitSecretLockTests(unittest.TestCase):
-    def test_submit_without_named_secret_is_red(self) -> None:
+class SubmitCustodyLockTests(unittest.TestCase):
+    def test_submit_inventing_named_secret_is_red(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _write(root / "forge" / "submit.py", "def run_submit():\n    return 0\n")
+            _write(
+                root / "forge" / "submit.py",
+                "FORGE_SUBMIT_TOKEN = 'x'\n"
+                "def run_submit():\n"
+                "    run_check()\n"
+                "    return 0\n",
+            )
             issues = collect_issues(root)
             self.assertTrue(
                 any("FORGE_SUBMIT_TOKEN" in item.message for item in issues),
                 issues,
             )
 
-    def test_workshop_submit_names_the_secret(self) -> None:
+    def test_workshop_submit_consumes_host_cred(self) -> None:
         text = (ROOT / "forge" / "submit.py").read_text(encoding="utf-8")
-        self.assertIn("FORGE_SUBMIT_TOKEN", text)
+        self.assertNotIn("FORGE_SUBMIT_TOKEN", text)
+        self.assertIn("probe_write_credential", text)
+        self.assertIn("pr create", text)
         self.assertNotIn('get("GITHUB_TOKEN"', text)
         self.assertNotIn("resolve_token(", text)
 

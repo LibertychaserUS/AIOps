@@ -183,10 +183,20 @@ class RunTests(unittest.TestCase):
             self.assertIn("selected=0", result.stderr)
 
     def test_workshop_commands_are_not_recursive(self) -> None:
-        for name in ("overlay-select", "forge-apply"):
-            text = (REPO / "suites" / name / "suite.yaml").read_text(encoding="utf-8")
-            self.assertIn("product_command:", text)
-            self.assertNotIn("python -m overlay run", text)
+        overlay = (REPO / "suites" / "overlay-select" / "suite.yaml").read_text(encoding="utf-8")
+        self.assertIn("product_command:", overlay)
+        self.assertNotIn("python -m overlay run", overlay)
+        forge = (REPO / "suites" / "forge-apply" / "suite.yaml").read_text(encoding="utf-8")
+        self.assertIn("status: blocked", forge)
+        self.assertNotIn("python -m overlay run", forge)
+        self.assertNotIn("unittest discover", forge)
+
+    def test_workshop_select_is_overlay_only(self) -> None:
+        result = run_overlay("select", "--branch", "main", "--root", str(REPO))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        selected = [line for line in result.stdout.splitlines() if line.strip()]
+        self.assertEqual(selected, ["overlay-select"])
+        self.assertNotIn("forge-apply", result.stdout)
 
     def test_run_module_has_no_http_client(self) -> None:
         path = REPO / "overlay" / "run.py"

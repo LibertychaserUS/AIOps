@@ -107,7 +107,7 @@ Overlay 模型 token 不在 push 上花。Forge 代推必须另持 `FORGE_SUBMIT
 
 - **代推锁（提交前）：** `python -m forge check` 必须绿 **并且** 持有 `FORGE_SUBMIT_TOKEN`。缺密钥或 check 红：`forge submit`（含 `--dry-run`）拒绝，不 push、不开 PR。不回落 `GITHUB_TOKEN` / `gh auth`。Ops merge 是另一套权限。
 - 标题 `type(product/actor): subject` + 正文六节：`python -m forge pr-title`（也在 check 里）→ CI **`pr-title`**（合入锁）
-- 代推 dry-run / protect 拒绝：`python -m forge submit --dry-run` + Forge 单测 → **`overlay-check`**（合入锁）
-- armed 红：修那个 `function_id`，门仍是 **`overlay-check`**
-- 仓级 SOP：`python -m forge sop-lock` → **`sop-lock`**（若已装；合入锁）
+- 代推 dry-run / protect 拒绝：`python -m forge submit --dry-run` + Forge 单测 → **`forge-check`**（合入锁）
+- Overlay armed 红：修那个 `function_id`，门仍是 **`overlay-check`**
+- 仓级 SOP：`python -m forge sop-lock` → **`sop-lock`**（若已装；也是 `forge-check` 的一层）
 - GitHub required checks 锁**合入**，不锁提交。本地 check 锁**代推**。不绿不能提交。不绿不能合。不要装 husky。不要自合。

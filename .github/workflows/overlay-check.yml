@@ -1,9 +1,10 @@
 # This workshop uses Overlay on itself (local overlay/ is correct here only).
 # Adopters must not copy overlay/ — they uses: overlay.yml from the tool repo.
-# Test and CI are the same gate: validate + select + run armed product_command.
+# Overlay test and CI are the same gate: validate + select + run Overlay armed
+# product_command only. Forge tests live on forge-check, not this run.
 # No generate. No product Verify. branch is pinned to main so agent branches
-# still execute the armed tool tests.
-# Learning Guide fixture stays preview/skip — no foreign product checkout.
+# still execute the armed Overlay tool tests.
+# Learning Guide fixture stays Overlay-only preview/skip — no foreign product checkout.
 
 name: overlay-check
 

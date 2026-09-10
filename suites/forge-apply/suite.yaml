@@ -1,6 +1,6 @@
 id: forge-apply
 title: Forge dry-run on this workshop
-status: armed
+status: blocked
 kind: functional
 subject: product
 source: inbox/forge-apply.md
@@ -8,10 +8,8 @@ packages:
   - forge
 reviewed_by: workshop
 reviewed_at: 2026-09-10T00:00:00Z
-blocked_reason: null
-armed_reason: apply --dry-run and fake-API tests ship; overlay-check executes this command.
-product_command: >-
-  python3 -m unittest discover -s tests/forge -t . -q
-  && python3 -m forge apply --repo LibertychaserUS/AIOps --path forge.yaml --dry-run
-  && FORGE_SUBMIT_TOKEN=forge-submit-ci-dry-run python3 -m forge submit --repo LibertychaserUS/AIOps --title "feat(forge/dev): add submit middleware" --head cursor/feature --dry-run
-  && python3 -m forge sop-lock --root .
+blocked_reason: >-
+  Overlay cover/validate demo only. Forge unit tests, apply --dry-run, and
+  sop-lock run on the forge-check workflow — not Overlay select/run.
+armed_reason: null
+product_command: null

@@ -9,7 +9,7 @@ metadata:
 
 Overlay is a standard part. Freeze the contract, not a product’s numbers. Agents **read adopter docs and compile** them into `inbox/` + `suites/`. Detailed compile rules: [`docs/agents/overlay-contract.md`](../../docs/agents/overlay-contract.md). IEEE subset: [`docs/agents/ieee-test-system.md`](../../docs/agents/ieee-test-system.md). Case design: [`../design-cases/SKILL.md`](../design-cases/SKILL.md).
 
-**Test and CI are one chain.** `suites/<id>/` is the test spec. `product_command` is what CI runs after `select` keeps only `armed`. There is no second test job beside Overlay.
+**Overlay test and Overlay CI are one chain.** `suites/<id>/` is the test spec. `product_command` is what Overlay CI runs after `select` keeps only `armed`. There is no second Overlay test job beside Overlay. Forge tests do not ride Overlay run.
 
 **Who reviews and merges code:** GitHub humans + Ruleset ([`docs/rbac.md`](../../docs/rbac.md)). Overlay only decides which suites run. **管理端** arms/blocks and writes `reviewed_by`: [`../manage-repo/SKILL.md`](../manage-repo/SKILL.md). **开发端** writes inbox/suites as draft and fixes armed-red: [`../dev-pr/SKILL.md`](../dev-pr/SKILL.md). Agents never arm.
 
@@ -18,8 +18,8 @@ Overlay is a standard part. Freeze the contract, not a product’s numbers. Agen
 原则：[`docs/sop-lock.md`](../../docs/sop-lock.md)。只锁可机器判定的子集，不 NLP 扫散文。
 
 - 契约 / 三技法 / invariant 点名 / blocked 不入选 / 回执 / `forbid_hosts`：`python -m overlay validate|cover|select|run` → CI **`overlay-check`**
-- push 不 generate、不 checkout LearningGuidePortal、不 `workflow_call` 产品 Verify、不旁路 unittest：`python -m forge sop-lock` → CI **`sop-lock`**
-- Overlay 测试只走 armed `product_command`。`sop-lock` 不是旁路 unittest。
+- push 不 generate、不 checkout LearningGuidePortal、不 `workflow_call` 产品 Verify、不另开 `self-test` 绕过 Overlay select：`python -m forge sop-lock` → CI **`sop-lock`**
+- Overlay 测试只走 Overlay armed `product_command`。Forge 单测走 **`forge-check`**。`sop-lock` 不是 Overlay 旁路 unittest。
 - 不绿不能合。人审：用例写得好不好、`reviewed_by` 是不是人。
 
 ## Instructions
@@ -90,8 +90,8 @@ If you forked the workshop, `uses:` **your fork** at a pin. A fork that diverges
 - Do not hit production hosts in `forbid_hosts` (LG: `ilovelearningguide.com`). No CD.
 - Do not put `status` / `reviewed_by` on inbox.
 - Do not generate on push. Do not arm as an agent. CI does not auto-arm.
-- Do not keep a second unit-test workflow that bypasses Overlay select. If a test should gate, it is an armed `product_command`.
-- Two products stay independent: Overlay does not install Rulesets; Forge does not arm suites. Overlay does not decide who may merge.
+- Do not keep a `self-test` workflow that bypasses Overlay select. Overlay tests that should gate Overlay CI are an Overlay armed `product_command`. Forge tests live on `forge-check`.
+- Two products stay independent: Overlay does not install Rulesets; Forge does not arm suites. Overlay does not decide who may merge. Overlay run does not execute Forge submit.
 - Do not build an admin Web or a second RBAC database. See [`docs/rbac.md`](../../docs/rbac.md).
 
 ## Examples
@@ -101,12 +101,12 @@ This workshop (already adopted; it **is** the tool repo, so local `overlay/` is 
 ```text
 python3 -m overlay validate --root .
 python3 -m overlay select --branch main --root .
-# selected: forge-apply, overlay-select
-# dropped: overlay-generate (blocked)
+# selected: overlay-select
+# dropped: overlay-generate, forge-apply (blocked)
 python3 -m overlay cover --root .
 python3 -m overlay run --branch main --root . --workdir . --write-receipt receipts-run/
-# forge-apply → forge unit tests + apply --dry-run
-# overlay-select → schema/check.py + overlay unit tests
+# overlay-select → schema/check.py + overlay cover + overlay unit tests
+# forge-apply is not selected; forge-check runs Forge tests
 ```
 
 Another product — thin caller only, pin a tag or SHA (not `main`):
@@ -148,7 +148,7 @@ validate / select are local YAML. `run` is local subprocess in the caller checko
 | 想 push 时 generate | 停。人点或 dispatch。 |
 | 想自动 armed | 停。人改 `suite.yaml`（`$manage-repo`；`review` CLI 这一刀不写盘）。 |
 | 谁来 merge 这个 PR | GitHub 人 + Ruleset，不是 Overlay。`$manage-repo` / [`docs/rbac.md`](../../docs/rbac.md)。 |
-| 另开一个 unittest workflow | 停。把命令写进 armed suite。 |
+| 另开一个 Overlay unittest workflow / 让 Overlay run 跑 Forge 单测 | 停。Overlay 命令写进 Overlay armed suite。Forge 单测走 `forge-check`。 |
 | 抓不到全局 corner | 先读全部 inbox/suites，把性质写成 invariant，再写叶子。不要两两穷尽。见 `$design-cases`。 |
 | armed 缺 Edge | 契约红。补技法。 |
 | `uses: …@main` | 停。pin tag 或 SHA。 |

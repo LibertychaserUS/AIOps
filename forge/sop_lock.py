@@ -19,13 +19,15 @@ from forge import EXIT_OK
 
 EXIT_SOP = 2
 
-WORKSHOP_REQUIRED_CHECKS = ("overlay-check", "pr-title", "sop-lock")
+WORKSHOP_REQUIRED_CHECKS = ("overlay-check", "pr-title", "forge-check", "sop-lock")
 LOCK_HEADING_RE = re.compile(r"^## Lock\b", re.MULTILINE)
 GENERATE_RUN_RE = re.compile(
     r"(python[0-9.]*\s+-m\s+overlay\s+generate)|(\boverlay\s+generate\b)",
     re.IGNORECASE,
 )
 UNITTEST_RE = re.compile(r"unittest\s+discover")
+FORGE_UNITTEST_RE = re.compile(r"unittest\s+discover\s+-s\s+tests/forge\b")
+SUBMIT_RUN_RE = re.compile(r"python[0-9.]*\s+-m\s+forge\s+submit")
 FLOATING_USES_RE = re.compile(
     r"^[^/]+/[^/]+/.+@(main|master|HEAD|latest)$",
     re.IGNORECASE,
@@ -102,6 +104,15 @@ def _collect_env_keys(node: Any) -> list[str]:
     return keys
 
 
+def _is_forge_unit_layer(path: Path, data: dict[str, Any], script: str) -> bool:
+    """Forge CI may discover tests/forge. That is not an Overlay select bypass."""
+    name = str(data.get("name") or "")
+    filename = path.name
+    forge_file = filename in {"forge-check.yml", "forge-check.yaml"}
+    forge_named = name == "forge-check"
+    return (forge_file or forge_named) and bool(FORGE_UNITTEST_RE.search(script))
+
+
 def _job_ids(data: dict[str, Any]) -> list[str]:
     jobs = data.get("jobs")
     if not isinstance(jobs, dict):
@@ -145,12 +156,19 @@ def check_workflows(root: Path) -> list[Issue]:
                 "OPENAI_API_KEY" in script for script in runs
             ):
                 issues.append(Issue(rel, "push workflow must not set OPENAI_API_KEY"))
-            if any(UNITTEST_RE.search(script) for script in runs):
+            bypass = [
+                script
+                for script in runs
+                if UNITTEST_RE.search(script)
+                and not _is_forge_unit_layer(path, data, script)
+            ]
+            if bypass:
                 issues.append(
                     Issue(
                         rel,
                         "do not add a unittest workflow that bypasses Overlay select "
-                        "(put tests in an armed product_command)",
+                        "(Overlay tests stay in an Overlay armed product_command; "
+                        "Forge tests stay on forge-check)",
                     )
                 )
         for ref in uses:
@@ -162,6 +180,12 @@ def check_workflows(root: Path) -> list[Issue]:
                     break
             if FLOATING_USES_RE.match(ref):
                 issues.append(Issue(rel, f"reusable workflow uses: must pin tag or SHA, not {ref}"))
+        for script in runs:
+            if SUBMIT_RUN_RE.search(script):
+                issues.append(
+                    Issue(rel, "CI must not call forge submit (GITHUB_TOKEN is 合入锁, not 代推)")
+                )
+                break
         for key, value in _walk(data):
             if key == "repository" and isinstance(value, str) and "LearningGuidePortal" in value:
                 issues.append(Issue(rel, "must not checkout LearningGuidePortal"))
@@ -221,8 +245,13 @@ def check_skills(root: Path) -> list[Issue]:
             continue
         if "sop-lock.md" not in text and "不绿不能合" not in text:
             issues.append(Issue(rel, "Lock section must point at docs/sop-lock.md or 不绿不能合"))
-        if not any(name in text for name in ("overlay-check", "sop-lock", "pr-title", "forge check")):
-            issues.append(Issue(rel, "Lock section must name overlay-check, sop-lock, pr-title, or forge check"))
+        if not any(
+            name in text
+            for name in ("overlay-check", "sop-lock", "pr-title", "forge-check", "forge check")
+        ):
+            issues.append(
+                Issue(rel, "Lock section must name overlay-check, sop-lock, pr-title, forge-check, or forge check")
+            )
     return issues
 
 
@@ -241,6 +270,26 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
             issues.append(Issue("docs/sop-lock.md", "must list human-only (cannot machine-lock) rows"))
         if "forge check" not in text:
             issues.append(Issue("docs/sop-lock.md", "must document python -m forge check as 代推锁"))
+        if "forge-check" not in text:
+            issues.append(Issue("docs/sop-lock.md", "must list forge-check as a Forge CI check"))
+    custody = root / "docs" / "submit-credential.md"
+    if not custody.is_file():
+        issues.append(Issue("docs/submit-credential.md", "missing submit custody page"))
+    else:
+        custody_text = custody.read_text(encoding="utf-8")
+        for needle in (
+            "FORGE_SUBMIT_TOKEN",
+            "Forge 不保管",
+            "gh auth login",
+            "GH_TOKEN",
+            "extraheader",
+            "OPENAI_API_KEY",
+            "GITHUB_TOKEN",
+        ):
+            if needle not in custody_text:
+                issues.append(
+                    Issue("docs/submit-credential.md", f"must explain {needle}")
+                )
     forge_yaml = root / "forge.yaml"
     if not forge_yaml.is_file():
         issues.append(Issue("forge.yaml", "missing workshop forge.yaml"))
@@ -274,6 +323,30 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
             issues.append(
                 Issue(_rel(root, sop_wf), "must be the sop-lock check running python -m forge sop-lock")
             )
+    forge_check = root / ".github" / "workflows" / "forge-check.yml"
+    if not forge_check.is_file():
+        issues.append(Issue(".github/workflows/forge-check.yml", "missing forge-check workflow"))
+    else:
+        text = forge_check.read_text(encoding="utf-8")
+        data = _load_workflow(forge_check)
+        if "name: forge-check" not in text:
+            issues.append(Issue(_rel(root, forge_check), "must be the forge-check check"))
+        if "unittest discover -s tests/forge" not in text:
+            issues.append(
+                Issue(_rel(root, forge_check), "must run python3 -m unittest discover -s tests/forge")
+            )
+        if "forge apply" not in text or "--dry-run" not in text:
+            issues.append(Issue(_rel(root, forge_check), "must run forge apply --dry-run"))
+        if "python -m forge sop-lock" not in text:
+            issues.append(Issue(_rel(root, forge_check), "must layer python -m forge sop-lock"))
+        if data is not None:
+            for script in _collect_runs(data):
+                if SUBMIT_RUN_RE.search(script):
+                    issues.append(Issue(_rel(root, forge_check), "must not call forge submit"))
+                    break
+                if GENERATE_RUN_RE.search(script):
+                    issues.append(Issue(_rel(root, forge_check), "must not run overlay generate"))
+                    break
     for name in ("dev-pr", "use-forge"):
         skill = root / "skills" / name / "SKILL.md"
         rel = _rel(root, skill)
@@ -283,8 +356,12 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
         text = skill.read_text(encoding="utf-8")
         if "python -m forge check" not in text:
             issues.append(Issue(rel, "must require python -m forge check before submit (代推锁)"))
-        if "FORGE_SUBMIT_TOKEN" not in text:
-            issues.append(Issue(rel, "must name FORGE_SUBMIT_TOKEN for agent submit"))
+        if "FORGE_SUBMIT_TOKEN" in text:
+            issues.append(
+                Issue(rel, "must not invent FORGE_SUBMIT_TOKEN; consume host-injected credential")
+            )
+        if not any(token in text for token in ("gh auth login", "宿主", "host-injected")):
+            issues.append(Issue(rel, "must teach host-injected write credential (gh auth login / 宿主)"))
     overlay_check = root / ".github" / "workflows" / "overlay-check.yml"
     if overlay_check.is_file():
         data = _load_workflow(overlay_check)
@@ -316,14 +393,43 @@ def check_submit_source(root: Path) -> list[Issue]:
     rel = _rel(root, submit)
     if "run_check" not in text:
         issues.append(Issue(rel, "submit must refuse when forge check is red"))
-    if "FORGE_SUBMIT_TOKEN" not in text:
-        issues.append(Issue(rel, "submit must require FORGE_SUBMIT_TOKEN"))
+    if "FORGE_SUBMIT_TOKEN" in text:
+        issues.append(Issue(rel, "must not invent FORGE_SUBMIT_TOKEN; consume host-injected credential"))
+    if "probe_write_credential" not in text:
+        issues.append(Issue(rel, "submit must probe host-injected write credential"))
+    if "pr create" not in text:
+        issues.append(Issue(rel, "submit must use gh pr create"))
     if re.search(r"""\.get\(\s*['\"]GITHUB_TOKEN['\"]""", text):
         issues.append(Issue(rel, "submit must not read GITHUB_TOKEN"))
     if re.search(r"""\.get\(\s*['\"]FORGE_GITHUB_TOKEN['\"]""", text):
         issues.append(Issue(rel, "submit must not read FORGE_GITHUB_TOKEN (Ops apply)"))
     if "resolve_token(" in text:
         issues.append(Issue(rel, "submit must not call apply.resolve_token"))
+    cred = root / "forge" / "credential.py"
+    if not cred.is_file():
+        issues.append(Issue("forge/credential.py", "missing host-injected credential probe"))
+    else:
+        cred_text = cred.read_text(encoding="utf-8")
+        cred_rel = _rel(root, cred)
+        if "FORGE_SUBMIT_TOKEN" in cred_text:
+            issues.append(
+                Issue(cred_rel, "must not invent FORGE_SUBMIT_TOKEN; consume host-injected credential")
+            )
+        if "probe_write_credential" not in cred_text:
+            issues.append(Issue(cred_rel, "must probe host-injected write credential"))
+        if "gh-login" not in cred_text:
+            issues.append(Issue(cred_rel, "must accept gh auth login as a submit credential"))
+    doc = root / "docs" / "submit-credential.md"
+    rel_doc = _rel(root, doc)
+    if not doc.is_file():
+        issues.append(Issue(rel_doc, "missing submit custody page"))
+    else:
+        cred_doc = doc.read_text(encoding="utf-8")
+        if "Forge 不保管" not in cred_doc:
+            issues.append(Issue(rel_doc, "must say Forge 不保管"))
+        for phrase in ("gh auth login", "GH_TOKEN", "extraheader", "OPENAI_API_KEY", "GITHUB_TOKEN"):
+            if phrase not in cred_doc:
+                issues.append(Issue(rel_doc, f"must explain {phrase}"))
     return issues
 
 

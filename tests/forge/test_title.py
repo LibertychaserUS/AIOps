@@ -208,6 +208,7 @@ class WorkshopConfigTests(unittest.TestCase):
         text = (ROOT / "forge.yaml").read_text(encoding="utf-8")
         self.assertIn("overlay-check", text)
         self.assertIn("pr-title", text)
+        self.assertIn("forge-check", text)
         self.assertIn("sop-lock", text)
 
     def test_pr_title_workflow_is_pull_request_only(self) -> None:

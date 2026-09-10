@@ -9,6 +9,7 @@ deny_paths:
 required_checks:
   - overlay-check
   - pr-title
+  - forge-check
   - sop-lock
 review:
   min_approvals: 1

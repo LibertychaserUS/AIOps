@@ -15,12 +15,12 @@ python -m forge check --root . --title "feat(overlay/dev): add cover triad and i
 python -m forge pr-title --title "feat(overlay/dev): add cover triad and invariants"
 ```
 
-退出 `0` 绿、`2` 红。CI 同名检查 **`pr-title`**（只跑 `pull_request`）。本工作本 `forge.yaml` `required_checks` 已列入 `overlay-check`、`pr-title`、`sop-lock`；Ruleset 勾上之后，红则不能合。代推前 `python -m forge check` 红则不能提交。不要 live `forge apply`。不要用 husky/npm 挡 `git commit`。
+退出 `0` 绿、`2` 红。CI 同名检查 **`pr-title`**（只跑 `pull_request`）。本工作本 `forge.yaml` `required_checks` 已列入 `overlay-check`、`pr-title`、`forge-check`、`sop-lock`；Ruleset 勾上之后，红则不能合。代推前 `python -m forge check` 红则不能提交；宿主未注入写权限也不能提交（含 `--dry-run`）。不要 live `forge apply`。不要用 husky/npm 挡 `git commit`。
 
 本仓 PR #3 的 GitHub 标题必须改成下面这一行（Agents 的 GitHub write 会 404，需要人在 UI 改名）：
 
 ```text
-feat(overlay/agent): adopt Overlay CI and Conventional Commit PR titles
+feat(ci/agent): split overlay and forge CI workflows
 ```
 
 （若这单以 Forge submit 为主，也可用 `feat(forge/dev): add submit middleware and lock the Forge/Ops split`。不要另造第二种语法。）
@@ -64,7 +64,7 @@ type(product/actor): subject
 
 混改：标题只标主产品。其余列在「做了什么」。不要写成 `feat(overlay+docs/dev):`。
 
-可选本地包装（不默认安装 git hook）：`forge/hooks/pr-title "feat(overlay/dev): …"`；提交前整门：`forge/hooks/pre-submit --title "…"`。代推锁是 `python -m forge check`。合并锁是 GitHub 上的 `pr-title` check，不是本机 hook。
+可选本地包装（不默认安装 git hook）：`forge/hooks/pr-title "feat(overlay/dev): …"`；提交前整门：`forge/hooks/pre-submit --title "…"`。代推锁是 `python -m forge check` 绿，且宿主已注入写权限（`gh auth login` / `GH_TOKEN` / extraheader）。合并锁是 GitHub 上的 required checks，不是本机 hook。
 
 ---
 
@@ -95,8 +95,9 @@ type(product/actor): subject
 
 | 值 | 含义 |
 |---|---|
-| `overlay-check` | 本仓或接入方 Overlay job（validate + select + run） |
+| `overlay-check` | 本仓或接入方 Overlay job（validate + select + run Overlay armed） |
 | `pr-title` | PR 标题 Conventional Commits + `product/actor` 锁 |
+| `forge-check` | 本仓 Forge job（unit + apply --dry-run + sop-lock） |
 | `sop-lock` | 仓内 SOP（workflow / 内核 / skill Lock / required_checks） |
 | `Forge Ruleset` | 装了或改了保护分支 / required checks / CODEOWNERS |
 | `none` | 没动门 |
@@ -135,6 +136,6 @@ python3 -m forge pr-title --title "feat(overlay/dev): add cover triad and invari
 
 ## 未知分支
 
-不要为每个 feature 分支新建 workflow。CI 仍走**同一条** `overlay-check`。某分支跑哪些 `kind` 写在接入方 `overlay.yaml` 的 `branches:`（git-chain）。表里没有的分支：`select` 空集、预演绿。本工作本把 `overlay-check` 的 `branch` 钉成 `main`，所以 `cursor/` 分支仍跑 armed 工具测试。标题检查是另一条 job，只在 PR 上跑。
+不要为每个 feature 分支新建 Overlay workflow。Overlay CI 仍走**同一条** `overlay-check` 家族。某分支跑哪些 `kind` 写在接入方 `overlay.yaml` 的 `branches:`（git-chain）。表里没有的分支：`select` 空集、预演绿。本工作本把 `overlay-check` 的 `branch` 钉成 `main`，所以 `cursor/` 分支仍跑 armed Overlay 工具测试。Forge 另走 `forge-check`。标题检查是另一条 job，只在 PR 上跑。
 
 这与 PR 名分工无关：不要把 `cursor/…-6842` 改成角色前缀，也不要为角色改 workflow 名或 skill 名。

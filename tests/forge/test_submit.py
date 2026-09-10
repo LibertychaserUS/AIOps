@@ -273,16 +273,20 @@ class HeadResolutionTests(unittest.TestCase):
 
 
 class WorkshopCiTests(unittest.TestCase):
-    def test_overlay_check_does_not_live_submit(self) -> None:
+    def test_overlay_and_forge_workflows_do_not_submit(self) -> None:
         root = Path(__file__).resolve().parents[2]
-        command = (root / "suites" / "forge-apply" / "suite.yaml").read_text(encoding="utf-8")
-        self.assertIn("forge submit", command)
-        self.assertIn("--dry-run", command)
-        self.assertIn("--head", command)
-        self.assertIn("FORGE_SUBMIT_TOKEN=", command)
-        overlay = (root / ".github" / "workflows" / "overlay-check.yml").read_text(encoding="utf-8")
-        self.assertNotIn("forge submit", overlay)
-        self.assertNotIn("python -m forge submit", overlay)
+        suite = (root / "suites" / "forge-apply" / "suite.yaml").read_text(encoding="utf-8")
+        self.assertIn("status: blocked", suite)
+        self.assertNotIn("python -m forge submit", suite)
+        for name in (
+            "overlay-check.yml",
+            "overlay.yml",
+            "forge-check.yml",
+            "pr-title.yml",
+            "sop-lock.yml",
+        ):
+            text = (root / ".github" / "workflows" / name).read_text(encoding="utf-8")
+            self.assertNotIn("python -m forge submit", text)
 
 
 if __name__ == "__main__":

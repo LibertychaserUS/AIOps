@@ -1,4 +1,5 @@
-# Reusable Overlay CI: validate + select, and optionally run armed product_command.
+# Reusable Overlay CI: validate + select, and optionally run Overlay armed product_command.
+# Forge tests do not belong here — workshop Forge CI is forge-check.yml.
 # Always checkout the caller (product). If overlay/ is absent (correct adopter
 # shape), checkout LibertychaserUS/AIOps into _aiops — do not vendor overlay/
 # into the product repo. No foreign product clone (never LearningGuidePortal).

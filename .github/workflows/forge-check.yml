@@ -1,0 +1,42 @@
+# Decoupled Forge CI for this dual-product workshop.
+# Overlay stays on overlay-check (validate + select + run Overlay armed suites).
+# Layers: forge unit tests → apply --dry-run → sop-lock.
+# pr-title stays its own pull_request-only workflow so the check name remains pr-title.
+# sop-lock.yml may also run the same command; the GitHub check name stays sop-lock.
+# No live apply. No LearningGuidePortal. No forge submit. No generate. No Overlay run.
+
+name: forge-check
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  forge-check:
+    name: forge-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: forge unit tests
+        run: python3 -m unittest discover -s tests/forge -t .
+
+      - name: forge apply --dry-run
+        run: python3 -m forge apply --repo LibertychaserUS/AIOps --path forge.yaml --dry-run
+
+      - name: sop-lock
+        run: python3 -m forge sop-lock --root .
