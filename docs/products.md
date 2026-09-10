@@ -11,6 +11,8 @@
 
 **通用检查 ≠ 产品门。** 不是两个产品各搞一套对等 CI。仓级规格（标题 Conventional Commits、正文六节、`sop-lock`）永远跑。产品门（`overlay-check` / `forge-check`）在 `forge.yaml` `ci` 里选择执行或跳过（workflow 必启动，skip 记成功）。`python -m forge ci-select`。不要把标题检查只挂在 Forge 下。
 
+Overlay **Ops** Action CI（PR 且选中）顺序：规格 → CodeRabbit/Copilot 评论（只建议）→ 该 checkout 全量 Overlay CI → 人合。失败：PR 打回，Ops/CI 留 `ops-debug` / receipts。
+
 完整详细设计：[`design.md`](design.md)。使用 skill（Codex `SKILL.md`）：[`sop.md`](sop.md)、[`../skills/use-forge/SKILL.md`](../skills/use-forge/SKILL.md)、[`../skills/use-overlay/SKILL.md`](../skills/use-overlay/SKILL.md)、[`../skills/design-cases/SKILL.md`](../skills/design-cases/SKILL.md)、管理端 [`../skills/manage-repo/SKILL.md`](../skills/manage-repo/SKILL.md)、开发端 [`../skills/dev-pr/SKILL.md`](../skills/dev-pr/SKILL.md)。Review / merge / RBAC：[`rbac.md`](rbac.md)。PR 解说规格：[`pr-brief.md`](pr-brief.md)。Inbox：[`inbox.md`](inbox.md)。测试规格：[`test-spec.md`](test-spec.md)。编译契约：[`agents/overlay-contract.md`](agents/overlay-contract.md)。IEEE 剖面：[`agents/ieee-test-system.md`](agents/ieee-test-system.md)。过程稿：[`architecture.md`](architecture.md)。约束：[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md)。
 
 ---

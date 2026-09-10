@@ -409,6 +409,25 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
             issues.append(
                 Issue(_rel(root, overlay_check), "overlay-check must not run Forge unit tests")
             )
+        if "name: spec" not in text or "python -m forge pr-title" not in text:
+            issues.append(
+                Issue(_rel(root, overlay_check), "Overlay Ops must run PR spec (pr-title) before full CI")
+            )
+        if "name: review-bots" not in text or "python -m forge ops-review" not in text:
+            issues.append(
+                Issue(_rel(root, overlay_check), "Overlay Ops must run review-bots after spec")
+            )
+        if "python -m forge bounce" not in text:
+            issues.append(
+                Issue(_rel(root, overlay_check), "Overlay Ops must bounce + keep ops-debug on failure")
+            )
+        if "needs: [select, spec, review-bots]" not in text:
+            issues.append(
+                Issue(
+                    _rel(root, overlay_check),
+                    "full Overlay CI must need spec and review-bots (DAG)",
+                )
+            )
     for name in ("dev-pr", "use-forge"):
         skill = root / "skills" / name / "SKILL.md"
         rel = _rel(root, skill)

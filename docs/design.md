@@ -525,6 +525,18 @@ jobs:
 
 `enable_run` 默认 `false`。本工作本的 `overlay-check` 打开它，并把 `branch` 钉成 `main`，这样 agent 分支仍跑 armed **Overlay** 工具测试。Forge 单测不走这条门。
 
+Overlay **Ops Action CI**（`pull_request` 且 selector 选中）是这条 DAG，不是和 Forge 对等的第二套标题门：
+
+```text
+spec (python -m forge pr-title，读 GitHub PR title/body)
+  → review-bots (python -m forge ops-review：等/记录 CodeRabbit + Copilot 评论，只建议)
+  → 本 checkout 上的全量 Overlay CI（reusable overlay.yml：validate → select → run）
+  → 人 Ops 审，绿了才 merge
+红 / 合失败：python -m forge bounce → PR 打回评论 + artifact `overlay-ops-debug` / receipts
+```
+
+`pr-title.yml` 仍是仓级通用检查（Ruleset 名字 `pr-title`）。Overlay Ops 的 `spec` 再跑同一条 CLI，只为了 **needs** 卡住后面的全量 CI。CodeRabbit / Copilot 不是 required check。bounce 不合入。push（无 PR 面）跳过 spec / review-bots / bounce，直接全量 CI。
+
 ### 4.12 run（测试和 CI 同一条门）
 
 - 工作目录：调用方当前 checkout（`--workdir`）。本工作本不 clone `product.repo`（避免误拉 LearningGuidePortal）。
@@ -629,7 +641,7 @@ examples/learning-guide/
   forge-guard.yml
   forge-check.yml        # Forge 产品门：unit + apply --dry-run；ci-select 可 skip
   overlay.yml
-  overlay-check.yml      # Overlay 产品门：validate + select + run Overlay armed
+  overlay-check.yml      # Overlay 产品门 + Ops DAG：spec → review-bots → validate/select/run；失败 bounce
   pr-title.yml           # 通用；永远跑
   sop-lock.yml           # 通用仓级 SOP；永远跑；不是第三件产品
 invariants.yaml          # 可选：跨叶子性质；本工作本有一份

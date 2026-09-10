@@ -19,7 +19,7 @@ GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge
 
 | 检查名 | 类 | 命令 | 何时 |
 |---|---|---|---|
-| **`overlay-check`** | 产品门 | `overlay validate` + `select` + `run`（Overlay armed `product_command`） | push / pull_request；selector 可 skip-success |
+| **`overlay-check`** | 产品门 + Overlay Ops 链 | PR 上：规格 `pr-title` → `ops-review`（CodeRabbit/Copilot，只建议）→ 本分支全量 Overlay CI（validate/select/run）；失败 `bounce` 打回并留 `ops-debug` | push 无 PR 面，直接全量 CI；selector 可 skip-success |
 | **`forge-check`** | 产品门 | Forge 单测（`unittest discover -s tests/forge`）+ `forge apply --dry-run` | push / pull_request；selector 可 skip-success |
 | **`pr-title`** | 通用 | `python -m forge pr-title`（Conventional Commits `type(product/actor): subject` + 正文六节） | 仅 `pull_request` |
 | **`sop-lock`** | 通用 | `python -m forge sop-lock` | push / pull_request |
@@ -64,7 +64,8 @@ GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge
 | 不装 husky / npm 当合入锁 | `sop-lock` | 开发本机自愿 hook | |
 | Agent 不自 Approve / 不自 merge | — | **仅人审** | GitHub 人 + Ruleset |
 | 开发不合自己让 agent 开的 PR | — | **仅人审** | |
-| CodeRabbit 只建议 | `sop-lock`：不得当 `required_checks` 唯一项 | 人是否把它当审 | |
+| Overlay Ops：规格 → CodeRabbit/Copilot 评论 → 分支全量 CI → 人合 | `overlay-check.yml` job DAG + `python -m forge ops-review` / `bounce` → **`overlay-check`** | 人点 merge | 机器人评论不当合入门 |
+| CI/合入失败：PR 打回；Ops/CI 留日志准备 debug | `python -m forge bounce` 写 `ops-debug.yaml` + artifact | 人是否真去看 artifact | 不合入 |
 | 不 vendor 工具进产品仓 | — | **仅人审**（本仓 CI 看不见别的仓） | |
 | 不 attach Proctor；不改 Deepseek3 | — | **仅人审** | |
 | 不做 CD、不打生产（人手） | 命令命中 `forbid_hosts` 已锁 | 人在 runner 外打域名 | |
