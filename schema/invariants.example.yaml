@@ -1,0 +1,11 @@
+# Optional adopter coverage ledger. Kernel example — not a catalog.
+# Global corner cases live here: properties that one leaf cannot see alone.
+
+schema: overlay-invariants/v1
+items:
+  - id: INV-one-charge
+    text: One receipt never creates two charges
+    function_ids:
+      - FN-login-retry
+      - FN-checkout-idempotent
+    span: system

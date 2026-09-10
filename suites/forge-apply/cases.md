@@ -14,6 +14,10 @@
 - Title: apply without token
 - Steps: unset FORGE_GITHUB_TOKEN and GITHUB_TOKEN; apply without --dry-run
 - Expected: exit 2; no partial write
+- Title: Forge does not arm Overlay
+- INV-forge-does-not-arm
+- Steps: inspect apply payload and agent-policy
+- Expected: no suite.yaml write; no reviewed_by; no status change
 
 ### Edge
 - Title: LearningGuidePortal is refused

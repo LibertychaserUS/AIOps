@@ -39,9 +39,12 @@ schema **不得**要求 `REQ-n`、`LOGIN-01`、`ML-FR-004`，或 `^[A-Z]{2,8}(-[
 | test case | `cases.md` 一条 |
 | test procedure | Steps |
 | test level | unit / integration / smoke / k6 / e2e（可选） |
-| requirements traceability | `trace.yaml` |
+| requirements traceability | `trace.yaml`（可选 `span` / `relates`） |
+| 系统性质 | `invariants.yaml`：跨叶子必须为真的性质，不是第四套主键 |
 
 不采用 Master/Level Test Plan、二十份 Word、按 PRD 章节镜像的规格书。
+
+全局边角：先读整棵测试树，再声明 invariant。不要用新号族。方法：[`case-design.md`](case-design.md)。
 
 失败时读 `function_id`，指回文档叶子；用 `level` 看是哪一层。
 

@@ -385,6 +385,7 @@ python -m overlay generate --inbox inbox/<id>.md [--out suites/<id>]
 python -m overlay select   --branch NAME [--root .] [--write-receipt receipts/]
 python -m overlay review   --suite ID --status blocked|armed --i-am HUMAN --reason TEXT
 python -m overlay run      --branch NAME [--root .] [--write-receipt DIR] [--workdir DIR]
+python -m overlay cover    [--root .]
 ```
 
 退出码：`0` 成功；`2` 契约/配置非法或 run 无回执 / 命中 forbid_hosts；`3` 缺 LLM 密钥（仅 generate）；`4` select 预演断言失败（例如 armed 集合里混进 blocked——那是实现 bug）；`5` run 中 armed 命令失败。
@@ -392,6 +393,7 @@ python -m overlay run      --branch NAME [--root .] [--write-receipt DIR] [--wor
 `validate`：扫全部 inbox + suite，不调模型。  
 `select`：纯函数，无网络（除写文件）。  
 `run`：select 之后执行 `product_command`；必须 `--write-receipt`。  
+`cover`：打印 `function_id` 技法矩阵与 invariant 点名；契约问题同 validate。  
 `generate`：唯一允许出站到 LLM 的命令（未交付）。
 
 ### 4.8 generate（算法）
@@ -547,7 +549,7 @@ forge/
   CODEOWNERS.example
   forge.example.yaml
 overlay/
-  __init__.py / validate.py / select.py / receipt.py / review.py / run.py
+  __init__.py / validate.py / select.py / receipt.py / review.py / run.py / cover.py
 schema/
   suite.schema.json
   inbox.schema.json
@@ -567,6 +569,7 @@ examples/learning-guide/
   forge-guard.yml
   overlay.yml
   overlay-check.yml      # 本仓自用：validate + select + run；兼跑 LG fixture
+invariants.yaml          # 可选：跨叶子性质；本工作本有一份
 docs/design.md           # 本文
 docs/inbox.md            # Overlay 输入面
 docs/test-spec.md        # 测试体系规格（两棵树 + 通用 function_id）

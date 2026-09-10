@@ -1,9 +1,10 @@
 ---
 name: use-overlay
 description: >-
-  SOP for using Overlay: write inbox, validate, select armed suites, run
-  their product_command in CI. Test and CI are the same gate. Use when
-  adopting Overlay, writing inbox/suites, running overlay validate/select/run,
+  SOP for using Overlay: write inbox, design cases (triad + invariants),
+  validate, select armed suites, run their product_command in CI. Test and
+  CI are the same gate. Use when adopting Overlay, writing inbox/suites,
+  asking how to cover corner cases, running overlay validate/select/run/cover,
   or wiring overlay-check. Do not use for GitHub Rulesets (use use-forge).
   Do not generate or arm without a human.
 ---
@@ -20,24 +21,26 @@ Overlay is a standard part. Freeze the contract, not a product’s numbers. Agen
 
 1. **One slice = one inbox.** `inbox/<id>.md` (front matter + short Markdown). Same `id` as `suites/<id>/` after compile. Do not vendor a whole PRD.
 2. **Read the adopter docs**, then compile. `function_id` is whatever stable, unique, non-whitespace string the docs already use. Do not invent a second numbering system for unit / e2e / k6. The same id is what CI receipts point at when a command fails.
-3. **Validate locally** (no model):
+3. **Design cases against the whole overlay root**, not one inbox. Method: [`docs/agents/case-design.md`](../../docs/agents/case-design.md). `armed` needs Functional / Negative / Edge. Global corners go in `invariants.yaml` and must be cited in some `cases.md`. Coupled leaves get `span: interaction` + `relates` — no `CROSS-01` series, no pairwise explosion.
+4. **Validate and print cover** (no model):
    ```text
    python -m overlay validate --root .
+   python -m overlay cover --root .
    ```
-4. **`generate` is not on this path.** Do not run it on push. When it exists: human or `workflow_dispatch` only; output `status: draft`; never write `reviewed_by` or `armed`. Until then, hand-write `suites/<id>/`.
-5. **Humans arm or block.** Edit `suite.yaml` only. `blocked` = reviewed, not ready to gate. `armed` = reviewed and claimed testable. Agents must not arm. An `armed` suite that should gate CI needs a `product_command`. Missing command is skip, not red.
+5. **`generate` is not on this path.** Do not run it on push. When it exists: human or `workflow_dispatch` only; output `status: draft`; never write `reviewed_by` or `armed`. Until then, hand-write `suites/<id>/`.
+6. **Humans arm or block.** Edit `suite.yaml` only. `blocked` = reviewed, not ready to gate. `armed` = reviewed and claimed testable. Agents must not arm. An `armed` suite that should gate CI needs a `product_command`. Missing command is skip, not red.
 
 ### CI — same gate as the tests
 
-6. Wire reusable [`.github/workflows/overlay.yml`](../../.github/workflows/overlay.yml). This workshop’s `overlay-check.yml` uses `enable_run: true` and pins `branch: main` so agent branches still run the armed tool tests.
-7. Push / PR runs **validate + select + run**. `run` executes each selected suite’s `product_command` in the **caller checkout**. It does not clone a foreign product repo (Learning Guide Portal is never checked out from here). No generate. No token spend.
-8. Local equivalent:
+7. Wire reusable [`.github/workflows/overlay.yml`](../../.github/workflows/overlay.yml). This workshop’s `overlay-check.yml` uses `enable_run: true` and pins `branch: main` so agent branches still run the armed tool tests.
+8. Push / PR runs **validate + select + run**. `run` executes each selected suite’s `product_command` in the **caller checkout**. It does not clone a foreign product repo (Learning Guide Portal is never checked out from here). No generate. No token spend.
+9. Local equivalent:
    ```text
    python -m overlay select --branch main --root . --write-receipt receipts/
    python -m overlay run --branch main --root . --workdir . --write-receipt receipts-run/
    ```
    Only `armed` suites whose `kind` is in `overlay.yaml` for that branch. `draft` / `blocked` drop and must not redden the job. Unknown branch → empty set, still green. Failed armed command → exit 5 (job red). Command hitting `forbid_hosts` → exit 2, command not started.
-9. Receipts are program-written (`wrote_by: select` or `wrote_by: run`). Models must not write them. `run` without `--write-receipt` is no evidence (exit 2).
+10. Receipts are program-written (`wrote_by: select` or `wrote_by: run`). Models must not write them. `run` without `--write-receipt` is no evidence (exit 2).
 
 ### Never
 
@@ -55,6 +58,7 @@ python -m overlay validate --root .
 python -m overlay select --branch main --root .
 # selected: forge-apply, overlay-select
 # dropped: overlay-generate (blocked)
+python -m overlay cover --root .
 python -m overlay run --branch main --root . --workdir . --write-receipt receipts-run/
 # forge-apply → forge unit tests + apply --dry-run
 # overlay-select → schema/check.py + overlay unit tests
@@ -79,3 +83,5 @@ validate / select are local YAML. `run` is local subprocess in the caller checko
 | 想 push 时 generate | 停。人点或 dispatch。 |
 | 想自动 armed | 停。人改 `suite.yaml`。 |
 | 另开一个 unittest workflow | 停。把命令写进 armed suite。 |
+| 抓不到全局 corner | 先读全部 inbox/suites，把性质写成 invariant，再写叶子。不要两两穷尽。 |
+| armed 缺 Edge | 契约红。补技法。 |

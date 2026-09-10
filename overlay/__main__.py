@@ -1,4 +1,4 @@
-"""python -m overlay validate|select|review|run"""
+"""python -m overlay validate|select|review|run|cover"""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TextIO
 
 from overlay import EXIT_CONTRACT, EXIT_OK
+from overlay.cover import run_cover
 from overlay.review import run_review
 from overlay.run import DEFAULT_TIMEOUT, run_run
 from overlay.select import run_select
@@ -20,7 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="python -m overlay",
         description=(
             "Overlay: validate inbox/suites, select armed suites, run their "
-            "product_command. No generate. No model on this path."
+            "product_command, report cover. No generate. No model on this path."
         ),
     )
     sub = parser.add_subparsers(dest="command")
@@ -64,6 +65,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_TIMEOUT,
         help=f"seconds per command (default {DEFAULT_TIMEOUT})",
     )
+
+    cover_p = sub.add_parser("cover", help="print function_id triad + invariant coverage")
+    cover_p.add_argument("--root", default=".", help="adopter overlay root (default: .)")
     return parser
 
 
@@ -116,6 +120,8 @@ def main(
             stdout=out,
             stderr=err,
         )
+    if args.command == "cover":
+        return run_cover(Path(args.root), stdout=out, stderr=err)
     parser.print_help(err)
     return EXIT_CONTRACT
 

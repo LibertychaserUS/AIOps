@@ -10,6 +10,7 @@
 
 ### Negative
 - Title: no generate on push
+- INV-no-generate-on-push
 - Steps: inspect overlay-check and overlay.yml
 - Expected: no generate job; no model token
 

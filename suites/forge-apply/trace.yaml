@@ -9,3 +9,9 @@ items:
     case_id: FN-forge-apply/ci
     type: functional
     level: integration
+    span: local
+  - function_id: FN-forge-apply
+    case_id: FN-forge-apply/negative
+    type: negative
+    level: unit
+    span: system

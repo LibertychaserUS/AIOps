@@ -1,0 +1,27 @@
+schema: overlay-invariants/v1
+items:
+  - id: INV-never-red-blocked
+    text: draft and blocked suites never redden overlay-check
+    function_ids:
+      - FN-overlay-select
+    span: system
+  - id: INV-no-generate-on-push
+    text: overlay generate is never invoked from push CI
+    function_ids:
+      - FN-overlay-generate
+    span: system
+  - id: INV-receipt-not-model
+    text: receipts are written only by select or run
+    function_ids:
+      - FN-overlay-select
+    span: system
+  - id: INV-forge-does-not-arm
+    text: Forge must not write Overlay status or reviewed_by
+    function_ids:
+      - FN-forge-apply
+    span: system
+  - id: INV-no-prod-host
+    text: product_command must not target forbid_hosts
+    function_ids:
+      - FN-overlay-select
+    span: system

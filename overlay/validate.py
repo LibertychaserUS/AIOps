@@ -29,6 +29,8 @@ INBOX_MIN_BODY_CHARS = 40
 FUNCTION_ID_RE = re.compile(r"^\S+$")
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
 H2_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
+TECHNIQUE_HEADING_RE = re.compile(r"^###\s+(functional|negative|edge)\b", re.IGNORECASE)
+REQUIRED_TECHNIQUES = frozenset({"functional", "negative", "edge"})
 TOKEN_RE = re.compile(r"\S+")
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 URL_IN_TEXT_RE = re.compile(r"https?://[^\s)>\]]+", re.IGNORECASE)
@@ -83,6 +85,7 @@ class SuiteDoc:
     cases_text: str
     function_ids: list[str]
     product_command: str | None = None
+    techniques: dict[str, frozenset[str]] = field(default_factory=dict)
     trace_items: list[dict[str, Any]] = field(default_factory=list)
     raw: dict[str, Any] = field(default_factory=dict)
 
@@ -165,6 +168,24 @@ def parse_function_id(heading: str) -> str | None:
     if FUNCTION_ID_RE.fullmatch(token) is None:
         return None
     return token
+
+
+def cases_techniques(cases_text: str) -> dict[str, frozenset[str]]:
+    collected: dict[str, set[str]] = {}
+    current: str | None = None
+    for line in cases_text.splitlines():
+        heading = H2_RE.match(line)
+        if heading is not None:
+            current = parse_function_id(heading.group(1))
+            if current is not None:
+                collected.setdefault(current, set())
+            continue
+        if current is None:
+            continue
+        technique = TECHNIQUE_HEADING_RE.match(line)
+        if technique is not None:
+            collected.setdefault(current, set()).add(technique.group(1).lower())
+    return {key: frozenset(value) for key, value in collected.items()}
 
 
 def cases_function_ids(cases_text: str) -> list[str]:
@@ -493,12 +514,23 @@ def validate_suite_file(
             issues.append(Issue(cases_rel, "must not put status: armed in the case body"))
 
     function_ids = cases_function_ids(cases_text)
+    techniques = cases_techniques(cases_text)
     for heading in H2_RE.finditer(cases_text):
         token = parse_function_id(heading.group(1))
         if token is None:
             issues.append(Issue(cases_rel, f"## heading needs a non-empty function_id without whitespace: {heading.group(1)!r}"))
     if status == "armed" and not function_ids:
         issues.append(Issue(cases_rel, "armed suite needs at least one ## <function_id> heading"))
+    if status == "armed":
+        for fid in function_ids:
+            missing = sorted(REQUIRED_TECHNIQUES - techniques.get(fid, frozenset()))
+            if missing:
+                issues.append(
+                    Issue(
+                        cases_rel,
+                        f"armed function_id {fid!r} missing techniques: {', '.join(missing)}",
+                    )
+                )
 
     trace_items: list[dict[str, Any]] = []
     trace_path = path.parent / "trace.yaml"
@@ -544,6 +576,7 @@ def validate_suite_file(
         cases_text=cases_text,
         function_ids=function_ids,
         product_command=product_command,
+        techniques=techniques,
         trace_items=trace_items,
         raw=data,
     )
@@ -571,6 +604,106 @@ def _align_suite_inbox(root: Path, inbox: InboxDoc, suite: SuiteDoc, issues: lis
             )
 
 
+@dataclass
+class InvariantDoc:
+    inv_id: str
+    text: str
+    function_ids: list[str]
+    span: str
+
+
+def load_invariants(
+    root: Path,
+    schema: dict[str, Any],
+    issues: list[Issue],
+) -> list[InvariantDoc]:
+    path = root / "invariants.yaml"
+    if not path.is_file():
+        return []
+    rel = _rel(root, path)
+    try:
+        data = load_yaml_file(path)
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        issues.append(Issue(rel, f"cannot read invariants.yaml: {exc}"))
+        return []
+    if not isinstance(data, dict):
+        issues.append(Issue(rel, "invariants.yaml must be a mapping"))
+        return []
+    for err in schema_validate(data, schema, "$"):
+        issues.append(Issue(rel, err))
+    items = data.get("items") or []
+    found: list[InvariantDoc] = []
+    seen: set[str] = set()
+    if not isinstance(items, list):
+        return found
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            continue
+        inv_id = str(item.get("id") or "").strip()
+        if not inv_id:
+            continue
+        if inv_id in seen:
+            issues.append(Issue(rel, f"items[{index}].id {inv_id!r} is duplicated"))
+            continue
+        seen.add(inv_id)
+        raw_ids = item.get("function_ids") or []
+        fids = [str(fid).strip() for fid in raw_ids if str(fid).strip()] if isinstance(raw_ids, list) else []
+        found.append(
+            InvariantDoc(
+                inv_id=inv_id,
+                text=str(item.get("text") or ""),
+                function_ids=fids,
+                span=str(item.get("span") or "system"),
+            )
+        )
+    return found
+
+
+def _cases_corpus(suites: list[SuiteDoc]) -> str:
+    return "\n".join(suite.cases_text for suite in suites)
+
+
+def check_relates_and_invariants(
+    root: Path,
+    suites: list[SuiteDoc],
+    seen_leaf: dict[str, str],
+    invariants: list[InvariantDoc],
+    issues: list[Issue],
+) -> None:
+    for suite in suites:
+        for index, item in enumerate(suite.trace_items):
+            relates = item.get("relates") or []
+            if not isinstance(relates, list):
+                continue
+            for other in relates:
+                if not isinstance(other, str) or not other.strip():
+                    continue
+                if other not in seen_leaf:
+                    issues.append(
+                        Issue(
+                            _rel(root, suite.path.parent / "trace.yaml"),
+                            f"items[{index}].relates {other!r} is not a function_id in this overlay root",
+                        )
+                    )
+    corpus = _cases_corpus(suites)
+    for inv in invariants:
+        for fid in inv.function_ids:
+            if fid not in seen_leaf:
+                issues.append(
+                    Issue(
+                        "invariants.yaml",
+                        f"{inv.inv_id}: function_id {fid!r} is not a ## heading in any cases.md",
+                    )
+                )
+        if not token_in_text(corpus, inv.inv_id):
+            issues.append(
+                Issue(
+                    "invariants.yaml",
+                    f"{inv.inv_id} must appear as a token in some cases.md (global corners need a cited case)",
+                )
+            )
+
+
 def validate_root(root: Path) -> tuple[list[Issue], OverlayConfig | None, list[InboxDoc], list[SuiteDoc]]:
     root = root.resolve()
     issues: list[Issue] = []
@@ -578,6 +711,7 @@ def validate_root(root: Path) -> tuple[list[Issue], OverlayConfig | None, list[I
         inbox_schema = load_json_schema("inbox.schema.json")
         suite_schema = load_json_schema("suite.schema.json")
         trace_schema = load_json_schema("trace.schema.json")
+        invariants_schema = load_json_schema("invariants.schema.json")
     except (OSError, json.JSONDecodeError) as exc:
         issues.append(Issue("schema/", str(exc)))
         return issues, None, [], []
@@ -622,6 +756,9 @@ def validate_root(root: Path) -> tuple[list[Issue], OverlayConfig | None, list[I
                 )
             else:
                 seen_leaf[fid] = suite.suite_id
+
+    invariants = load_invariants(root, invariants_schema, issues)
+    check_relates_and_invariants(root, suites, seen_leaf, invariants, issues)
 
     issues.sort(key=lambda item: (item.path, item.message))
     return issues, config, inboxes, suites

@@ -101,7 +101,7 @@ Learning Guide 只是一份 **fixture**：`examples/learning-guide/overlay.yaml`
 
 ### 第一刀 / 以后
 
-- 已做：契约 + `select` + `run`（调用方 checkout 上的 `product_command`）+ 示例 inbox/suite（LG fixture 是三篇 inbox，不是一篇复用三次）。测试和 CI 同一条门。没有 generator 也能手写证明状态机。
+- 已做：契约 + `select` + `run` + `cover`（叶子三技法 + 声明的 invariant）+ 示例 inbox/suite（LG fixture 是三篇 inbox，不是一篇复用三次）。测试和 CI 同一条门。没有 generator 也能手写证明状态机。
 - 以后：`generate` 稳定。不把用例自动灌进接入方构建门。不从本工作本 checkout LearningGuidePortal。
 
 ### 成功标准（与业务无关）
