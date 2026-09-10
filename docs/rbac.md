@@ -5,7 +5,7 @@ PR 的 **review 和 merge 由 GitHub 上的人 + Repository Ruleset 管**，不�
 控制面只有这一套：
 
 - GitHub org **teams**（谁是 admin / maintainer / writer）
-- Repository **Ruleset**（禁直推、必须 PR、批准数、required checks）。本工作本声明的 check 名：`overlay-check`、`pr-title`、`forge-check`、`sop-lock`（见 `forge.yaml`）。任一红则不合。代推锁是本地 `python -m forge check`，红则不提交。
+- Repository **Ruleset**（禁直推、必须 PR、批准数、required checks）。本工作本声明的 check 名：`pr-title`、`sop-lock`（通用，永远跑）、`overlay-check`、`forge-check`（产品门，由 `forge.yaml` `ci` 选跑或跳过成功）。通用检查 ≠ 产品门。任一红则不合。代推锁是本地 `python -m forge check`，红则不提交。
 - **CODEOWNERS**（哪条路径必须谁审）
 - Overlay `suite.yaml` 的人审字段（`reviewed_by`、`armed` / `blocked`）
 
@@ -26,7 +26,7 @@ PR 的 **review 和 merge 由 GitHub 上的人 + Repository Ruleset 管**，不�
 
 对齐已有工具，不另造协议：
 
-- 开发侧代推：`python -m forge submit` 对齐 [GitHub CLI `gh pr create`](https://cli.github.com/manual/gh_pr_create)。Forge **不保管**密钥：人用 `gh auth login`，云代理用宿主注入的 `GH_TOKEN` / extraheader。同类参考 [Graphite `gt submit`](https://graphite.com/docs/create-submit-prs)，只借「推分支 + 开/更新 PR」，不借 stack，不借 merge-when-ready。密钥页：[`submit-credential.md`](submit-credential.md)。
+- 开发侧代推：`python -m forge submit` 对齐 [GitHub CLI `gh pr create`](https://cli.github.com/manual/gh_pr_create)。Forge **不保管**密钥：人用 `gh auth login`，云代理用宿主注入的 `GH_TOKEN` / extraheader。同类参考 [Graphite `gt submit`](https://graphite.com/docs/create-submit-prs)，只借「推分支 + 开/更新 PR」，不借 stack，不借 merge-when-ready。
 - Ops 侧合入门：[GitHub Ruleset — Require status checks to pass](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#require-status-checks-to-pass-before-merging)。人点 merge。
 
 ---

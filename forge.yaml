@@ -14,3 +14,33 @@ required_checks:
 review:
   min_approvals: 1
   code_owners: false
+ci:
+  common:
+    - pr-title
+    - sop-lock
+  products:
+    overlay:
+      check: overlay-check
+      paths:
+        - overlay/
+        - suites/
+        - inbox/
+        - overlay.yaml
+        - invariants.yaml
+        - schema/
+        - examples/
+    forge:
+      check: forge-check
+      paths:
+        - forge/
+        - forge.yaml
+  select:
+    title:
+      overlay:
+        - overlay
+      forge:
+        - forge
+      ci:
+        - overlay
+        - forge
+      docs: []

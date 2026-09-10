@@ -113,6 +113,11 @@ def _parse_scalar(text: str) -> Any:
         return text[1:-1]
     if re.fullmatch(r"-?[0-9]+", text):
         return int(text)
+    if text.startswith("[") and text.endswith("]"):
+        inner = text[1:-1].strip()
+        if not inner:
+            return []
+        return [_parse_scalar(part.strip()) for part in inner.split(",") if part.strip()]
     return text
 
 

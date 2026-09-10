@@ -1,6 +1,6 @@
-# Decidable SOP lock. Same function as local `python -m forge sop-lock`.
-# Forge/workshop policy — also layered as job sop-lock in forge-check.yml.
-# Overlay tests stay on overlay-check. This is not an Overlay unittest bypass.
+# Common, repo-wide SOP lock. Always runs. Not a product gate.
+# Same function as local `python -m forge sop-lock`.
+# Overlay tests stay on overlay-check. Forge tests stay on forge-check.
 # Check name remains sop-lock (stable for Ruleset required_checks).
 # PR title stays on the pr-title job (pull_request only).
 # No generate. No model. No husky/npm. No GitHub write.

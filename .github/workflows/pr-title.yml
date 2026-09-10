@@ -1,6 +1,6 @@
-# PR-title middleware. Same function as local `python -m forge pr-title`.
-# pull_request only — a push to a feature branch has no PR title; do not
-# attach this to overlay-check (that job must stay green on push).
+# Common PR-title check. Always runs on pull_request. Never skipped.
+# Same function as local `python -m forge pr-title`.
+# Title is a repo-wide spec, not a Forge product gate.
 # Check name is the job name `pr-title` (stable for Ruleset required_checks).
 # No GitHub write. No model. No husky/npm.
 

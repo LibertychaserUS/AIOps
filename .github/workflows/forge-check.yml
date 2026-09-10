@@ -1,9 +1,8 @@
-# Decoupled Forge CI for this dual-product workshop.
-# Overlay stays on overlay-check (validate + select + run Overlay armed suites).
-# Layers: forge unit tests → apply --dry-run → sop-lock.
-# pr-title stays its own pull_request-only workflow so the check name remains pr-title.
-# sop-lock.yml may also run the same command; the GitHub check name stays sop-lock.
-# No live apply. No LearningGuidePortal. No forge submit. No generate. No Overlay run.
+# Forge product gate. Common specs stay on pr-title.yml and sop-lock.yml.
+# This workflow always starts (no on.paths). Selector skip is success so the
+# required check name `forge-check` stays stable.
+# When selected: Forge unit tests + apply --dry-run.
+# Not the title gate. Not sop-lock. No live apply. No forge submit. No generate.
 
 name: forge-check
 
@@ -22,6 +21,7 @@ jobs:
       - name: Checkout caller
         uses: actions/checkout@v4
         with:
+          fetch-depth: 2
           persist-credentials: false
 
       - name: Set up Python
@@ -32,11 +32,20 @@ jobs:
       - name: Install
         run: pip install -r requirements.txt
 
+      - name: Select forge-check
+        id: sel
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: python -m forge ci-select --check forge-check --root . --github-output
+
+      - name: Skip
+        if: steps.sel.outputs.run != 'true'
+        run: echo "selector skipped forge-check (${{ steps.sel.outputs.reason }})"
+
       - name: forge unit tests
-        run: python3 -m unittest discover -s tests/forge -t .
+        if: steps.sel.outputs.run == 'true'
+        run: python3 -m unittest discover -s tests/forge -t . -q
 
       - name: forge apply --dry-run
+        if: steps.sel.outputs.run == 'true'
         run: python3 -m forge apply --repo LibertychaserUS/AIOps --path forge.yaml --dry-run
-
-      - name: sop-lock
-        run: python3 -m forge sop-lock --root .

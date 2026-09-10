@@ -9,7 +9,7 @@ packages:
 reviewed_by: workshop
 reviewed_at: 2026-09-10T00:00:00Z
 blocked_reason: >-
-  Overlay cover/validate demo only. Forge unit tests, apply --dry-run, and
-  sop-lock run on the forge-check workflow — not Overlay select/run.
+  Overlay cover/validate demo only. Forge unit tests and apply --dry-run run on
+  the forge-check product gate when forge.yaml selects it. Not Overlay select/run.
 armed_reason: null
 product_command: null

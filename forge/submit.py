@@ -1,45 +1,45 @@
-"""开发侧代推：push the feature branch and open/update a draft PR.
+"""开发侧代推：check, then git push, then gh pr create.
 
-Aligns with GitHub CLI `gh pr create` (push current branch + create PR):
+Aligns with GitHub CLI `gh pr create`:
 https://cli.github.com/manual/gh_pr_create
 
-Does not clone Graphite (no stacks, no merge-when-ready). Never merges.
-Never applies a Ruleset. Ops (manage-repo + required checks) merges.
+Forge does not store secrets. It only consumes a host-injected GitHub write
+credential (gh auth login, GH_TOKEN, or git https extraheader). See
+docs/submit-credential.md.
 
-Requires env FORGE_SUBMIT_TOKEN (PAT / fine-grained / GitHub App token).
-No GITHUB_TOKEN fallback, no FORGE_GITHUB_TOKEN fallback, no gh auth.
-Missing or empty secret exits 2 even on --dry-run. Never print the token.
+Does not clone Graphite (no stacks, no merge-when-ready). Never merges.
+Never applies a Ruleset. CI must not call this command.
 """
 
 from __future__ import annotations
 
+import json
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-from typing import Any, TextIO
+from typing import TextIO
 
-from forge import EXIT_AUTH, EXIT_CONFIG, EXIT_OK, SUBMIT_TOKEN_ENV
-from forge.check import EXIT_CHECK, run_check
+from forge import EXIT_API, EXIT_AUTH, EXIT_CONFIG, EXIT_OK
 from forge.apply import (
-    DEFAULT_API,
     DEFAULT_PROTECT,
     ForgeError,
-    GitHubClient,
-    UrlOpen,
     assert_apply_allowed,
     load_config,
     normalize_branch,
     parse_repo,
 )
+from forge.check import EXIT_CHECK, run_check
+from forge.credential import (
+    MISSING_MESSAGE,
+    WriteCredential,
+    probe_write_credential,
+    redact_secrets,
+)
 from forge.title import EXAMPLE, GRAMMAR, lint_title
 
-# Named secret for local/agent 代推. Do not read GITHUB_TOKEN or FORGE_GITHUB_TOKEN.
-MISSING_SUBMIT_TOKEN = f"missing {SUBMIT_TOKEN_ENV}"
-REQUIRE_SUBMIT_TOKEN = f"would require {SUBMIT_TOKEN_ENV}"
-
-# Same six headings as docs/pr-brief.md / .github/PULL_REQUEST_TEMPLATE.md
 BODY_HEADINGS = (
     "做了什么",
     "为什么",
@@ -52,22 +52,29 @@ BODY_HEADINGS = (
 DEFAULT_REMOTE = "origin"
 GitRunner = Callable[..., str]
 Pusher = Callable[[str, str], None]
+GhRunner = Callable[..., str]
+PrCreate = Callable[..., tuple[str, int]]
+CredentialProbe = Callable[[], WriteCredential]
+CheckFn = Callable[..., int]
 
 
 def default_git_runner(
     args: Sequence[str],
     cwd: Path | str | None = None,
+    environ: Mapping[str, str] | os._Environ[str] | None = None,
 ) -> str:
+    env = None if environ is None else dict(environ)
     result = subprocess.run(
         ["git", *args],
         cwd=None if cwd is None else str(cwd),
         capture_output=True,
         text=True,
         check=False,
+        env=env,
     )
     if result.returncode != 0:
-        err = (result.stderr or result.stdout or "").strip() or f"exit {result.returncode}"
-        raise ForgeError(EXIT_CONFIG, f"git {' '.join(args)} failed: {err}")
+        err = redact_secrets((result.stderr or result.stdout or "").strip()) or f"exit {result.returncode}"
+        raise ForgeError(EXIT_CONFIG, f"git {' '.join(args[:3])} failed: {err}")
     return (result.stdout or "").strip()
 
 
@@ -77,9 +84,35 @@ def default_pusher(
     *,
     cwd: Path | str | None = None,
     git_runner: GitRunner | None = None,
+    environ: Mapping[str, str] | os._Environ[str] | None = None,
 ) -> None:
-    runner = default_git_runner if git_runner is None else git_runner
-    runner(["push", "-u", remote, ref], cwd=cwd)
+    if git_runner is None:
+        default_git_runner(["push", "-u", remote, ref], cwd=cwd, environ=environ)
+        return
+    git_runner(["push", "-u", remote, ref], cwd=cwd)
+
+
+def default_gh_runner(
+    args: Sequence[str],
+    *,
+    cwd: Path | str | None = None,
+    environ: Mapping[str, str] | os._Environ[str] | None = None,
+) -> str:
+    env = dict(os.environ if environ is None else environ)
+    env.pop("GH_DEBUG", None)
+    env.pop("GH_TRACE", None)
+    result = subprocess.run(
+        ["gh", *args],
+        cwd=None if cwd is None else str(cwd),
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+    )
+    if result.returncode != 0:
+        err = redact_secrets((result.stderr or result.stdout or "").strip()) or f"exit {result.returncode}"
+        raise ForgeError(EXIT_API, f"gh {' '.join(args[:3])} failed: {err}")
+    return (result.stdout or "").strip()
 
 
 def resolve_head(
@@ -87,21 +120,14 @@ def resolve_head(
     *,
     cwd: Path | str | None = None,
     git_runner: GitRunner | None = None,
-    environ: Mapping[str, str] | os._Environ[str] | None = None,
 ) -> str:
     if head and head.strip():
         return normalize_branch(head)
     runner = default_git_runner if git_runner is None else git_runner
     raw = runner(["rev-parse", "--abbrev-ref", "HEAD"], cwd=cwd)
-    if raw and raw != "HEAD":
-        return normalize_branch(raw)
-    # PR merge checkouts are detached; Actions still names the source branch.
-    env = {} if environ is None else environ
-    for key in ("GITHUB_HEAD_REF", "GITHUB_REF_NAME"):
-        candidate = str(env.get(key) or "").strip()
-        if candidate and candidate != "HEAD":
-            return normalize_branch(candidate)
-    raise ForgeError(EXIT_CONFIG, "refusing detached HEAD; pass a feature branch")
+    if not raw or raw == "HEAD":
+        raise ForgeError(EXIT_CONFIG, "refusing detached HEAD; pass a feature branch")
+    return normalize_branch(raw)
 
 
 def resolve_commit_subject(
@@ -118,7 +144,6 @@ def resolve_commit_subject(
 
 
 def intended_title(explicit: str | None, commit_subject: str | None) -> str:
-    """Use --title, or a commit subject that already passes `forge pr-title`."""
     if explicit is not None:
         return explicit
     if commit_subject:
@@ -137,24 +162,69 @@ def assert_head_not_protect(head: str, protect: Sequence[str]) -> None:
         raise ForgeError(EXIT_CONFIG, f"refusing to submit protect branch {head!r}")
 
 
-def resolve_submit_token(
-    environ: Mapping[str, str] | os._Environ[str] | None = None,
-    explicit: str | None = None,
-) -> str | None:
-    """Require FORGE_SUBMIT_TOKEN. No GITHUB_TOKEN / FORGE_GITHUB_TOKEN / gh auth."""
-    if explicit is not None:
-        value = explicit.strip()
-        return value or None
-    env = os.environ if environ is None else environ
-    raw = env.get(SUBMIT_TOKEN_ENV)
-    if raw is None:
-        return None
-    value = str(raw).strip()
-    return value or None
-
-
 def pr_body() -> str:
     return "".join(f"## {heading}\n\n" for heading in BODY_HEADINGS)
+
+
+def parse_pr_number(text: str) -> int:
+    match = re.search(r"/pull/(\d+)", text)
+    if match:
+        return int(match.group(1))
+    match = re.search(r"\b(\d+)\b", text)
+    if match:
+        return int(match.group(1))
+    raise ForgeError(EXIT_API, "gh pr create did not print a pull number")
+
+
+def default_open_or_update_pr(
+    *,
+    repo: str,
+    head: str,
+    base: str,
+    title: str,
+    body: str,
+    cwd: Path | str | None = None,
+    environ: Mapping[str, str] | os._Environ[str] | None = None,
+    gh_runner: GhRunner | None = None,
+) -> tuple[str, int]:
+    runner = gh_runner
+
+    def run(args: Sequence[str]) -> str:
+        if runner is None:
+            return default_gh_runner(args, cwd=cwd, environ=environ)
+        return runner(args)
+
+    raw = run(
+        ["pr", "list", "--repo", repo, "--head", head, "--state", "open", "--json", "number"]
+    )
+    try:
+        listed = json.loads(raw or "[]")
+    except json.JSONDecodeError as exc:
+        raise ForgeError(EXIT_API, f"gh pr list returned non-JSON: {exc}") from exc
+    if isinstance(listed, list) and listed:
+        first = listed[0]
+        if isinstance(first, dict) and first.get("number") is not None:
+            number = int(first["number"])
+            run(["pr", "edit", str(number), "--repo", repo, "--title", title, "--body", body])
+            return "updated", number
+    created = run(
+        [
+            "pr",
+            "create",
+            "--repo",
+            repo,
+            "--head",
+            head,
+            "--base",
+            base,
+            "--title",
+            title,
+            "--body",
+            body,
+            "--draft",
+        ]
+    )
+    return "opened", parse_pr_number(created)
 
 
 def _print_plan(
@@ -165,6 +235,7 @@ def _print_plan(
     base: str,
     title: str,
     dry_run: bool,
+    credential: WriteCredential,
 ) -> None:
     if dry_run:
         print("dry-run", file=stdout)
@@ -173,53 +244,10 @@ def _print_plan(
     print(f"head: {head}", file=stdout)
     print(f"base: {base}", file=stdout)
     print(f"title: {title}", file=stdout)
+    print(f"credential: {credential.source}", file=stdout)
     print("body headings:", file=stdout)
     for heading in BODY_HEADINGS:
         print(f"  {heading}", file=stdout)
-
-
-def _open_or_update_draft(
-    client: GitHubClient,
-    *,
-    owner: str,
-    name: str,
-    head: str,
-    base: str,
-    title: str,
-    body: str,
-) -> tuple[str, int]:
-    listed = client.request(
-        "GET",
-        f"/repos/{owner}/{name}/pulls?state=open&head={owner}:{head}&per_page=10",
-    )
-    existing: dict[str, Any] | None = None
-    if isinstance(listed, list):
-        for item in listed:
-            if isinstance(item, dict):
-                existing = item
-                break
-    if existing and existing.get("number") is not None:
-        number = int(existing["number"])
-        client.request(
-            "PATCH",
-            f"/repos/{owner}/{name}/pulls/{number}",
-            {"title": title, "body": body},
-        )
-        return "updated", number
-    created = client.request(
-        "POST",
-        f"/repos/{owner}/{name}/pulls",
-        {
-            "title": title,
-            "head": head,
-            "base": base,
-            "body": body,
-            "draft": True,
-        },
-    )
-    if not isinstance(created, dict) or created.get("number") is None:
-        raise ForgeError(EXIT_CONFIG, "GitHub API returned a non-object create result")
-    return "opened", int(created["number"])
 
 
 def run_submit(
@@ -230,28 +258,27 @@ def run_submit(
     path: Path | str | None = None,
     head: str | None = None,
     base: str | None = None,
-    token: str | None = None,
-    urlopen: UrlOpen | None = None,
-    base_url: str = DEFAULT_API,
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
     environ: Mapping[str, str] | os._Environ[str] | None = None,
     cwd: Path | str | None = None,
     git_runner: GitRunner | None = None,
     pusher: Pusher | None = None,
-    check_fn: Any | None = None,
+    check_fn: CheckFn | None = None,
     check_root: Path | str | None = None,
+    credential_probe: CredentialProbe | None = None,
+    pr_create: PrCreate | None = None,
+    gh_runner: GhRunner | None = None,
 ) -> int:
     out = sys.stdout if stdout is None else stdout
     err = sys.stderr if stderr is None else stderr
+    env = environ
     try:
         owner, name = parse_repo(repo)
         assert_apply_allowed(owner, name)
         config_path = None if path is None else Path(path)
         config = load_config(config_path)
-        resolved_head = resolve_head(
-            head, cwd=cwd, git_runner=git_runner, environ=environ
-        )
+        resolved_head = resolve_head(head, cwd=cwd, git_runner=git_runner)
         assert_head_not_protect(resolved_head, config.protect)
         resolved_base = (
             normalize_branch(base)
@@ -265,6 +292,16 @@ def run_submit(
         code, message, _parts = lint_title(resolved_title)
         if code != EXIT_OK:
             raise ForgeError(EXIT_CONFIG, message)
+
+        cred = (
+            credential_probe()
+            if credential_probe is not None
+            else probe_write_credential(environ=env, cwd=cwd)
+        )
+        if not cred.present:
+            print(MISSING_MESSAGE, file=err)
+            return EXIT_AUTH
+
         checker = run_check if check_fn is None else check_fn
         root = Path(".") if check_root is None and cwd is None else Path(check_root or cwd)
         check_code = checker(
@@ -272,11 +309,12 @@ def run_submit(
             title=resolved_title,
             stdout=out,
             stderr=err,
-            environ=environ,
+            environ=env,
         )
         if check_code != EXIT_OK:
             print("forge submit: refusing (local check is red); no push, no PR", file=err)
             return EXIT_CHECK
+
         _print_plan(
             stdout=out,
             repo=f"{owner}/{name}",
@@ -284,37 +322,33 @@ def run_submit(
             base=resolved_base,
             title=resolved_title,
             dry_run=dry_run,
+            credential=cred,
         )
-        print(REQUIRE_SUBMIT_TOKEN, file=out)
-        if token is not None:
-            resolved_token = token.strip() or None
-        else:
-            resolved_token = resolve_submit_token(environ)
-        if not resolved_token:
-            print(MISSING_SUBMIT_TOKEN, file=err)
-            return EXIT_AUTH
         if dry_run:
             return EXIT_OK
+
         push = pusher
         if push is None:
 
             def push(remote: str, ref: str) -> None:
-                default_pusher(remote, ref, cwd=cwd, git_runner=git_runner)
+                default_pusher(remote, ref, cwd=cwd, git_runner=git_runner, environ=env)
 
         push(DEFAULT_REMOTE, resolved_head)
         print(f"pushed {DEFAULT_REMOTE} {resolved_head}", file=out)
-        client = GitHubClient(resolved_token, urlopen=urlopen, base_url=base_url)
-        action, number = _open_or_update_draft(
-            client,
-            owner=owner,
-            name=name,
+
+        create = pr_create if pr_create is not None else default_open_or_update_pr
+        action, number = create(
+            repo=f"{owner}/{name}",
             head=resolved_head,
             base=resolved_base,
             title=resolved_title,
             body=pr_body(),
+            cwd=cwd,
+            environ=env,
+            gh_runner=gh_runner,
         )
         print(f"{action} draft PR #{number}", file=out)
         return EXIT_OK
     except ForgeError as exc:
-        print(exc.message, file=err)
+        print(redact_secrets(exc.message), file=err)
         return exc.code

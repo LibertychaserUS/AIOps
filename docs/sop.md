@@ -12,11 +12,11 @@
 | **管理端**（Ruleset / merge / arm） | [`skills/manage-repo/SKILL.md`](../skills/manage-repo/SKILL.md) | 不扮演管理端：不 apply、不合、不写 `reviewed_by`、不替开发 push |
 | **开发端**（`forge check` + 宿主注入写权限 + `forge submit` / 修 armed 红） | [`skills/dev-pr/SKILL.md`](../skills/dev-pr/SKILL.md) | 同一文件 + [`../forge/agent-policy.md`](../forge/agent-policy.md)；提交前 `check` 必须绿，且宿主已注入写权限（人：`gh auth login`）；`submit` 开草稿 PR；不自合 |
 | **PR 名 / 解说规格** | [`pr-brief.md`](pr-brief.md) + `python -m forge pr-title` + [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md) | Conventional Commits `type(product/actor): subject`。检查名 `pr-title`。正文六节。不改分支 / workflow / skill 名 |
-| **程序锁** | [`sop-lock.md`](sop-lock.md) | skill 能机器判定的标准必须有检查。**代推锁** `python -m forge check` 绿且宿主已注入写权限（不绿 / 无凭证不 push）。**合入锁** **`overlay-check`**、**`pr-title`**、**`forge-check`**、**`sop-lock`** |
+| **程序锁** | [`sop-lock.md`](sop-lock.md) | skill 能机器判定的标准必须有检查。**代推锁** `python -m forge check`（不绿不 push）。**通用检查 ≠ 产品门。** 通用合入锁 `pr-title`、`sop-lock`（永远跑）。产品门 `overlay-check` / `forge-check`（`forge.yaml` `ci` 选跑或跳过） |
 
-PR 的 review 和 merge：**GitHub 上的人 + Ruleset**，不是 Overlay，不是自建管理端。RBAC：[`rbac.md`](rbac.md)。CodeRabbit 只建议，不能当唯一 merge 门。开发写解说规格，管理拒收 `pr-title` 红或正文缺六节的 PR。标题 `actor` 不是分支名。Ruleset 勾上 `overlay-check`、`pr-title`、`forge-check`、`sop-lock` 之后，红则不能合。
+PR 的 review 和 merge：**GitHub 上的人 + Ruleset**，不是 Overlay，不是自建管理端。RBAC：[`rbac.md`](rbac.md)。CodeRabbit 只建议，不能当唯一 merge 门。开发写解说规格，管理拒收 `pr-title` 红或正文缺六节的 PR。标题 `actor` 不是分支名。Ruleset 勾上通用 `pr-title`、`sop-lock` 和产品 `overlay-check`、`forge-check` 之后，红则不能合。产品门按 `forge.yaml` 选跑或跳过成功。
 
-Overlay 的测试规格（`suites/`）和 CI（`overlay-check`）是一条链：只跑 Overlay `armed` 的 `product_command`。不要再开 `self-test` 绕过 Overlay select。Forge 单测走 **`forge-check`**，不搭 Overlay run。
+Overlay 的测试规格（`suites/`）和 Overlay CI（`overlay-check`）是一条链：只跑 Overlay `armed` 的 `product_command`。不要再开 `self-test` 绕过 Overlay select。不要把 `forge-apply` 标 armed 当代 Overlay 门。Forge 单测走 **`forge-check`**。
 
 不是门户，不是第二本 PRD。设计对照仍是 [`design.md`](design.md)。接到别的仓：[`products.md`](products.md)。
 

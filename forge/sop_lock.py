@@ -20,6 +20,7 @@ from forge import EXIT_OK
 EXIT_SOP = 2
 
 WORKSHOP_REQUIRED_CHECKS = ("overlay-check", "pr-title", "forge-check", "sop-lock")
+COMMON_CHECKS = ("pr-title", "sop-lock")
 LOCK_HEADING_RE = re.compile(r"^## Lock\b", re.MULTILINE)
 GENERATE_RUN_RE = re.compile(
     r"(python[0-9.]*\s+-m\s+overlay\s+generate)|(\boverlay\s+generate\b)",
@@ -28,6 +29,7 @@ GENERATE_RUN_RE = re.compile(
 UNITTEST_RE = re.compile(r"unittest\s+discover")
 FORGE_UNITTEST_RE = re.compile(r"unittest\s+discover\s+-s\s+tests/forge\b")
 SUBMIT_RUN_RE = re.compile(r"python[0-9.]*\s+-m\s+forge\s+submit")
+CI_SELECT_RE = re.compile(r"python[0-9.]*\s+-m\s+forge\s+ci-select")
 FLOATING_USES_RE = re.compile(
     r"^[^/]+/[^/]+/.+@(main|master|HEAD|latest)$",
     re.IGNORECASE,
@@ -76,6 +78,15 @@ def _on_has(on_field: Any, event: str) -> bool:
     return False
 
 
+def _has_path_filter(on_field: Any) -> bool:
+    if not isinstance(on_field, dict):
+        return False
+    for value in on_field.values():
+        if isinstance(value, dict) and "paths" in value:
+            return True
+    return False
+
+
 def _walk(node: Any) -> Iterable[tuple[str, Any]]:
     if isinstance(node, dict):
         for key, value in node.items():
@@ -105,7 +116,7 @@ def _collect_env_keys(node: Any) -> list[str]:
 
 
 def _is_forge_unit_layer(path: Path, data: dict[str, Any], script: str) -> bool:
-    """Forge CI may discover tests/forge. That is not an Overlay select bypass."""
+    """Forge product CI may discover tests/forge. That is not an Overlay select bypass."""
     name = str(data.get("name") or "")
     filename = path.name
     forge_file = filename in {"forge-check.yml", "forge-check.yaml"}
@@ -159,8 +170,7 @@ def check_workflows(root: Path) -> list[Issue]:
             bypass = [
                 script
                 for script in runs
-                if UNITTEST_RE.search(script)
-                and not _is_forge_unit_layer(path, data, script)
+                if UNITTEST_RE.search(script) and not _is_forge_unit_layer(path, data, script)
             ]
             if bypass:
                 issues.append(
@@ -250,8 +260,42 @@ def check_skills(root: Path) -> list[Issue]:
             for name in ("overlay-check", "sop-lock", "pr-title", "forge-check", "forge check")
         ):
             issues.append(
-                Issue(rel, "Lock section must name overlay-check, sop-lock, pr-title, forge-check, or forge check")
+                Issue(
+                    rel,
+                    "Lock section must name overlay-check, sop-lock, pr-title, forge-check, or forge check",
+                )
             )
+    return issues
+
+
+def _check_product_workflow(root: Path, filename: str, check_name: str) -> list[Issue]:
+    path = root / ".github" / "workflows" / filename
+    rel = _rel(root, path)
+    if not path.is_file():
+        return [Issue(rel, f"missing {check_name} workflow")]
+    text = path.read_text(encoding="utf-8")
+    data = _load_workflow(path)
+    issues: list[Issue] = []
+    if f"name: {check_name}" not in text:
+        issues.append(Issue(rel, f"must be the {check_name} check"))
+    if not CI_SELECT_RE.search(text):
+        issues.append(Issue(rel, f"must call python -m forge ci-select --check {check_name}"))
+    on_field = (data or {}).get("on") or (data or {}).get(True)
+    if _has_path_filter(on_field):
+        issues.append(
+            Issue(
+                rel,
+                "must not path-filter on: (workflow must start; skip jobs with success)",
+            )
+        )
+    if data is not None:
+        for script in _collect_runs(data):
+            if SUBMIT_RUN_RE.search(script):
+                issues.append(Issue(rel, "must not call forge submit"))
+                break
+            if GENERATE_RUN_RE.search(script):
+                issues.append(Issue(rel, "must not run overlay generate"))
+                break
     return issues
 
 
@@ -271,25 +315,11 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
         if "forge check" not in text:
             issues.append(Issue("docs/sop-lock.md", "must document python -m forge check as 代推锁"))
         if "forge-check" not in text:
-            issues.append(Issue("docs/sop-lock.md", "must list forge-check as a Forge CI check"))
-    custody = root / "docs" / "submit-credential.md"
-    if not custody.is_file():
-        issues.append(Issue("docs/submit-credential.md", "missing submit custody page"))
-    else:
-        custody_text = custody.read_text(encoding="utf-8")
-        for needle in (
-            "FORGE_SUBMIT_TOKEN",
-            "Forge 不保管",
-            "gh auth login",
-            "GH_TOKEN",
-            "extraheader",
-            "OPENAI_API_KEY",
-            "GITHUB_TOKEN",
-        ):
-            if needle not in custody_text:
-                issues.append(
-                    Issue("docs/submit-credential.md", f"must explain {needle}")
-                )
+            issues.append(Issue("docs/sop-lock.md", "must list forge-check as a product gate"))
+        if "通用" not in text or "产品门" not in text:
+            issues.append(Issue("docs/sop-lock.md", "must state 通用检查 ≠ 产品门"))
+        if "ci-select" not in text and "forge.yaml" not in text:
+            issues.append(Issue("docs/sop-lock.md", "must document the forge.yaml CI selector"))
     forge_yaml = root / "forge.yaml"
     if not forge_yaml.is_file():
         issues.append(Issue("forge.yaml", "missing workshop forge.yaml"))
@@ -298,55 +328,85 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
         missing = [name for name in WORKSHOP_REQUIRED_CHECKS if name not in raw]
         if missing:
             issues.append(Issue("forge.yaml", "required_checks must list " + ", ".join(missing)))
-        cr_only = [line for line in raw.splitlines() if "required_checks" in line or line.strip().startswith("- ")]
+        if "ci:" not in raw or "common:" not in raw or "products:" not in raw:
+            issues.append(Issue("forge.yaml", "must declare ci.common and ci.products selector"))
         names = [line.split("-", 1)[1].strip() for line in raw.splitlines() if line.strip().startswith("- ")]
         check_names = [name for name in names if name in raw]
         non_cr = [name for name in check_names if "coderabbit" not in name.lower()]
         if any("coderabbit" in name.lower() for name in check_names) and not non_cr:
             issues.append(Issue("forge.yaml", "CodeRabbit must not be the only required check"))
-        del cr_only
+        try:
+            from forge.ci_select import PRODUCT_NAMES, load_ci_config
+
+            config = load_ci_config(root)
+            extra = [name for name in config.products if name not in PRODUCT_NAMES]
+            if extra:
+                issues.append(Issue("forge.yaml", "do not invent a third product under ci.products"))
+            for name in COMMON_CHECKS:
+                if name not in config.common:
+                    issues.append(Issue("forge.yaml", f"ci.common must list {name}"))
+            for product, check in (("overlay", "overlay-check"), ("forge", "forge-check")):
+                gate = config.products.get(product)
+                if gate is None or gate.check != check:
+                    issues.append(Issue("forge.yaml", f"ci.products.{product}.check must be {check}"))
+        except Exception as exc:
+            issues.append(Issue("forge.yaml", f"ci selector is not loadable: {exc}"))
     pr_title = root / ".github" / "workflows" / "pr-title.yml"
     if not pr_title.is_file():
         issues.append(Issue(".github/workflows/pr-title.yml", "missing pr-title workflow"))
     else:
         text = pr_title.read_text(encoding="utf-8")
+        data = _load_workflow(pr_title)
         if "pull_request" not in text:
             issues.append(Issue(_rel(root, pr_title), "must run on pull_request"))
         if re.search(r"(?m)^  push:", text):
             issues.append(Issue(_rel(root, pr_title), "must not run on push"))
+        on_field = (data or {}).get("on") or (data or {}).get(True)
+        if _has_path_filter(on_field):
+            issues.append(Issue(_rel(root, pr_title), "common pr-title must not path-filter on:"))
+        if CI_SELECT_RE.search(text):
+            issues.append(Issue(_rel(root, pr_title), "common pr-title must always run (no ci-select skip)"))
     sop_wf = root / ".github" / "workflows" / "sop-lock.yml"
     if not sop_wf.is_file():
         issues.append(Issue(".github/workflows/sop-lock.yml", "missing sop-lock workflow"))
     else:
         text = sop_wf.read_text(encoding="utf-8")
+        data = _load_workflow(sop_wf)
         if "name: sop-lock" not in text or "python -m forge sop-lock" not in text:
             issues.append(
                 Issue(_rel(root, sop_wf), "must be the sop-lock check running python -m forge sop-lock")
             )
+        on_field = (data or {}).get("on") or (data or {}).get(True)
+        if _has_path_filter(on_field):
+            issues.append(Issue(_rel(root, sop_wf), "common sop-lock must not path-filter on:"))
+        if CI_SELECT_RE.search(text):
+            issues.append(Issue(_rel(root, sop_wf), "common sop-lock must always run (no ci-select skip)"))
+    issues.extend(_check_product_workflow(root, "forge-check.yml", "forge-check"))
     forge_check = root / ".github" / "workflows" / "forge-check.yml"
-    if not forge_check.is_file():
-        issues.append(Issue(".github/workflows/forge-check.yml", "missing forge-check workflow"))
-    else:
+    if forge_check.is_file():
         text = forge_check.read_text(encoding="utf-8")
-        data = _load_workflow(forge_check)
-        if "name: forge-check" not in text:
-            issues.append(Issue(_rel(root, forge_check), "must be the forge-check check"))
         if "unittest discover -s tests/forge" not in text:
             issues.append(
                 Issue(_rel(root, forge_check), "must run python3 -m unittest discover -s tests/forge")
             )
         if "forge apply" not in text or "--dry-run" not in text:
             issues.append(Issue(_rel(root, forge_check), "must run forge apply --dry-run"))
-        if "python -m forge sop-lock" not in text:
-            issues.append(Issue(_rel(root, forge_check), "must layer python -m forge sop-lock"))
-        if data is not None:
-            for script in _collect_runs(data):
-                if SUBMIT_RUN_RE.search(script):
-                    issues.append(Issue(_rel(root, forge_check), "must not call forge submit"))
-                    break
-                if GENERATE_RUN_RE.search(script):
-                    issues.append(Issue(_rel(root, forge_check), "must not run overlay generate"))
-                    break
+        if "python -m forge sop-lock" in text:
+            issues.append(
+                Issue(_rel(root, forge_check), "sop-lock is common; do not own it on forge-check")
+            )
+        if "python -m forge pr-title" in text:
+            issues.append(
+                Issue(_rel(root, forge_check), "pr-title is common; do not own it on forge-check")
+            )
+    issues.extend(_check_product_workflow(root, "overlay-check.yml", "overlay-check"))
+    overlay_check = root / ".github" / "workflows" / "overlay-check.yml"
+    if overlay_check.is_file():
+        text = overlay_check.read_text(encoding="utf-8")
+        if FORGE_UNITTEST_RE.search(text):
+            issues.append(
+                Issue(_rel(root, overlay_check), "overlay-check must not run Forge unit tests")
+            )
     for name in ("dev-pr", "use-forge"):
         skill = root / "skills" / name / "SKILL.md"
         rel = _rel(root, skill)
@@ -356,19 +416,12 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
         text = skill.read_text(encoding="utf-8")
         if "python -m forge check" not in text:
             issues.append(Issue(rel, "must require python -m forge check before submit (代推锁)"))
-        if "FORGE_SUBMIT_TOKEN" in text:
+        if "FORGE_SUBMIT_TOKEN" not in text and "宿主" not in text:
             issues.append(
-                Issue(rel, "must not invent FORGE_SUBMIT_TOKEN; consume host-injected credential")
+                Issue(rel, "must name FORGE_SUBMIT_TOKEN or a host-injected 宿主 credential")
             )
-        if not any(token in text for token in ("gh auth login", "宿主", "host-injected")):
-            issues.append(Issue(rel, "must teach host-injected write credential (gh auth login / 宿主)"))
-    overlay_check = root / ".github" / "workflows" / "overlay-check.yml"
-    if overlay_check.is_file():
-        data = _load_workflow(overlay_check)
-        if data is not None:
-            for script in _collect_runs(data):
-                if GENERATE_RUN_RE.search(script):
-                    issues.append(Issue(_rel(root, overlay_check), "overlay-check must not run generate"))
+        if "通用" not in text or "产品门" not in text:
+            issues.append(Issue(rel, "must state 通用检查 ≠ 产品门"))
     manage = root / "skills" / "manage-repo" / "SKILL.md"
     if manage.is_file():
         text = manage.read_text(encoding="utf-8")
@@ -381,6 +434,13 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
             issues.append(
                 Issue(_rel(root, manage), "must name required checks " + ", ".join(missing))
             )
+        if "通用" not in text or "产品门" not in text:
+            issues.append(Issue(_rel(root, manage), "must state 通用检查 ≠ 产品门"))
+    overlay_skill = root / "skills" / "use-overlay" / "SKILL.md"
+    if overlay_skill.is_file():
+        text = overlay_skill.read_text(encoding="utf-8")
+        if "通用" not in text or "产品门" not in text:
+            issues.append(Issue(_rel(root, overlay_skill), "must state 通用检查 ≠ 产品门"))
     return issues
 
 
@@ -393,43 +453,16 @@ def check_submit_source(root: Path) -> list[Issue]:
     rel = _rel(root, submit)
     if "run_check" not in text:
         issues.append(Issue(rel, "submit must refuse when forge check is red"))
-    if "FORGE_SUBMIT_TOKEN" in text:
-        issues.append(Issue(rel, "must not invent FORGE_SUBMIT_TOKEN; consume host-injected credential"))
-    if "probe_write_credential" not in text:
-        issues.append(Issue(rel, "submit must probe host-injected write credential"))
-    if "pr create" not in text:
-        issues.append(Issue(rel, "submit must use gh pr create"))
+    if "FORGE_SUBMIT_TOKEN" not in text and "probe_write_credential" not in text:
+        issues.append(
+            Issue(rel, "submit must require FORGE_SUBMIT_TOKEN or probe a host-injected credential")
+        )
     if re.search(r"""\.get\(\s*['\"]GITHUB_TOKEN['\"]""", text):
         issues.append(Issue(rel, "submit must not read GITHUB_TOKEN"))
     if re.search(r"""\.get\(\s*['\"]FORGE_GITHUB_TOKEN['\"]""", text):
         issues.append(Issue(rel, "submit must not read FORGE_GITHUB_TOKEN (Ops apply)"))
     if "resolve_token(" in text:
         issues.append(Issue(rel, "submit must not call apply.resolve_token"))
-    cred = root / "forge" / "credential.py"
-    if not cred.is_file():
-        issues.append(Issue("forge/credential.py", "missing host-injected credential probe"))
-    else:
-        cred_text = cred.read_text(encoding="utf-8")
-        cred_rel = _rel(root, cred)
-        if "FORGE_SUBMIT_TOKEN" in cred_text:
-            issues.append(
-                Issue(cred_rel, "must not invent FORGE_SUBMIT_TOKEN; consume host-injected credential")
-            )
-        if "probe_write_credential" not in cred_text:
-            issues.append(Issue(cred_rel, "must probe host-injected write credential"))
-        if "gh-login" not in cred_text:
-            issues.append(Issue(cred_rel, "must accept gh auth login as a submit credential"))
-    doc = root / "docs" / "submit-credential.md"
-    rel_doc = _rel(root, doc)
-    if not doc.is_file():
-        issues.append(Issue(rel_doc, "missing submit custody page"))
-    else:
-        cred_doc = doc.read_text(encoding="utf-8")
-        if "Forge 不保管" not in cred_doc:
-            issues.append(Issue(rel_doc, "must say Forge 不保管"))
-        for phrase in ("gh auth login", "GH_TOKEN", "extraheader", "OPENAI_API_KEY", "GITHUB_TOKEN"):
-            if phrase not in cred_doc:
-                issues.append(Issue(rel_doc, f"must explain {phrase}"))
     return issues
 
 

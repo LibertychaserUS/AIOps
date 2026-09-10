@@ -6,9 +6,9 @@
 - Title: dry-run prints payload
 - Steps: `python -m forge apply --repo LibertychaserUS/AIOps --path forge.yaml --dry-run`
 - Expected: exit 0; payload mentions forge-protected-default; no API write
-- Title: Forge CI runs unit tests then dry-run
-- Steps: `.github/workflows/forge-check.yml` layers `unittest discover -s tests/forge` then `forge apply --dry-run`
-- Expected: fake-API tests green; dry-run exit 0; no Ruleset write; Overlay select does not run this suite
+- Title: Forge product gate runs unit tests then dry-run when selected
+- Steps: `.github/workflows/forge-check.yml` starts, `python -m forge ci-select --check forge-check`, then (if selected) `unittest discover -s tests/forge` and `forge apply --dry-run`
+- Expected: skip is success when selector says skip; when run: fake-API tests green; dry-run exit 0; Overlay select does not run this suite
 - Title: conventional PR title with product/actor passes
 - Steps: `python -m forge pr-title --title "feat(overlay/dev): add cover triad and invariants"`
 - Expected: exit 0; no GitHub write
@@ -33,9 +33,9 @@
 ## FN-forge-submit 开发侧代推
 
 ### Functional
-- Title: dry-run with FORGE_SUBMIT_TOKEN does not push
-- Steps: set FORGE_SUBMIT_TOKEN to a dummy; `python -m forge submit --repo LibertychaserUS/AIOps --title "feat(forge/dev): add submit middleware" --dry-run`
-- Expected: exit 0 after green `forge check`; prints head, title, six body headings, `would require FORGE_SUBMIT_TOKEN`; no push; token value not printed
+- Title: dry-run with host-injected write credential does not push
+- Steps: set host-injected write credential to a dummy; `python -m forge submit --repo LibertychaserUS/AIOps --title "feat(forge/dev): add submit middleware" --dry-run`
+- Expected: exit 0 after green `forge check`; prints head, title, six body headings, `would require host-injected write credential`; no push; token value not printed
 - FN-forge-apply stays the apply leaf
 - FN-forge-check is the local gate submit runs first
 
@@ -43,12 +43,12 @@
 - Title: submit protect branch is refused
 - Steps: submit with head `main`
 - Expected: exit 3; no push
-- Title: submit without FORGE_SUBMIT_TOKEN (including dry-run)
-- Steps: unset FORGE_SUBMIT_TOKEN; GITHUB_TOKEN and FORGE_GITHUB_TOKEN may be set; submit --dry-run and live
-- Expected: exit 2; missing FORGE_SUBMIT_TOKEN; no push
+- Title: submit without host-injected write credential (including dry-run)
+- Steps: unset host-injected write credential; GITHUB_TOKEN and FORGE_GITHUB_TOKEN may be set; submit --dry-run and live
+- Expected: exit 2; missing host-injected write credential; no push
 - Title: red check blocks submit even with token
 - INV-local-check-before-submit
-- Steps: FORGE_SUBMIT_TOKEN set; submit with a check_fn that returns 2, dry-run and live
+- Steps: host-injected write credential set; submit with a check_fn that returns 2, dry-run and live
 - Expected: exit 2; refusing (local check is red); no push; no PR; token not printed
 
 ### Edge
@@ -56,7 +56,7 @@
 - Steps: submit --repo First-Light-TechHK/LearningGuidePortal
 - Expected: rejected; no push
 - Title: fake live submit never merges
-- Steps: submit with FORGE_SUBMIT_TOKEN against FakeGitHub
+- Steps: submit with host-injected write credential against FakeGitHub
 - Expected: POST draft PR; second call PATCH; no `/merge`; token not in PR body
 
 ## FN-forge-check 提交前本地门

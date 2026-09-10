@@ -9,6 +9,8 @@
 
 两件产品独立版本、独立接入、独立失败。Forge 不懂用例；Overlay 不管谁该 merge。接入方可以只装一件。
 
+**通用检查 ≠ 产品门。** 不是两个产品各搞一套对等 CI。仓级规格（标题 Conventional Commits、正文六节、`sop-lock`）永远跑。产品门（`overlay-check` / `forge-check`）在 `forge.yaml` `ci` 里选择执行或跳过（workflow 必启动，skip 记成功）。`python -m forge ci-select`。不要把标题检查只挂在 Forge 下。
+
 完整详细设计：[`design.md`](design.md)。使用 skill（Codex `SKILL.md`）：[`sop.md`](sop.md)、[`../skills/use-forge/SKILL.md`](../skills/use-forge/SKILL.md)、[`../skills/use-overlay/SKILL.md`](../skills/use-overlay/SKILL.md)、[`../skills/design-cases/SKILL.md`](../skills/design-cases/SKILL.md)、管理端 [`../skills/manage-repo/SKILL.md`](../skills/manage-repo/SKILL.md)、开发端 [`../skills/dev-pr/SKILL.md`](../skills/dev-pr/SKILL.md)。Review / merge / RBAC：[`rbac.md`](rbac.md)。PR 解说规格：[`pr-brief.md`](pr-brief.md)。Inbox：[`inbox.md`](inbox.md)。测试规格：[`test-spec.md`](test-spec.md)。编译契约：[`agents/overlay-contract.md`](agents/overlay-contract.md)。IEEE 剖面：[`agents/ieee-test-system.md`](agents/ieee-test-system.md)。过程稿：[`architecture.md`](architecture.md)。约束：[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md)。
 
 ---
@@ -192,10 +194,10 @@ schema/                 # Overlay 契约，跨项目冻住；不打进产品仓
 examples/learning-guide/   # 第一个接入方 fixture，不是核心
 .github/workflows/
   overlay.yml           # reusable；产品仓 uses: 本文件 @ pin
-  overlay-check.yml     # 本工作本 Overlay 自用
-  forge-check.yml       # 本工作本 Forge 自用（unit + apply --dry-run + sop-lock）
-  pr-title.yml
-  sop-lock.yml
+  overlay-check.yml     # Overlay 产品门（validate+select+run；ci-select 可 skip）
+  forge-check.yml       # Forge 产品门（unit + apply --dry-run；ci-select 可 skip）
+  pr-title.yml          # 通用；永远跑
+  sop-lock.yml          # 通用；永远跑；不是第三件产品
 ```
 
 版本：`forge@v1`、`overlay@v1` 分开打 tag。接入方 pin tag 或 SHA，不 pin 本仓 `main`。

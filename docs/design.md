@@ -162,6 +162,7 @@ python -m forge status --repo OWNER/NAME
 python -m forge check  --root . [--title T]
 python -m forge submit --repo OWNER/NAME [--title T] [--dry-run]
 python -m forge pr-title --title "feat(overlay/dev): subject"
+python -m forge ci-select --check overlay-check --title "feat(overlay/dev): subject"
 python -m forge revoke --repo OWNER/NAME --name forge-protected-default
 ```
 
@@ -184,7 +185,16 @@ python -m forge revoke --repo OWNER/NAME --name forge-protected-default
 
 `apply` 认证仍是 `FORGE_GITHUB_TOKEN` 或 `GITHUB_TOKEN`（Administration: write）。那是 Ops 装 Ruleset 的钥匙，不是代推密钥。
 
-`pr-title`：纯函数锁 GitHub **PR 标题**（Conventional Commits + 必填 scope `product/actor`）。退出 `0`/`2`。不写 GitHub。规格：[`pr-brief.md`](pr-brief.md)。Actions 检查名 `pr-title`，只跑 `pull_request`。
+`pr-title`：纯函数锁 GitHub **PR 标题**（Conventional Commits + 必填 scope `product/actor`）。退出 `0`/`2`。不写 GitHub。规格：[`pr-brief.md`](pr-brief.md)。Actions 检查名 `pr-title`，只跑 `pull_request`。这是**通用检查**，不属于 Forge 产品门。
+
+`ci-select`：读 `forge.yaml` `ci`。**通用检查 ≠ 产品门。** 不是两个产品各搞一套对等 CI。
+
+```text
+common  →  pr-title (+ sop-lock)     always
+product →  overlay-check | forge-check   start, then skip-success via forge.yaml
+```
+
+标题 product：`overlay` → overlay-check；`forge` → forge-check；`ci` → 两个都跑；`docs` → 只跑通用。无合法标题时按 `ci.products.*.paths`。产品 workflow 不得用 `on.paths` 让检查根本不启动。不要发明第三个产品。
 
 `apply`：
 
@@ -194,7 +204,7 @@ python -m forge revoke --repo OWNER/NAME --name forge-protected-default
 4. 不修改任何 workflow YAML。
 5. 成功打印 Ruleset id 与保护分支。失败非 0。
 
-`apply` 认证：管理员本机 `FORGE_GITHUB_TOKEN` 或受保护 dispatch 的 `GITHUB_TOKEN`（Administration: write）。缺则退出码 `2`。这把钥匙只给 apply，不是 submit。`submit` 见 [`submit-credential.md`](submit-credential.md)。
+`apply` 认证：`FORGE_GITHUB_TOKEN` 或 `GITHUB_TOKEN`。需要 `Administration: write`（Rulesets）。缺 token：退出码 `2`，不部分写入。不要把这把钥匙和代推用的宿主注入写权限混用。
 
 `status`：只读，列出是否已装、保护哪些分支。
 
@@ -522,7 +532,7 @@ jobs:
 - 环境：接入方已有的本地/CI 假密钥模式。禁止注入生产 Stripe/SES URL。
 - 命令文本命中 `forbid_hosts` 的 URL → 退出 2，不启动该命令。
 - 失败：仅 armed 命令非 0 使 job 红（退出 5）。无 `--write-receipt` → 退出 2。
-- 本工作本：Overlay armed 的 `product_command` 只跑 Overlay 契约 / cover / Overlay unittest。不要再开旁路 `self-test` 当 Overlay 门。Forge 单测 + `apply --dry-run` + `sop-lock` 走 **`forge-check`**。`suites/forge-apply` 保持 `blocked`，不当 Overlay 产品门。
+- 本工作本：**通用检查 ≠ 产品门。** Overlay armed 的 `product_command` 只跑 Overlay 契约 / cover / Overlay unittest。不要再开旁路 `self-test` 当 Overlay 门。不要把 `forge-apply` 标 `armed`。Forge 单测 + `apply --dry-run` 走 **`forge-check`**（`forge.yaml` `ci` 选跑或跳过成功）。`sop-lock` / `pr-title` 是通用层，永远跑。`suites/forge-apply` 保持 `blocked`。
 
 禁止：自动把 `cases.md` PR 进接入方 `tests/` 并挂上构建门。
 
@@ -617,11 +627,11 @@ examples/learning-guide/
   forge.yaml
 .github/workflows/
   forge-guard.yml
-  forge-check.yml        # 本仓 Forge：unit + apply --dry-run + sop-lock
+  forge-check.yml        # Forge 产品门：unit + apply --dry-run；ci-select 可 skip
   overlay.yml
-  overlay-check.yml      # 本仓 Overlay：validate + select + run Overlay armed；兼跑 LG fixture
-  pr-title.yml
-  sop-lock.yml           # 检查名 sop-lock；也可作为 forge-check 的一层
+  overlay-check.yml      # Overlay 产品门：validate + select + run Overlay armed
+  pr-title.yml           # 通用；永远跑
+  sop-lock.yml           # 通用仓级 SOP；永远跑；不是第三件产品
 invariants.yaml          # 可选：跨叶子性质；本工作本有一份
 docs/design.md           # 本文
 docs/inbox.md            # Overlay 输入面

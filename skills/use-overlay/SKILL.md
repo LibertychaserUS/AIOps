@@ -19,7 +19,7 @@ Overlay is a standard part. Freeze the contract, not a product’s numbers. Agen
 
 - 契约 / 三技法 / invariant 点名 / blocked 不入选 / 回执 / `forbid_hosts`：`python -m overlay validate|cover|select|run` → CI **`overlay-check`**
 - push 不 generate、不 checkout LearningGuidePortal、不 `workflow_call` 产品 Verify、不另开 `self-test` 绕过 Overlay select：`python -m forge sop-lock` → CI **`sop-lock`**
-- Overlay 测试只走 Overlay armed `product_command`。Forge 单测走 **`forge-check`**。`sop-lock` 不是 Overlay 旁路 unittest。
+- Overlay 测试只走 Overlay armed `product_command`。Forge 单测走 **`forge-check`**。`sop-lock` 不是 Overlay 旁路 unittest。**通用检查 ≠ 产品门。** 产品门按 `forge.yaml` `ci` 选跑或跳过。
 - 不绿不能合。人审：用例写得好不好、`reviewed_by` 是不是人。
 
 ## Instructions

@@ -1,6 +1,6 @@
 # SOP 程序锁
 
-原则（一句）：**skill 写明的、能机器判定的标准，必须有对应程序检查。**
+原则（一句）：**skill 写明的、能机器判定的标准，必须有对应程序检查。** **通用**检查（`pr-title` / `sop-lock`）≠ **产品门**（`overlay-check` / `forge-check`）。产品门由 `forge.yaml` 的 `ci` 选择器（`python -m forge ci-select`）决定跑不跑；通用检查总是跑。
 
 两道锁，不要混：
 
@@ -13,23 +13,25 @@ GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge
 
 不声称用 NLP 锁住全部散文。只锁**可判定子集**。每个 skill 的 `## Lock` 指向程序。存货如下。
 
+**通用检查 ≠ 产品门。** `pr-title` 与 `sop-lock` 是仓级通用检查（`forge.yaml` `ci.common`），始终跑。`overlay-check` 与 `forge-check` 是两件产品的产品门（`ci.products`）；workflow 必启动，跳过由 `python -m forge ci-select` 写成 success，不靠 `on.paths`。
+
 本工作本 Ruleset 要勾的检查名（`forge.yaml` `required_checks`）：
 
-| 检查名 | 命令 | 何时 |
-|---|---|---|
-| **`overlay-check`** | `overlay validate` + `select` + `run`（Overlay armed `product_command`） | push / pull_request |
-| **`pr-title`** | `python -m forge pr-title`（Conventional Commits `type(product/actor): subject` + 正文六节） | 仅 `pull_request` |
-| **`forge-check`** | Forge 单测（`unittest discover -s tests/forge`）+ `forge apply --dry-run` + `forge sop-lock` | push / pull_request |
-| **`sop-lock`** | `python -m forge sop-lock`（也可作为 `forge-check` 的一层） | push / pull_request |
+| 检查名 | 类 | 命令 | 何时 |
+|---|---|---|---|
+| **`overlay-check`** | 产品门 | `overlay validate` + `select` + `run`（Overlay armed `product_command`） | push / pull_request；selector 可 skip-success |
+| **`forge-check`** | 产品门 | Forge 单测（`unittest discover -s tests/forge`）+ `forge apply --dry-run` | push / pull_request；selector 可 skip-success |
+| **`pr-title`** | 通用 | `python -m forge pr-title`（Conventional Commits `type(product/actor): subject` + 正文六节） | 仅 `pull_request` |
+| **`sop-lock`** | 通用 | `python -m forge sop-lock` | push / pull_request |
 
-不要 live `forge apply`。不要 husky / npm 挡 `git commit`。不要另开 `self-test` 旁路绕过 Overlay select。Forge 单测走 **`forge-check`**，不是 Overlay run。`sop-lock` 锁 SOP 文件与 workflow，不代替 `overlay-check`。不要把 GitHub check 当成提交前检查。
+不要 live `forge apply`。不要 husky / npm 挡 `git commit`。不要另开 `self-test` 旁路绕过 Overlay select。Forge 单测走 **`forge-check` 产品门**，不是 Overlay run。`sop-lock` 是通用检查，不代替任一产品门。不要把 GitHub check 当成提交前检查。
 
 两道锁：
 
 | 何时 | 程序 | 红了怎样 |
 |---|---|---|
 | **代推**（push + 开 PR） | `python -m forge check` 绿，且宿主已注入写权限 | `forge submit` 拒绝，不 push、不开 PR |
-| **合入**（merge） | GitHub required checks：`overlay-check`、`pr-title`、`forge-check`、`sop-lock` | Ruleset 挡 merge |
+| **合入**（merge） | GitHub required checks：通用 `pr-title` + `sop-lock`（永远跑）；产品 `overlay-check` + `forge-check`（选跑或 skip 成功） | Ruleset 挡 merge |
 
 ---
 
@@ -56,8 +58,9 @@ GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge
 | PR 正文六个 `##` 原样且按序 | 同上（`docs/pr-brief.md` 存在才锁） | 各节内容是否说清 | 不 NLP 验「不做什么」名单 |
 | 代推前本地门必须绿 | `python -m forge check`（代推锁；`submit` 调用） | 人是否绕过 CLI 直 push | GitHub required checks 只锁合入；可选 `forge/hooks/pre-submit`，不装 husky |
 | Live / dry-run `submit` 必须有宿主注入的写权限 | `python -m forge submit` + `sop-lock` 扫源码 | 人是否直 `git push` | 人：`gh auth login`；代理：`GH_TOKEN` / extraheader。CI `GITHUB_TOKEN` 不是代推。不发明第二把提交环境变量 |
-| LearningGuidePortal live `forge apply` 拒绝 | `python -m forge apply` + Forge 单测 → **`forge-check`** | 人是否打别的仓 | |
-| Forge 不写 Overlay `status` / `reviewed_by` | Forge 单测 → **`forge-check`** | — | |
+| LearningGuidePortal live `forge apply` 拒绝 | `python -m forge apply` + Forge 单测 → **`forge-check`**（产品门） | 人是否打别的仓 | |
+| Forge 不写 Overlay `status` / `reviewed_by` | Forge 单测 → **`forge-check`**（产品门） | — | |
+| 产品门按 `forge.yaml` `ci` 选跑或跳过 | `python -m forge ci-select` | 标题 product 写错 | 通用层不跳过 |
 | 不装 husky / npm 当合入锁 | `sop-lock` | 开发本机自愿 hook | |
 | Agent 不自 Approve / 不自 merge | — | **仅人审** | GitHub 人 + Ruleset |
 | 开发不合自己让 agent 开的 PR | — | **仅人审** | |

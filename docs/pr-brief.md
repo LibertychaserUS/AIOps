@@ -97,7 +97,7 @@ type(product/actor): subject
 |---|---|
 | `overlay-check` | 本仓或接入方 Overlay job（validate + select + run Overlay armed） |
 | `pr-title` | PR 标题 Conventional Commits + `product/actor` 锁 |
-| `forge-check` | 本仓 Forge job（unit + apply --dry-run + sop-lock） |
+| `forge-check` | 本仓 Forge **产品门**（unit + apply --dry-run；`forge.yaml` `ci` 选跑或跳过） |
 | `sop-lock` | 仓内 SOP（workflow / 内核 / skill Lock / required_checks） |
 | `Forge Ruleset` | 装了或改了保护分支 / required checks / CODEOWNERS |
 | `none` | 没动门 |
@@ -118,6 +118,8 @@ python3 -m forge apply --path forge.yaml --dry-run
 python3 -m forge sop-lock --root .
 python3 -m forge submit --repo OWNER/NAME --title "feat(forge/dev): add submit middleware" --dry-run
 python3 -m forge pr-title --title "feat(overlay/dev): add cover triad and invariants"
+python3 -m forge ci-select --check overlay-check --title "feat(overlay/dev): add cover triad"
+python3 -m forge ci-select --check forge-check --title "feat(forge/dev): add submit"
 ```
 
 写清：哪些 suite 应 selected、哪些应 dropped（`draft` / `blocked`）。标题：假标题单测在 `tests/forge/test_title.py`；真 PR 靠 Actions `pr-title`。
@@ -136,6 +138,6 @@ python3 -m forge pr-title --title "feat(overlay/dev): add cover triad and invari
 
 ## 未知分支
 
-不要为每个 feature 分支新建 Overlay workflow。Overlay CI 仍走**同一条** `overlay-check` 家族。某分支跑哪些 `kind` 写在接入方 `overlay.yaml` 的 `branches:`（git-chain）。表里没有的分支：`select` 空集、预演绿。本工作本把 `overlay-check` 的 `branch` 钉成 `main`，所以 `cursor/` 分支仍跑 armed Overlay 工具测试。Forge 另走 `forge-check`。标题检查是另一条 job，只在 PR 上跑。
+不要为每个 feature 分支新建 Overlay workflow。Overlay CI 仍走**同一条** `overlay-check` 家族。某分支跑哪些 `kind` 写在接入方 `overlay.yaml` 的 `branches:`（git-chain）。表里没有的分支：`select` 空集、预演绿。本工作本把 `overlay-check` 的 `branch` 钉成 `main`，所以 `cursor/` 分支仍跑 armed Overlay 工具测试。产品门按 `forge.yaml` `ci` 选跑或跳过成功。标题检查是通用层，只在 PR 上跑，永不 skip。
 
 这与 PR 名分工无关：不要把 `cursor/…-6842` 改成角色前缀，也不要为角色改 workflow 名或 skill 名。

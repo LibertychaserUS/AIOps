@@ -1,4 +1,4 @@
-"""python -m forge apply|status|submit|check|pr-title|sop-lock"""
+"""python -m forge apply|status|submit|check|pr-title|sop-lock|ci-select"""
 
 from __future__ import annotations
 
@@ -75,7 +75,7 @@ def _parser() -> argparse.ArgumentParser:
         dest="dry_run",
         help=(
             "print intended remote branch + PR title/body headings; no push. "
-            "Still requires FORGE_SUBMIT_TOKEN (fail closed if missing)."
+            "Fail-closed if no host-injected GitHub write credential or if check is red."
         ),
     )
 
@@ -110,6 +110,34 @@ def _parser() -> argparse.ArgumentParser:
         help="decidable SOP locks (workflows, kernel, skills Lock, required_checks). Exit 0/2.",
     )
     sop_p.add_argument("--root", default=".", help="repo root (default: .)")
+
+    select_p = sub.add_parser(
+        "ci-select",
+        help="decide whether a CI check runs (common always; product via forge.yaml). Exit 0/3.",
+    )
+    select_p.add_argument("--root", default=".", help="repo root (default: .)")
+    select_p.add_argument(
+        "--check",
+        required=True,
+        help="check name: pr-title, sop-lock, overlay-check, or forge-check",
+    )
+    select_p.add_argument(
+        "--title",
+        default=None,
+        help="PR title. Default: env PR_TITLE. Title product facet wins when valid.",
+    )
+    select_p.add_argument(
+        "--changed",
+        nargs="*",
+        default=None,
+        help="Changed paths when no valid title (push). Omit to use git HEAD~1.",
+    )
+    select_p.add_argument(
+        "--github-output",
+        action="store_true",
+        dest="github_output",
+        help="append run=true|false to $GITHUB_OUTPUT (skip is success)",
+    )
     return parser
 
 
@@ -121,6 +149,10 @@ def main(
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
     base_url: str | None = None,
+    check_fn: Any | None = None,
+    credential_probe: Any | None = None,
+    pusher: Any | None = None,
+    pr_create: Any | None = None,
 ) -> int:
     env: Mapping[str, str] = os.environ if environ is None else environ
     out = sys.stdout if stdout is None else stdout
@@ -170,18 +202,30 @@ def main(
             environ=env_dict,
         )
     if args.command == "submit":
-        return run_submit(
-            repo=args.repo,
-            title=args.title,
-            dry_run=args.dry_run,
-            path=args.path,
-            head=args.head,
-            urlopen=opener,
-            base_url=api,
-            stdout=out,
-            stderr=err,
-            environ=env_dict,
-        )
+        kwargs = {
+            "repo": args.repo,
+            "title": args.title,
+            "dry_run": args.dry_run,
+            "path": args.path,
+            "head": args.head,
+            "stdout": out,
+            "stderr": err,
+            "environ": env_dict,
+        }
+        import inspect as _inspect
+        params = _inspect.signature(run_submit).parameters
+        if "urlopen" in params:
+            kwargs["urlopen"] = opener
+            kwargs["base_url"] = api
+        if "check_fn" in params:
+            kwargs["check_fn"] = check_fn
+        if "credential_probe" in params:
+            kwargs["credential_probe"] = credential_probe
+        if "pusher" in params:
+            kwargs["pusher"] = pusher
+        if "pr_create" in params:
+            kwargs["pr_create"] = pr_create
+        return run_submit(**kwargs)
     if args.command in {"pr-title", "title"}:
         title = args.title
         body = args.body
@@ -223,6 +267,20 @@ def main(
         from forge.sop_lock import run_sop_lock
 
         return run_sop_lock(Path(args.root), stdout=out, stderr=err)
+    if args.command == "ci-select":
+        from forge.ci_select import run_ci_select
+
+        title = args.title if args.title is not None else env_dict.get("PR_TITLE")
+        return run_ci_select(
+            Path(args.root),
+            check=args.check,
+            title=title,
+            changed=args.changed,
+            github_output=args.github_output,
+            stdout=out,
+            stderr=err,
+            environ=env_dict,
+        )
     parser.print_help(err)
     return EXIT_CONFIG
 
