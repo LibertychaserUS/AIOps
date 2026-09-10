@@ -61,7 +61,7 @@ PR 的 review 和 merge 由 **GitHub Ruleset + 有写权限的人** 管理，不
 |---|---|
 | 可用 | 当天能审一页用例；`forge apply` 当天能挡住直推 |
 | 少闲活 | 开发不注册、不填工单；审选用改一行 yaml |
-| token | 只 `overlay generate` 花；push 零模型 |
+| token | Overlay 模型密钥只在 `overlay generate`；push 零模型。Forge 代推必须持有 `FORGE_SUBMIT_TOKEN`（GitHub 凭据）。两把钥匙不要混。 |
 | 速度 | 无服务、无 TS 工具链、无第一刀 C 扩展 |
 
 ---
@@ -172,15 +172,16 @@ python -m forge revoke --repo OWNER/NAME --name forge-protected-default
 4. 本工作本有 `tests/forge/test_title.py`：跑快单测子集。
 5. 打印清单。任一红退出 2。无模型。
 
-`submit`（开发侧代推，对齐 [`gh pr create`](https://cli.github.com/manual/gh_pr_create)）：
+`submit`（开发侧代推；对齐 [`gh pr create`](https://cli.github.com/manual/gh_pr_create) **加上必持命名密钥**，不是「只靠 git + gh auth」）：
 
-1. 读当前分支与 `forge.yaml` `protect`。
-2. 先跑 `forge check`（含标题）。红则拒绝：不 push、不开 PR，退出 2。`--dry-run` 同样先 check。
-3. `--dry-run` 且 check 绿：打印将推的远程分支、PR 标题、正文六节标题；不 push、不调 GitHub；退出 0。
-4. 若 head 是 protect，或 repo 是 LearningGuidePortal：拒绝。
-5. 标题必须过 `forge pr-title`（[`pr-brief.md`](pr-brief.md)）。
-6. 非 dry-run 且有 token：`git push` 当前功能分支，再 POST/PATCH **draft** PR。永不 merge，永不 apply Ruleset。
-7. 本工作本 CI 只跑 dry-run，不 live-submit。GitHub required checks 锁合入，不锁这一步。
+1. 读当前分支与 `forge.yaml` `protect`。protect 或 `First-Light-TechHK/LearningGuidePortal`：拒绝。
+2. 先跑本地 `forge check`（含标题）。红则拒绝：不 push、不开 PR，退出 2。check 不读密钥。
+3. 必须持有环境变量 **`FORGE_SUBMIT_TOKEN`**（PAT / fine-grained / GitHub App token）。缺或空：退出码 2，**即使 `--dry-run` 也红（fail closed）**。不回落 `GITHUB_TOKEN`、`FORGE_GITHUB_TOKEN`、也不用本机 `gh auth`。
+4. `--dry-run` 且 check 绿且密钥在：打印将推的远程分支、PR 标题、正文六节、`would require FORGE_SUBMIT_TOKEN`；不 push、不调 GitHub；退出 0。永不打印 token 值。
+5. 非 dry-run：`git push` 当前功能分支，再 POST/PATCH **draft** PR。永不 merge，永不 approve，永不 arm，永不 apply Ruleset。
+6. 本工作本 CI 只跑 dry-run；armed 命令里放占位 `FORGE_SUBMIT_TOKEN` 以证明密钥名，不是 live-submit。CI workflow 的 `GITHUB_TOKEN` 是另一套表面。
+
+`apply` 认证仍是 `FORGE_GITHUB_TOKEN` 或 `GITHUB_TOKEN`（Administration: write）。那是 Ops 装 Ruleset 的钥匙，不是代推密钥。
 
 `pr-title`：纯函数锁 GitHub **PR 标题**（Conventional Commits + 必填 scope `product/actor`）。退出 `0`/`2`。不写 GitHub。规格：[`pr-brief.md`](pr-brief.md)。Actions 检查名 `pr-title`，只跑 `pull_request`。
 
@@ -192,7 +193,7 @@ python -m forge revoke --repo OWNER/NAME --name forge-protected-default
 4. 不修改任何 workflow YAML。
 5. 成功打印 Ruleset id 与保护分支。失败非 0。
 
-认证：`FORGE_GITHUB_TOKEN` 或 `GITHUB_TOKEN`。需要 `Administration: write`（Rulesets）。缺 token：退出码 `2`，不部分写入。
+`apply` 认证：`FORGE_GITHUB_TOKEN` 或 `GITHUB_TOKEN`。需要 `Administration: write`（Rulesets）。缺 token：退出码 `2`，不部分写入。不要把这把钥匙和 `FORGE_SUBMIT_TOKEN` 混用。
 
 `status`：只读，列出是否已装、保护哪些分支。
 
@@ -257,8 +258,8 @@ jobs:
 ### 3.9 测试（Forge 自己的，不测接入方业务）
 
 - `apply` 对假 API：无 Ruleset 则 POST，有则 PUT，第二次无 POST。
-- `submit --dry-run` 先跑 `forge check`；绿了才打印 head / title / 正文六节，不 push。protect 与 LearningGuidePortal 拒绝。check 红则退出 2、不 push。
-- `submit` 对假 Pulls API：POST draft；第二次 PATCH；永不打 `/merge`。check 红则不 POST。
+- `submit --dry-run` 先跑 `forge check`；缺 `FORGE_SUBMIT_TOKEN` 退出 2（fail closed）。有密钥且 check 绿才打印 head / title / 正文六节，不 push。protect 与 LearningGuidePortal 拒绝。check 红即使有密钥也不 push。
+- `submit` 对假 Pulls API：POST draft；第二次 PATCH；永不打 `/merge`；不打印 token。`GITHUB_TOKEN` 单独不够。check 红则不 POST。
 - 默认 JSON 保护 `main`，含 PR 规则，bypass 为空。
 - `forge.yaml` 缺字段用默认；非法枚举失败。
 - Guard：改 `deny_paths` 的 diff fixture 必须红；只改 `README` 必须绿。
@@ -640,9 +641,10 @@ skills/dev-pr/ SKILL.md
 
 ## 8. 安全
 
-- 不提交 `.env`、token、真实支付数据。
-- Forge token 只在管理员本机或受保护的 `workflow_dispatch`。
-- Overlay generate 的密钥：仓库 Secret；日志禁止打印 inbox 全文和模型原文（截断 + 打码）。
+- 不提交 `.env`、token、真实支付数据。永不打印 `FORGE_SUBMIT_TOKEN`，不写入回执 / 痕迹 / PR 正文。
+- 开发侧代推密钥：`FORGE_SUBMIT_TOKEN`（人本机或 agent 运行时显式注入）。不是 CI `GITHUB_TOKEN`，不是 Ops apply 的 `FORGE_GITHUB_TOKEN`。
+- Ops apply token（`FORGE_GITHUB_TOKEN`）只在管理员本机或受保护的 `workflow_dispatch`。不 live-apply Rulesets from agents。
+- Overlay generate 的密钥：仓库 Secret；日志禁止打印 inbox 全文和模型原文（截断 + 打码）。与 Forge GitHub 凭据不是一把。
 - Overlay run 禁止生产 host、禁止生产 Stripe/SES。
 - Guard 与 select 无出站。
 - Agent 政策与 `deny_paths` 挡住改构建门。
