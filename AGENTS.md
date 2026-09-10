@@ -2,7 +2,7 @@
 
 Workshop for two reusable products: **Forge** (ordered GitHub collab) and **Overlay** (testgen + armed CI). Learning Guide is the first fixture, not the product. Not Proctor.
 
-**Start:** public README [`README.md`](README.md). Pin **two** tags after publish: `overlay-v1.0.1` and `forge-v1.0.1` (until then `overlay-v1.0.0` / `forge-v1.0.0` still exist). Native skills: `.agents/skills` (Codex), `.cursor/skills` (Cursor), `.claude/skills` (Claude Code) → `skills/use-forge` + `skills/use-overlay`. Do not vendor the tool into a product repo.
+**Start:** public README [`README.md`](README.md) § Native skills. Standard paths — Codex: `.agents/skills/` / `~/.agents/skills/`; Cursor: `.cursor/skills/` / `~/.cursor/skills/`; Claude Code: `.claude/skills/` / `~/.claude/skills/`. Pin `overlay-v1.0.1` / `forge-v1.0.1` after publish. Do not vendor the tool.
 
 - Do not change LearningGuidePortal Verify.
 - Do not attach/run/gate the intern workspace Proctor from here.

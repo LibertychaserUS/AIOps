@@ -20,33 +20,90 @@ Need: CPython **3.12+**. Clone this repo (or your fork) **beside** the product r
 
 ---
 
-## Native skills (Codex / Cursor / Claude Code)
+## Native skills — standard paths (one agent at a time)
 
-Canonical packages: [`skills/*/SKILL.md`](skills/) ([Agent Skills](https://agentskills.io/specification) `name` + `description`; `name` = folder). This workshop mirrors them into the three project discovery dirs (symlinks, not copies):
+Canonical packages live in [`skills/*/SKILL.md`](skills/) ([Agent Skills](https://agentskills.io/specification): frontmatter `name` + `description`; `name` = folder). `use-forge` / `use-overlay` teach `python -m forge` / `python -m overlay` with `PYTHONPATH` to this workshop. Do not vendor `forge/` or `overlay/` into a product repo.
 
-| Agent | Native project path in **this** repo |
+This workshop already symlinks the same packages into each product’s **project** path. Opening **this** repo is enough. To import into **another** product repo, use that product’s path only (sibling checkout `../AIOps`, pin a tag, not `main`).
+
+### Codex
+
+Spec: [Codex Agent Skills](https://developers.openai.com/codex/skills). Codex scans `.agents/skills` from `$CWD` up to the git root.
+
+| Scope | Standard path |
 |---|---|
-| Codex | [`.agents/skills/`](.agents/skills/) |
-| Cursor | [`.cursor/skills/`](.cursor/skills/) (also reads `.agents/skills/`) |
-| Claude Code | [`.claude/skills/`](.claude/skills/) |
-
-`use-forge` and `use-overlay` teach the two CLIs: `python -m forge` / `python -m overlay` with `PYTHONPATH` to this workshop. Opening this repo in those agents is enough — no extra install.
-
-**Import into another product repo** (skills only; still do not vendor `forge/` / `overlay/`):
+| This workshop (already wired) | [`.agents/skills/use-forge`](.agents/skills/use-forge)、[`.agents/skills/use-overlay`](.agents/skills/use-overlay) |
+| Other product repo (project) | `.agents/skills/<name>/SKILL.md` |
+| Your machine (all repos) | `~/.agents/skills/<name>/SKILL.md` |
 
 ```text
-# GitHub CLI (discovers skills/*/SKILL.md). Pin a tag, not main.
-gh skill install LibertychaserUS/AIOps --pin overlay-v1.0.1
-# or pick a host: --agent cursor | claude-code | copilot | …
+# other product repo — Codex project path
+mkdir -p .agents/skills
+ln -s ../../AIOps/skills/use-forge .agents/skills/use-forge
+ln -s ../../AIOps/skills/use-overlay .agents/skills/use-overlay
 
-# Manual: sibling checkout, then symlink the two CLI skills
-ln -s ../AIOps/skills/use-forge .agents/skills/use-forge
-ln -s ../AIOps/skills/use-overlay .agents/skills/use-overlay
-# Cursor-only extra: also .cursor/skills/
-# Claude Code-only extra: also .claude/skills/
+# or all repos on this machine
+mkdir -p ~/.agents/skills
+ln -s /abs/path/to/AIOps/skills/use-forge ~/.agents/skills/use-forge
+ln -s /abs/path/to/AIOps/skills/use-overlay ~/.agents/skills/use-overlay
+
+# or GitHub CLI into Codex’s shared project dir
+gh skill install LibertychaserUS/AIOps --agent copilot --pin overlay-v1.0.1
 ```
 
-Cursor Customize → Skills can also add this GitHub repo as a remote skill source.
+(`gh skill install --agent copilot` writes `.agents/skills`, which Codex and several other hosts share.)
+
+### Cursor
+
+Spec: [Cursor Agent Skills](https://cursor.com/docs/skills). Prefer `.cursor/skills/`. Cursor also loads `.agents/skills/` and, for compatibility, `.claude/skills/`.
+
+| Scope | Standard path |
+|---|---|
+| This workshop (already wired) | [`.cursor/skills/use-forge`](.cursor/skills/use-forge)、[`.cursor/skills/use-overlay`](.cursor/skills/use-overlay) |
+| Other product repo (project) | `.cursor/skills/<name>/SKILL.md` |
+| Your machine (all local workspaces) | `~/.cursor/skills/<name>/SKILL.md` |
+
+```text
+# other product repo — Cursor project path
+mkdir -p .cursor/skills
+ln -s ../../AIOps/skills/use-forge .cursor/skills/use-forge
+ln -s ../../AIOps/skills/use-overlay .cursor/skills/use-overlay
+
+# or all local workspaces
+mkdir -p ~/.cursor/skills
+ln -s /abs/path/to/AIOps/skills/use-forge ~/.cursor/skills/use-forge
+ln -s /abs/path/to/AIOps/skills/use-overlay ~/.cursor/skills/use-overlay
+
+gh skill install LibertychaserUS/AIOps --agent cursor --pin overlay-v1.0.1
+```
+
+Cloud Agents only see **project** skills in the repo, or `~/.cursor/skills` if you turn on Sync Skills. UI: Customize → Skills, or add this GitHub repo as a remote skill source.
+
+### Claude Code
+
+Spec: project `.claude/skills/<name>/SKILL.md`, user `~/.claude/skills/<name>/SKILL.md`.
+
+| Scope | Standard path |
+|---|---|
+| This workshop (already wired) | [`.claude/skills/use-forge`](.claude/skills/use-forge)、[`.claude/skills/use-overlay`](.claude/skills/use-overlay) |
+| Other product repo (project) | `.claude/skills/<name>/SKILL.md` |
+| Your machine (all repos) | `~/.claude/skills/<name>/SKILL.md` |
+
+```text
+# other product repo — Claude Code project path
+mkdir -p .claude/skills
+ln -s ../../AIOps/skills/use-forge .claude/skills/use-forge
+ln -s ../../AIOps/skills/use-overlay .claude/skills/use-overlay
+
+# or all repos on this machine
+mkdir -p ~/.claude/skills
+ln -s /abs/path/to/AIOps/skills/use-forge ~/.claude/skills/use-forge
+ln -s /abs/path/to/AIOps/skills/use-overlay ~/.claude/skills/use-overlay
+
+gh skill install LibertychaserUS/AIOps --agent claude-code --pin overlay-v1.0.1
+```
+
+Restart the agent after adding paths. Then `/use-forge` or `/use-overlay`, or let it pick from the description.
 
 ---
 
