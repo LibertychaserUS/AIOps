@@ -1,6 +1,6 @@
 # AI CI Overlay — 架构、技术栈与系统设计
 
-**完整详细设计（实现对照）在 [`design.md`](design.md)。** 本文是演进过程稿。
+**完整详细设计（实现对照）在 [`design.md`](design.md)。** Inbox 合同：[`inbox.md`](inbox.md)。本文是演进过程稿。
 
 对照约束：[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md)。
 
@@ -226,20 +226,7 @@ inbox ──────────► draft
 
 ### 4.4 核心对象
 
-**Inbox 条目**（`inbox/<id>.md`）
-
-```yaml
----
-id: my-learning
-source:
-  repo: First-Light-TechHK/LearningGuidePortal
-  path: docs/phase1/source-prd/My_Learning_PRD_v1.0_0814.docx
-  ref: <pin sha，禁止浮动 main>
-kind: prd            # prd | user-case | figma-ref
-packages: [modules/my-learning, app/[locale]/account]
----
-# 人可读摘录或粘贴的 user case。不要把 2MB+ docx 拷进本仓。
-```
+**Inbox 条目**（`inbox/<id>.md`）— 完整合同见 [`inbox.md`](inbox.md)。一篇 inbox 对应一个 suite；`readiness` 只是提示，不写 `status`。
 
 **Suite**（`suites/<id>/`）
 
@@ -406,7 +393,7 @@ docs/architecture.md        # 本文件
 **第一刀（对照对话成功标准 + 两件产品可装到别的仓）**
 
 1. Overlay 契约冻住；非法即红。`select` 与接入方业务无关。
-2. `examples/learning-guide`：一篇 My Learning inbox；支付/登录 `blocked`。
+2. `examples/learning-guide`：三篇 inbox（my-learning / payment / login）；支付/登录 `blocked`。
 3. Forge：`ruleset.protected-default.json` + `forge apply` 能装到任意仓；agent-policy 可粘贴。
 4. `select main` 不含 `blocked`/`draft`。Overlay check 不因 `blocked` 红。
 5. 程序回执；不调用 Proctor。不改接入方构建 workflow。

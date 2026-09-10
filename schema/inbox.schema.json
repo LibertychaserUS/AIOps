@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aiops.local/schema/inbox.schema.json",
+  "title": "Overlay inbox front matter",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "kind"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "maxLength": 64,
+      "description": "Must equal the filename stem inbox/<id>.md and the generated suite id."
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["prd", "user-case", "figma-ref"]
+    },
+    "readiness": {
+      "type": "string",
+      "enum": ["ready", "not-ready", "unknown"],
+      "description": "Hint only. generate always writes suite status: draft."
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repo", "path", "ref"],
+      "properties": {
+        "repo": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "not": { "pattern": "(^|/)\\.\\.(/|$)" }
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "not": { "enum": ["main", "master", "HEAD", "latest"] }
+        }
+      }
+    },
+    "packages": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "locale": {
+      "type": "string",
+      "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+    }
+  }
+}

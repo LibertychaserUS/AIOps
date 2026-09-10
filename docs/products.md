@@ -79,7 +79,7 @@ Learning Guide：Ruleset 加在产品仓 + 本工作本；**不改** `.github/wo
 | 标准件 | 作用 | 接入方要改的 |
 |---|---|---|
 | `schema/suite.schema.json` + `suite.yaml` 字段 | `draft` / `blocked` / `armed`，三种不许加 | 无 |
-| `python -m overlay generate` | inbox → `cases.md` + `status: draft`（才花 token） | 提示词可覆写 |
+| `python -m overlay generate` | 一篇 `inbox/<id>.md` → 一个 `suites/<id>/`，`status: draft`（才花 token；不改 inbox） | 提示词可覆写 |
 | `python -m overlay select --branch` | 只输出该分支该跑的 `armed` | `overlay.yaml` 的 branches |
 | `python -m overlay receipt` | 程序写回执，模型不写 | 无 |
 | `.github/workflows/overlay.yml` | reusable：校验契约 + select 预演；后一刀按 `product_command` 跑 | checkout 哪个仓、跑哪条命令 |
@@ -91,7 +91,7 @@ Learning Guide：Ruleset 加在产品仓 + 本工作本；**不改** `.github/wo
 
 ```text
 目标仓（或旁边一个 overlay 仓）里：
-  inbox/                 该项目的需求摘录
+  inbox/                 该项目的需求摘录（一篇 inbox = 一个 suite；合同见 docs/inbox.md）
   suites/                该项目的用例
   overlay.yaml           指向该项目的代码仓与脚本
   uses: overlay.yml@vX
@@ -101,7 +101,7 @@ Learning Guide 只是一份 **fixture**：`examples/learning-guide/overlay.yaml`
 
 ### 第一刀 / 以后
 
-- 第一刀：契约 + `select` + 预演 workflow + 一篇示例 inbox/suite（可用 Learning Guide 摘录）。没有 generator 也能手写证明状态机。
+- 第一刀：契约 + `select` + 预演 workflow + 示例 inbox/suite（LG fixture 是三篇 inbox，不是一篇复用三次）。没有 generator 也能手写证明状态机。
 - 以后：`generate` 稳定；checkout 接入方仓跑 `product_command`。不把用例自动灌进接入方构建门。
 
 ### 成功标准（与业务无关）

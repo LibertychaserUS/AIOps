@@ -4,7 +4,7 @@
 工作本：`LibertychaserUS/AIOps`  
 约束原文：[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md)
 
-本文是实现的单一对照。摘要见 [`products.md`](products.md)。对话过程稿见 [`architecture.md`](architecture.md)。
+本文是实现的单一对照。摘要见 [`products.md`](products.md)。Inbox 见 [`inbox.md`](inbox.md)。对话过程稿见 [`architecture.md`](architecture.md)。
 
 ---
 
@@ -288,19 +288,26 @@ inbox ────────────────► draft ─────�
 
 ### 4.4 Inbox 契约
 
-文件：`inbox/<id>.md`，YAML front matter + Markdown 正文。
+完整合同：[`docs/inbox.md`](inbox.md)。Front matter JSON Schema：[`schema/inbox.schema.json`](../schema/inbox.schema.json)。
+
+一条 `inbox/<id>.md` 对应一次 `generate`、一个 `suites/<id>/`。Inbox 不是 case，不是闸门。`generate` 只读不改 inbox。人类改 inbox 走 PR。`select` / `run` 不读 inbox。
 
 | 字段 | 类型 | 必填 | 规则 |
 |---|---|---|---|
-| `id` | string | 是 | `^[a-z0-9][a-z0-9-]*$`，等于文件名（无扩展） |
-| `source.repo` | string | 否 | `owner/name` |
-| `source.path` | string | 否 | 接入方仓内路径 |
-| `source.ref` | string | 若有 source 则是 | **禁止** `main`/`master`/`HEAD`；必须 pin commit 或 tag |
+| `id` | string | 是 | `^[a-z0-9][a-z0-9-]*$`，最长 64，等于文件名（无扩展） |
 | `kind` | enum | 是 | `prd` \| `user-case` \| `figma-ref` |
-| `packages` | string[] | 否 | 给后一刀按 PR 文件收窄；第一刀可空 |
+| `readiness` | enum | 否 | `ready` \| `not-ready` \| `unknown`。**提示**；generate 仍写 `status: draft` |
+| `source` | object | 否 | 有则 `repo`+`path`+`ref` 都要 |
+| `source.repo` | string | 随 source | `owner/name` |
+| `source.path` | string | 随 source | 仓内相对路径，不 `..` |
+| `source.ref` | string | 随 source | **禁止** `main`/`master`/`HEAD`/`latest`；应 pin commit 或 tag |
+| `packages` | string[] | 否 | generate 原样写入 suite；第一刀可空 |
+| `locale` | string | 否 | 提示词语言，默认 `en-GB` |
 | 正文 | markdown | 是 | 摘录或 user case；禁止提交巨型二进制 PRD |
 
-`figma-ref`：只许 URL，第一刀不当输入给视觉模型。
+禁止出现在 inbox 上：`status`、`reviewed_by`、`armed`、`blocked`、`product_command`。  
+`figma-ref`：只许 URL，第一刀不当输入给视觉模型。  
+一对多第一刀不做：支付、登录、My Learning = 三篇 inbox，三个 suite。
 
 ### 4.5 Suite 契约
 
@@ -536,7 +543,8 @@ overlay/
   __init__.py / validate.py / generate.py / select.py / receipt.py / review.py / run.py
 schema/
   suite.schema.json
-  inbox 规则写在 design §4.4
+  inbox.schema.json
+  inbox.example.md
   receipt.example.yaml
   overlay-config 规则写在 design §4.6
 prompts/extract.md
@@ -551,6 +559,7 @@ examples/learning-guide/
   overlay.yml
   self-test.yml          # 测本仓 forge/overlay，不测 LG 产品
 docs/design.md           # 本文
+docs/inbox.md            # Overlay 输入面
 docs/products.md
 docs/2026-09-10-对话整理.md
 ```
@@ -575,7 +584,7 @@ docs/2026-09-10-对话整理.md
 **第一刀（两件产品都能装到「任意仓」意义上成立）**
 
 1. Overlay：`validate` + `select` + receipt + schema；self-test 覆盖 blocked 不入选。
-2. `examples/learning-guide`：My Learning inbox + suite（可手写）；支付/登录 `blocked`。
+2. `examples/learning-guide`：三篇 inbox（my-learning / payment / login）各对一个 suite；支付/登录 `blocked`。
 3. Forge：默认 Ruleset JSON + `apply --dry-run` / 对测试仓 apply；agent-policy。
 4. reusable overlay workflow 只跑 validate+select（`enable_run=false`）。
 5. 无 `generate` 也能用手写 suite 证明状态机。

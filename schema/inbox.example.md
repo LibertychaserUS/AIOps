@@ -1,20 +1,32 @@
 ---
-id: my-learning
-source:
-  repo: First-Light-TechHK/LearningGuidePortal
-  path: docs/phase1/source-prd/My_Learning_PRD_v1.0_0814.docx
-  ref: pin-me
+id: example-inbox
 kind: prd
+readiness: ready
+source:
+  repo: owner/name
+  path: docs/prd.md
+  ref: abc123def456
 packages:
-  - modules/my-learning
-  - "app/[locale]/account"
+  - web
+locale: zh-CN
 ---
 
-Paste a short user-case or PRD excerpt here. Do not vendor the 700KB+ docx.
+# Intent
 
-Known first-slice split:
+What this inbox is asking Overlay to turn into cases.
 
-- Ready enough to arm after review: My Learning overview / progress for entitled courses
-  (product already ships `/my-learning` and related routes).
-- Must stay blocked after review: payment, login, Stripe webhook, live entitlement
-  grant from the browser return page.
+# In scope
+
+- First user-visible path.
+
+# Out of scope
+
+- Payment and login.
+
+# User cases
+
+1. A signed-in user opens the first page and sees their own data.
+
+# Notes
+
+Pinned `source.ref`. Do not put `status` or `reviewed_by` here.
