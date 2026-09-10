@@ -1,15 +1,18 @@
 # Optional companion to suites/<id>/cases.md.
-# Traces REQ-n to a case. First slice: validate shape if present; do not require.
+# Kernel example — grammar-legal generic ids, not a product catalog.
 
 schema: overlay-trace/v1
-suite: my-learning
+suite: checkout-retry
 items:
-  - requirement_id: REQ-1
-    case_id: REQ-1/functional
+  - function_id: LOGIN-01
+    level: unit
+    case_id: LOGIN-01/unit/01
     type: functional
-  - requirement_id: REQ-1
-    case_id: REQ-1/negative
+  - function_id: LOGIN-01
+    level: e2e
+    case_id: LOGIN-01/e2e/01
+    type: functional
+  - function_id: CHK-02
+    level: integration
+    case_id: CHK-02/integration/01
     type: negative
-  - requirement_id: REQ-1
-    case_id: REQ-1/edge
-    type: edge

@@ -18,13 +18,13 @@ Signed-in first page: My Learning. This is Overlay's first fixture inbox, not th
 
 # In scope
 
-- Entitled course list and integer progress 0–100 on the overview.
-- Session required on `/my-learning/*`.
+- ML-FR-004 Course cards on the My Learning overview.
+- ML-FR-007 Unique Learning Point progress 0–100.
 
 # Out of scope
 
 - Payment (see `inbox/payment.md`).
-- Login page itself (see `inbox/login.md`).
+- Login page itself (see `inbox/login.md`). Session gate is `AUTH-01`.
 
 # User cases
 
@@ -32,4 +32,4 @@ Signed-in first page: My Learning. This is Overlay's first fixture inbox, not th
 
 # Notes
 
-Excerpt only. Do not vendor the docx. Replace `source.ref` with a commit SHA before a real generate. Payment and login inboxes are `not-ready`.
+Excerpt only. Do not vendor the docx. Replace `source.ref` with a commit SHA before a real generate. Payment and login inboxes are `not-ready`. Ids are copied from Learning Guide tests (`ML-FR-004-006-course-cards.test.ts`, `ML-FR-007-unique-lp-progress.test.ts`), not invented here.

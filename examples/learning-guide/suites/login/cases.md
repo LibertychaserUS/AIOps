@@ -3,7 +3,7 @@
 This is a scoped test spec, not a mirror of Registration_Authentication_PRD.
 Status stays `blocked` so Overlay does not run these cases and does not go red.
 
-## REQ-1 Valid session sees own data
+## AUTH-01 Valid session sees own data
 
 ### Functional
 - Title: Signed-in user opens a protected page

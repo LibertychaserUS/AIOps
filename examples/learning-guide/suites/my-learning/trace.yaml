@@ -1,12 +1,28 @@
+# Compiled fixture only. These Learning Guide ids are not Overlay law.
 schema: overlay-trace/v1
 suite: my-learning
 items:
-  - requirement_id: REQ-1
-    case_id: REQ-1/functional
+  - function_id: ML-FR-004
+    level: unit
+    case_id: ML-FR-004/unit/01
     type: functional
-  - requirement_id: REQ-1
-    case_id: REQ-1/negative
+  - function_id: ML-FR-004
+    level: unit
+    case_id: ML-FR-004/unit/02
     type: negative
-  - requirement_id: REQ-1
-    case_id: REQ-1/edge
+  - function_id: ML-FR-004
+    level: unit
+    case_id: ML-FR-004/unit/03
+    type: edge
+  - function_id: ML-FR-007
+    level: unit
+    case_id: ML-FR-007/unit/01
+    type: functional
+  - function_id: ML-FR-007
+    level: unit
+    case_id: ML-FR-007/unit/02
+    type: negative
+  - function_id: ML-FR-007
+    level: unit
+    case_id: ML-FR-007/unit/03
     type: edge

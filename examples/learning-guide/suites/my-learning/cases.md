@@ -1,18 +1,37 @@
 # My Learning — overview and progress
 
-## REQ-1 Overview lists entitled courses
+Compiled fixture. These Learning Guide ids are not Overlay kernel law.
+
+## ML-FR-004 Course cards
 
 ### Functional
-- Title: Entitled user sees active access
-- Steps: Sign in; open `/en-GB/my-learning`
-- Expected: Courses with access appear; progress is an integer 0–100
+- Title: Entitled or preview-started course appears as a card
+- Steps: Sign in; open My Learning overview
+- Expected: Cards follow the five-state / trial+started rules; progress is an integer 0–100
 
 ### Negative
 - Title: Signed-out user is rejected
-- Steps: Open `/en-GB/my-learning` with no session
+- Steps: Open My Learning with no session
 - Expected: Redirect or unauthorised; no other user's data
 
 ### Edge
-- Title: Zero progress still listed when access exists
-- Steps: Entitled course with no study events
-- Expected: Row exists; progress 0
+- Title: Purchased with no opened Learning Point does not invent a card
+- Steps: Complete purchase; do not open a Learning Point
+- Expected: Entitlement exists; course list stays empty (`LEARN-02` lock, same leaf)
+
+## ML-FR-007 Unique Learning Point progress
+
+### Functional
+- Title: Opening a Learning Point counts once
+- Steps: Open one LP on a two-LP course
+- Expected: Progress 50; opened count 1
+
+### Negative
+- Title: Repeating the same Learning Point does not increase progress
+- Steps: Open the same LP three times
+- Expected: Still 50
+
+### Edge
+- Title: Duration / +300s inject is not the source of truth
+- Steps: Complete-by-duration or burst video_progress on one LP
+- Expected: Unique-LP progress unchanged

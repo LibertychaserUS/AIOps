@@ -13,6 +13,8 @@ events:
     suite: my-learning
     status: armed
     kind: functional
+    function_id: LOGIN-01
+    level: unit
   - type: dropped
     suite: payment
     status: blocked
