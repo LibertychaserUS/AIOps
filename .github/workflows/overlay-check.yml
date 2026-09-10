@@ -1,10 +1,16 @@
-# Overlay product gate. Common title/SOP gates live on other workflows.
+# Overlay product gate + Overlay Ops PR chain.
+# Common title/SOP gates still live on pr-title.yml / sop-lock.yml (always).
 # This workflow always starts (no on.paths). Selector skip is success so the
 # required check name `overlay-check` stays stable.
-# When selected: validate → select → run Overlay armed suites only.
-# Do not arm forge-apply. Forge tests live on forge-check.
-# No generate. No product Verify. branch is pinned to main so agent branches
-# still execute the armed Overlay tool tests.
+#
+# Overlay Ops DAG on pull_request when selected:
+#   spec (PR 标题/正文规格) → review-bots (CodeRabbit + Copilot, advisory)
+#   → full CI on this checkout (validate → select → run armed Overlay)
+#   → human Ops merge
+# Red spec/CI: bounce 打回 + keep ops-debug / receipts for debug.
+# CodeRabbit is never the only merge gate. Never generate. Never forge submit.
+# Never arm. branch is pinned to main so agent branches still execute the
+# armed Overlay tool tests. Forge tests live on forge-check.
 
 name: overlay-check
 
@@ -14,6 +20,9 @@ on:
 
 permissions:
   contents: read
+  checks: read
+  pull-requests: write
+  issues: write
 
 jobs:
   select:
@@ -43,9 +52,79 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: python -m forge ci-select --check overlay-check --root . --github-output
 
-  overlay:
+  spec:
+    name: spec
     needs: select
-    if: needs.select.outputs.run == 'true'
+    if: github.event_name == 'pull_request' && needs.select.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: PR 规格 (title + body)
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python -m forge pr-title --root .
+
+  review-bots:
+    name: review-bots
+    needs: [select, spec]
+    if: github.event_name == 'pull_request' && needs.select.outputs.run == 'true' && needs.spec.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: CodeRabbit + Copilot comments
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p ops-reports
+          python -m forge ops-review \
+            --repo "${{ github.repository }}" \
+            --sha "${{ github.event.pull_request.head.sha }}" \
+            --pr "${{ github.event.pull_request.number }}" \
+            --write-report ops-reports/ \
+            --wait 60 \
+            --poll 10
+
+      - name: Upload review-bots report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: overlay-ops-review
+          path: ops-reports/
+          if-no-files-found: error
+
+  overlay:
+    needs: [select, spec, review-bots]
+    if: >-
+      always() && !cancelled() &&
+      needs.select.result == 'success' &&
+      needs.select.outputs.run == 'true' &&
+      (github.event_name != 'pull_request' ||
+       (needs.spec.result == 'success' && needs.review-bots.result == 'success'))
     uses: ./.github/workflows/overlay.yml
     with:
       enable_run: true
@@ -54,8 +133,13 @@ jobs:
       receipt_prefix: workshop
 
   fixture:
-    needs: select
-    if: needs.select.outputs.run == 'true'
+    needs: [select, spec, review-bots]
+    if: >-
+      always() && !cancelled() &&
+      needs.select.result == 'success' &&
+      needs.select.outputs.run == 'true' &&
+      (github.event_name != 'pull_request' ||
+       (needs.spec.result == 'success' && needs.review-bots.result == 'success'))
     uses: ./.github/workflows/overlay.yml
     with:
       enable_run: true
@@ -65,7 +149,7 @@ jobs:
 
   overlay-check:
     name: overlay-check
-    needs: [select, overlay, fixture]
+    needs: [select, spec, review-bots, overlay, fixture]
     if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
@@ -79,8 +163,69 @@ jobs:
             echo "selector skipped overlay-check (${{ needs.select.outputs.reason }})"
             exit 0
           fi
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            if [ "${{ needs.spec.result }}" != "success" ]; then
+              echo "PR spec failed; full CI did not start"
+              exit 1
+            fi
+            if [ "${{ needs.review-bots.result }}" != "success" ]; then
+              echo "review-bots job failed"
+              exit 1
+            fi
+          fi
           if [ "${{ needs.overlay.result }}" != "success" ] || [ "${{ needs.fixture.result }}" != "success" ]; then
             echo "overlay product gate failed"
             exit 1
           fi
           echo "overlay-check passed"
+
+  bounce:
+    name: bounce
+    needs: [select, spec, review-bots, overlay, fixture, overlay-check]
+    if: >-
+      always() && !cancelled() &&
+      github.event_name == 'pull_request' &&
+      needs.select.outputs.run == 'true' &&
+      (needs.spec.result == 'failure' ||
+       needs.overlay.result == 'failure' ||
+       needs.fixture.result == 'failure' ||
+       needs.overlay-check.result == 'failure')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: 打回 + 留 debug 报告
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p ops-debug
+          FAILED=""
+          [ "${{ needs.spec.result }}" = "failure" ] && FAILED="${FAILED}spec,"
+          [ "${{ needs.overlay.result }}" = "failure" ] && FAILED="${FAILED}overlay,"
+          [ "${{ needs.fixture.result }}" = "failure" ] && FAILED="${FAILED}fixture,"
+          [ "${{ needs.overlay-check.result }}" = "failure" ] && FAILED="${FAILED}overlay-check,"
+          python -m forge bounce \
+            --repo "${{ github.repository }}" \
+            --pr "${{ github.event.pull_request.number }}" \
+            --failed "${FAILED}" \
+            --write-report ops-debug/ \
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Upload ops-debug
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: overlay-ops-debug
+          path: ops-debug/
+          if-no-files-found: error

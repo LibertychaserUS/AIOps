@@ -219,8 +219,9 @@ class WorkshopConfigTests(unittest.TestCase):
         self.assertIn("python -m forge pr-title", text)
         self.assertIn("pip install -r requirements.txt", text)
         overlay = (ROOT / ".github" / "workflows" / "overlay-check.yml").read_text(encoding="utf-8")
-        self.assertNotIn("python -m forge pr-title", overlay)
         self.assertIn("forge ci-select", overlay)
+        self.assertIn("python -m forge pr-title", overlay)
+        self.assertIn("name: spec", overlay)
 
 
 if __name__ == "__main__":

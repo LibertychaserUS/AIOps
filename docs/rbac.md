@@ -22,7 +22,7 @@ PR 的 **review 和 merge 由 GitHub 上的人 + Repository Ruleset 管**，不�
 | 侧 | 谁 | 做什么 | 不做什么 |
 |---|---|---|---|
 | **开发侧** | 人 / agent + `python -m forge check` + `python -m forge submit` | 提交前本地检查绿，且持有 `FORGE_SUBMIT_TOKEN`，再代推当前功能分支，开/更新 **draft** PR，标题过 `pr-title` | 不直推 protect；check 红不 push；缺 `FORGE_SUBMIT_TOKEN`不 push（含 `--dry-run`）；不自合；不 `forge apply` |
-| **Ops 侧** | 管理端 + Ruleset required checks | 勾 check、等人 Approve，绿了在 GitHub 点 merge | 不替开发 push；Forge **不合入** |
+| **Ops 侧** | 管理端 + Ruleset required checks | Overlay 选中的 PR：规格 → CodeRabbit/Copilot 评论 → 全量 Overlay CI，再等人 Approve，绿了点 merge。红则打回，看 `ops-debug` / receipts | 不替开发 push；Forge **不合入**；不当 CodeRabbit 唯一门 |
 
 对齐已有工具，不另造协议：
 

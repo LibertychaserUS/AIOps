@@ -35,9 +35,13 @@ class FakeGitHub:
     def __init__(self) -> None:
         self.rulesets: list[dict] = []
         self.pulls: list[dict] = []
+        self.issue_comments: list[dict] = []
+        self.review_comments: list[dict] = []
+        self.check_runs: list[dict] = []
         self.calls: list[tuple[str, str, dict | None]] = []
         self.next_id = 1
         self.next_pr = 1
+        self.next_comment = 1
         self.fail_status: int | None = None
         self.fail_on: set[str] = set()
 
@@ -71,6 +75,30 @@ class FakeGitHub:
                 hdrs=None,
                 fp=io.BytesIO(b'{"message":"forge never merges"}'),
             )
+
+        if parts[3] == "commits" and len(parts) >= 6 and parts[5] == "check-runs":
+            if method != "GET":
+                raise HTTPError(req.full_url, 405, "method", hdrs=None, fp=io.BytesIO(b"{}"))
+            return FakeResponse(200, {"check_runs": list(self.check_runs)})
+
+        if parts[3] == "issues" and len(parts) >= 6 and parts[5] == "comments":
+            if method == "GET":
+                return FakeResponse(200, list(self.issue_comments))
+            if method == "POST":
+                created = {
+                    "id": self.next_comment,
+                    "body": (body or {}).get("body"),
+                    "user": {"login": "forge-ops"},
+                }
+                self.next_comment += 1
+                self.issue_comments.append(created)
+                return FakeResponse(201, created)
+            raise HTTPError(req.full_url, 405, "method", hdrs=None, fp=io.BytesIO(b"{}"))
+
+        if parts[3] == "pulls" and len(parts) >= 6 and parts[5] == "comments":
+            if method != "GET":
+                raise HTTPError(req.full_url, 405, "method", hdrs=None, fp=io.BytesIO(b"{}"))
+            return FakeResponse(200, list(self.review_comments))
 
         if parts[3] == "pulls":
             return self._handle_pulls(method, parts, parsed.query, body, req)
