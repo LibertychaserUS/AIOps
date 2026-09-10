@@ -25,7 +25,7 @@ Do not vendor `forge/`, `overlay/`, `schema/`, or `prompts/` into the adopter pr
    PYTHONPATH=../AIOps python3 -m forge apply --repo OWNER/NAME --path forge.yaml
    PYTHONPATH=../AIOps python3 -m forge status --repo OWNER/NAME
    ```
-   Token: `FORGE_GITHUB_TOKEN` or `GITHUB_TOKEN`, Administration: write. Humans run live apply. Agents do not.
+   Token: `FORGE_GITHUB_TOKEN` or `GITHUB_TOKEN`, Administration: write. Humans run live apply. Agents do not. This is **not** `FORGE_SUBMIT_TOKEN` (开发侧代推密钥). Do not live-apply Forge Rulesets from an agent.
 2. **Set required checks in the GitHub Ruleset UI** (or the payload Forge applied). Use the adopter’s own job names (their build job, plus `overlay-check` only if they installed Overlay, plus `pr-title` if they installed the title workflow, plus `sop-lock` if they installed the SOP workflow). This workshop lists `overlay-check`, `pr-title`, and `sop-lock` in `forge.yaml`. Forge does not create those jobs. CodeRabbit may be a check; it must **not** be the only merge gate.
 3. **Paste CODEOWNERS / team names.** Copy wording from [`forge/CODEOWNERS.example`](../../forge/CODEOWNERS.example) into the product `.github/CODEOWNERS`. Put people in **GitHub org teams**. Do not build a local ACL file that GitHub will not enforce.
 4. **Paste agent policy text** from [`forge/agent-policy.md`](../../forge/agent-policy.md) into the adopter `AGENTS.md`. Do not vendor `forge/`.
@@ -86,7 +86,7 @@ Merge: GitHub PR page, after the brief is present, checks green (`overlay-check`
 
 | 现象 | 处理 |
 |---|---|
-| 想替开发 push / `forge submit` / `forge check` | 停。开发侧自己 check + submit。Ops 只审合入检查 + merge。本地 check 是代推锁，不是 Ops 的活。 |
+| 想替开发 push / `forge submit` / `forge check` | 停。开发侧自己 check + 持有 `FORGE_SUBMIT_TOKEN` 再 submit。Ops 只审合入检查 + merge。合入权限不是那把提交密钥。 |
 | 想做管理端网页管 merge | 停。GitHub Ruleset + 人点 merge。见 [`docs/rbac.md`](../../docs/rbac.md)。 |
 | `overlay review` 不改文件 | 这一刀拒绝写盘。手改 `suite.yaml`。 |
 | 想在 overlay-check 里 `forge apply` | 停。admin token 只在人本机或受保护的 dispatch。 |
@@ -103,4 +103,4 @@ Merge: GitHub PR page, after the brief is present, checks green (`overlay-check`
 
 原则：[`docs/sop-lock.md`](../../docs/sop-lock.md)。只锁可机器判定的子集。
 
-本工作本 Ruleset 必须勾：`overlay-check`、`pr-title`、`sop-lock`（`forge.yaml` `required_checks`）。这些是 **合入锁**。红则不能合。开发侧提交前的本地门是 `python -m forge check`（**代推锁**）；Ops 不替开发跑 check / submit。CodeRabbit 不能当唯一门。人审：谁点 merge。不绿不能合。
+本工作本 Ruleset 必须勾：`overlay-check`、`pr-title`、`sop-lock`（`forge.yaml` `required_checks`）。这些是 **合入锁**。红则不能合。开发侧提交前的本地门是 `python -m forge check` 绿 **并且** 持有 `FORGE_SUBMIT_TOKEN`（**代推锁**）；Ops 不替开发跑 check / submit，也不用这把提交密钥来 merge。CodeRabbit 不能当唯一门。人审：谁点 merge。不绿不能合。不 live-apply Rulesets。
