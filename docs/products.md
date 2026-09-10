@@ -22,7 +22,7 @@
 | 产品仓提交 | 不提交 |
 |---|---|
 | `forge.yaml` / `overlay.yaml` | `forge/` 包、`overlay/` 包 |
-| `inbox/` / `suites/` / 可选 `invariants.yaml` | `schema/`、`prompts/`（产品自带；接入方不必拷） |
+| `inbox/` / `suites/` / 可选 `invariants.yaml` | `schema/`、`prompts/`（工具仓自带；接入方不必拷） |
 | 一条薄 workflow：`uses:` 工具仓的 reusable workflow，pin **tag 或 SHA**，不要 `main` | 把本工作本整树 vendor / submodule 进产品仓 |
 
 本地：工具仓或 fork 与产品仓并排放。`PYTHONPATH=<工具仓>` 再跑 `python3 -m forge` / `python3 -m overlay`。不要为了 import 把包 `git add` 进产品树。
