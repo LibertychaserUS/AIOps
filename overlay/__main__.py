@@ -1,4 +1,4 @@
-"""python -m overlay validate|select|review"""
+"""python -m overlay validate|select|review|run"""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from typing import TextIO
 
 from overlay import EXIT_CONTRACT, EXIT_OK
 from overlay.review import run_review
+from overlay.run import DEFAULT_TIMEOUT, run_run
 from overlay.select import run_select
 from overlay.validate import run_validate
 
@@ -18,8 +19,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m overlay",
         description=(
-            "Overlay slice 1: validate inbox/suites and select armed suites. "
-            "No generate, no run, no model."
+            "Overlay: validate inbox/suites, select armed suites, run their "
+            "product_command. No generate. No model on this path."
         ),
     )
     sub = parser.add_subparsers(dest="command")
@@ -42,6 +43,27 @@ def build_parser() -> argparse.ArgumentParser:
     review_p.add_argument("--status", choices=("blocked", "armed"), default=None)
     review_p.add_argument("--i-am", dest="i_am", default=None, help="human identity; required")
     review_p.add_argument("--reason", default=None)
+
+    run_p = sub.add_parser("run", help="select armed suites and run product_command")
+    run_p.add_argument("--branch", required=True, help="branch name from overlay.yaml")
+    run_p.add_argument("--root", default=".", help="adopter overlay root (default: .)")
+    run_p.add_argument(
+        "--write-receipt",
+        metavar="DIR",
+        required=True,
+        help="directory for a program-written receipt (wrote_by=run); required",
+    )
+    run_p.add_argument(
+        "--workdir",
+        default=".",
+        help="directory to run product_command in (caller checkout; no foreign clone)",
+    )
+    run_p.add_argument(
+        "--timeout",
+        type=int,
+        default=DEFAULT_TIMEOUT,
+        help=f"seconds per command (default {DEFAULT_TIMEOUT})",
+    )
     return parser
 
 
@@ -81,6 +103,17 @@ def main(
             suite=args.suite,
             status=args.status,
             reason=args.reason,
+            stderr=err,
+        )
+    if args.command == "run":
+        timeout = args.timeout if args.timeout and args.timeout > 0 else DEFAULT_TIMEOUT
+        return run_run(
+            Path(args.root),
+            args.branch,
+            write_receipt_dir=Path(args.write_receipt),
+            workdir=Path(args.workdir),
+            timeout=timeout,
+            stdout=out,
             stderr=err,
         )
     parser.print_help(err)

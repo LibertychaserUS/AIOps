@@ -6,6 +6,9 @@
 - Title: dry-run prints payload
 - Steps: `python -m forge apply --repo LibertychaserUS/AIOps --path forge.yaml --dry-run`
 - Expected: exit 0; payload mentions forge-protected-default; no API write
+- Title: CI run executes forge unit tests then dry-run
+- Steps: overlay-check `product_command` for this suite
+- Expected: fake-API tests green; dry-run exit 0; no Ruleset write
 
 ### Negative
 - Title: apply without token

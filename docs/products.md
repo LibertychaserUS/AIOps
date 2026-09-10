@@ -9,7 +9,7 @@
 
 两件产品独立版本、独立接入、独立失败。Forge 不懂用例；Overlay 不管谁该 merge。接入方可以只装一件。
 
-完整详细设计：[`design.md`](design.md)。Inbox：[`inbox.md`](inbox.md)。测试规格：[`test-spec.md`](test-spec.md)。编译契约：[`agents/overlay-contract.md`](agents/overlay-contract.md)。IEEE 剖面：[`agents/ieee-test-system.md`](agents/ieee-test-system.md)。过程稿：[`architecture.md`](architecture.md)。约束：[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md)。
+完整详细设计：[`design.md`](design.md)。使用 SOP：[`sop.md`](sop.md)、[`../skills/use-forge/SKILL.md`](../skills/use-forge/SKILL.md)、[`../skills/use-overlay/SKILL.md`](../skills/use-overlay/SKILL.md)。Inbox：[`inbox.md`](inbox.md)。测试规格：[`test-spec.md`](test-spec.md)。编译契约：[`agents/overlay-contract.md`](agents/overlay-contract.md)。IEEE 剖面：[`agents/ieee-test-system.md`](agents/ieee-test-system.md)。过程稿：[`architecture.md`](architecture.md)。约束：[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md)。
 
 ---
 
@@ -82,7 +82,7 @@ Learning Guide：Ruleset 加在产品仓 + 本工作本；**不改** `.github/wo
 | `python -m overlay generate` | 读 inbox，编成契约合法的 `suites/<id>/`，`status: draft`。无写死 FR 表 | 提示词可覆写 |
 | `python -m overlay select --branch` | 只输出该分支该跑的 `armed` | `overlay.yaml` 的 branches |
 | `python -m overlay receipt` | 程序写回执，模型不写 | 无 |
-| `.github/workflows/overlay.yml` | reusable：校验契约 + select 预演；后一刀按 `product_command` 跑 | checkout 哪个仓、跑哪条命令 |
+| `.github/workflows/overlay.yml` | reusable：校验契约 + select + 在调用方 checkout 里跑 `product_command` | 哪条命令；不要从本工作本 checkout 外国产品仓 |
 | `overlay.yaml` | 产品仓 pin、分支、never_red | **整份都是接入方的** |
 
 状态机、回执、和 Proctor 的语义对齐（没审过不跑、没证据不过）是 Overlay 的标准，不复制七段监考。
@@ -101,8 +101,8 @@ Learning Guide 只是一份 **fixture**：`examples/learning-guide/overlay.yaml`
 
 ### 第一刀 / 以后
 
-- 第一刀：契约 + `select` + 预演 workflow + 示例 inbox/suite（LG fixture 是三篇 inbox，不是一篇复用三次）。没有 generator 也能手写证明状态机。
-- 以后：`generate` 稳定；checkout 接入方仓跑 `product_command`。不把用例自动灌进接入方构建门。
+- 已做：契约 + `select` + `run`（调用方 checkout 上的 `product_command`）+ 示例 inbox/suite（LG fixture 是三篇 inbox，不是一篇复用三次）。测试和 CI 同一条门。没有 generator 也能手写证明状态机。
+- 以后：`generate` 稳定。不把用例自动灌进接入方构建门。不从本工作本 checkout LearningGuidePortal。
 
 ### 成功标准（与业务无关）
 
@@ -141,14 +141,15 @@ forge/                  # 产品 A
   agent-policy.md
   apply.py
 overlay/                # 产品 B（或 src/overlay）
-  generate.py
+  validate.py
   select.py
+  run.py
   receipt.py
 schema/                 # Overlay 契约，跨项目冻住
 examples/learning-guide/   # 第一个接入方，不是核心
 .github/workflows/
-  forge-guard.yml
   overlay.yml
+  overlay-check.yml
 ```
 
 版本：`forge@v1`、`overlay@v1` 分开打 tag。接入方 pin tag，不 pin 本仓 `main`。

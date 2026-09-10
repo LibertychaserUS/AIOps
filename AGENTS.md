@@ -12,4 +12,4 @@ Workshop for two reusable products: **Forge** (ordered GitHub collab) and **Over
 - Constraints: `docs/2026-09-10-对话整理.md`. Full design: `docs/design.md`.
 - Use Forge: `skills/use-forge/SKILL.md`. Use Overlay: `skills/use-overlay/SKILL.md`. SOP index: `docs/sop.md`.
 - Compile skill: `docs/agents/overlay-contract.md`. IEEE profile (id / level / trace, not 20 Word docs): `docs/agents/ieee-test-system.md`.
-- This repo is also an Overlay adopter: root `overlay.yaml` + `inbox/` + `suites/`; CI job `overlay-check`.
+- This repo is also an Overlay adopter: root `overlay.yaml` + `inbox/` + `suites/`; CI job `overlay-check` (validate + select + run). Test and CI are the same gate.

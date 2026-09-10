@@ -5,3 +5,7 @@ items:
     case_id: FN-forge-apply/functional
     type: functional
     level: unit
+  - function_id: FN-forge-apply
+    case_id: FN-forge-apply/ci
+    type: functional
+    level: integration

@@ -13,7 +13,7 @@ locale: zh-CN
 
 # Intent
 
-This workshop uses Overlay on itself. Push and pull_request run validate + select. Only armed suites are selected.
+This workshop uses Overlay on itself. Push and pull_request run validate + select + run. Only armed suites are selected; their product_command is the test gate.
 
 # In scope
 

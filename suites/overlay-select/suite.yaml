@@ -9,5 +9,5 @@ packages:
 reviewed_by: workshop
 reviewed_at: 2026-09-10T00:00:00Z
 blocked_reason: null
-armed_reason: validate and select ship; self-test already runs them.
-product_command: null
+armed_reason: validate, select, and run ship; overlay-check executes this command.
+product_command: python3 schema/check.py && python3 -m unittest discover -s tests/overlay -t . -q

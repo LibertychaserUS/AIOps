@@ -9,5 +9,5 @@ packages:
 reviewed_by: workshop
 reviewed_at: 2026-09-10T00:00:00Z
 blocked_reason: null
-armed_reason: apply --dry-run and fake-API tests ship.
-product_command: null
+armed_reason: apply --dry-run and fake-API tests ship; overlay-check executes this command.
+product_command: python3 -m unittest discover -s tests/forge -t . -q && python3 -m forge apply --repo LibertychaserUS/AIOps --path forge.yaml --dry-run

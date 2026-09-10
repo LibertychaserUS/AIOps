@@ -30,4 +30,4 @@ Forge apply on this workshop prints a Ruleset payload in dry-run and does not wr
 
 # Notes
 
-This repo may dry-run. Live apply needs an admin token and is not part of overlay-check.
+This repo may dry-run from overlay-check. Live apply needs an admin token and is not part of overlay-check.

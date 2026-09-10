@@ -5,3 +5,7 @@ items:
     case_id: FN-overlay-select/functional
     type: functional
     level: unit
+  - function_id: FN-overlay-select
+    case_id: FN-overlay-select/run
+    type: functional
+    level: integration

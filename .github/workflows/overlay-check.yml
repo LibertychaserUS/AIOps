@@ -1,4 +1,7 @@
-# This workshop uses Overlay on itself. Preview only. No generate. No product Verify.
+# This workshop uses Overlay on itself. Test and CI are the same gate:
+# validate + select + run armed product_command. No generate. No product Verify.
+# branch is pinned to main so agent branches still execute the armed tool tests.
+# Learning Guide fixture stays preview/skip — no foreign product checkout.
 
 name: overlay-check
 
@@ -13,5 +16,15 @@ jobs:
   overlay:
     uses: ./.github/workflows/overlay.yml
     with:
-      enable_run: false
+      enable_run: true
       root: "."
+      branch: main
+      receipt_prefix: workshop
+
+  fixture:
+    uses: ./.github/workflows/overlay.yml
+    with:
+      enable_run: true
+      root: examples/learning-guide
+      branch: main
+      receipt_prefix: lg-fixture

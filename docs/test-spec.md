@@ -119,7 +119,7 @@ schema **不得**把 `REQ-n`、`ML-FR-004`、`PAY-01`、`LOGIN-01` 或 `^[A-Z]{2
 | PRD 版本号锁死 | 用 `source.ref` pin，不搞双版本书。 |
 | PRD 验收标准原文当用例 | 用例要有步骤和期望。 |
 | 全 PRD 覆盖义务 | 未切进 inbox = 不管。 |
-| 产品仓已有测试文件树 | 第二刀最多调 `product_command`。 |
+| 产品仓已有测试文件树 | `product_command` 调用；本工作本的测试就是 Overlay CI。 |
 
 「PRD 更新了，测试规格自动长成新章节」第一刀不做。
 
@@ -199,7 +199,7 @@ items:
 
 ## 10. Overlay / Forge 自己的测试规格
 
-本仓 `self-test` 对照 [`design.md`](design.md)，不对照任何产品 PRD。fixture 只证明元规格能装到一个像真的接入方上。
+本仓 `overlay-check` 对照 [`design.md`](design.md)，不对照任何产品 PRD。fixture 只证明元规格能装到一个像真的接入方上。
 
 ---
 

@@ -1,9 +1,9 @@
 # Program-written overlay receipt. Not a Proctor ledger and not model output.
-# First slice: select writes this. Later: run appends a ran event.
+# select writes selected/dropped. run adds ran / skipped_no_command.
 # Proctor may ingest a copy locally; it must not write suite.yaml.
 
 schema: overlay-receipt/v1
-wrote_by: select              # select | run  — never model
+wrote_by: run                 # select | run  — never model
 git_sha: pin-me
 branch: main
 at: 2026-09-10T00:00:00Z
@@ -15,6 +15,12 @@ events:
     kind: functional
     function_id: FN-login-retry
     level: unit
+  - type: ran
+    suite: checkout-retry
+    status: armed
+    function_id: FN-login-retry
+    command: python -m unittest
+    exit_code: 0
   - type: dropped
     suite: payment
     status: blocked

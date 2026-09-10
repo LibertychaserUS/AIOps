@@ -82,6 +82,7 @@ class SuiteDoc:
     cases_path: Path
     cases_text: str
     function_ids: list[str]
+    product_command: str | None = None
     trace_items: list[dict[str, Any]] = field(default_factory=list)
     raw: dict[str, Any] = field(default_factory=dict)
 
@@ -467,6 +468,16 @@ def validate_suite_file(
     if status == "armed" and is_blank(armed_reason):
         issues.append(Issue(rel, "armed requires armed_reason"))
 
+    raw_cmd = data.get("product_command")
+    product_command: str | None
+    if raw_cmd is None:
+        product_command = None
+    elif isinstance(raw_cmd, str):
+        product_command = raw_cmd.strip() or None
+    else:
+        issues.append(Issue(rel, "product_command must be a string or null"))
+        product_command = None
+
     cases_path = path.parent / "cases.md"
     cases_rel = _rel(root, cases_path)
     if not cases_path.is_file():
@@ -532,6 +543,7 @@ def validate_suite_file(
         cases_path=cases_path,
         cases_text=cases_text,
         function_ids=function_ids,
+        product_command=product_command,
         trace_items=trace_items,
         raw=data,
     )

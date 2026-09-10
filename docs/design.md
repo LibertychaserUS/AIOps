@@ -329,7 +329,7 @@ In scope **可以**在行首带接入方自选的 `function_id`（非空、无�
 | `reviewed_at` | string\|null | ISO-8601；有 `reviewed_by` 则必填 |
 | `blocked_reason` | string\|null | `blocked` 必填 |
 | `armed_reason` | string\|null | `armed` 必填 |
-| `product_command` | string\|null | 后一刀；第一刀必须 null 或忽略 |
+| `product_command` | string\|null | `run` 要执行的命令；缺省则 `skipped_no_command`，不红 |
 
 `cases.md` 就是接入方**测试规格正文**（完整合同：[`docs/test-spec.md`](test-spec.md)；编译：[`docs/agents/overlay-contract.md`](agents/overlay-contract.md)；IEEE 剖面：[`docs/agents/ieee-test-system.md`](agents/ieee-test-system.md)）。产品文档树与测试树不是同一形状；用同一个接入方自选的 `function_id` 对齐。生成器必须吐这个骨架，人可改：
 
@@ -384,14 +384,15 @@ python -m overlay validate [--root .]
 python -m overlay generate --inbox inbox/<id>.md [--out suites/<id>]
 python -m overlay select   --branch NAME [--root .] [--write-receipt receipts/]
 python -m overlay review   --suite ID --status blocked|armed --i-am HUMAN --reason TEXT
-python -m overlay run      --branch NAME [--root .]    # 第二刀
+python -m overlay run      --branch NAME [--root .] [--write-receipt DIR] [--workdir DIR]
 ```
 
-退出码：`0` 成功；`2` 契约/配置非法；`3` 缺 LLM 密钥（仅 generate）；`4` select 预演断言失败（例如 armed 集合里混进 blocked——那是实现 bug）；`5` run 中 armed 命令失败（第二刀）。
+退出码：`0` 成功；`2` 契约/配置非法或 run 无回执 / 命中 forbid_hosts；`3` 缺 LLM 密钥（仅 generate）；`4` select 预演断言失败（例如 armed 集合里混进 blocked——那是实现 bug）；`5` run 中 armed 命令失败。
 
 `validate`：扫全部 inbox + suite，不调模型。  
 `select`：纯函数，无网络（除写文件）。  
-`generate`：唯一允许出站到 LLM 的命令。
+`run`：select 之后执行 `product_command`；必须 `--write-receipt`。  
+`generate`：唯一允许出站到 LLM 的命令（未交付）。
 
 ### 4.8 generate（算法）
 
@@ -427,7 +428,7 @@ print selected ids
 exit 0
 ```
 
-预演（第一刀 CI）：跑 select + validate，**不** checkout 接入方代码，**不**跑 `product_command`。零密钥。
+CI：validate + select；`enable_run` 时在**调用方 checkout**里跑 `product_command`。不从本工作本 clone 外国产品仓。零密钥。`generate` 不在这条路上。
 
 ### 4.10 回执
 
@@ -438,7 +439,7 @@ exit 0
 - `evidence` 只引用盘上已有 `reviewed_by`，不新造审核者。
 - 模型不得写此文件。实现里 receipt 模块不 import HTTP 客户端。
 
-后一刀 `ran`：每个 selected suite 一条，含 `exit_code` 与命令。无回执的 `run` 视为没证据，退出 `2`。
+`ran`：每个执行了命令的 selected suite 一条，含 `exit_code` 与命令。无命令则 `skipped_no_command`。无回执的 `run` 视为没证据，退出 `2`。
 
 ### 4.11 reusable workflow
 
@@ -454,23 +455,24 @@ jobs:
     needs: validate
     overlay select --branch ${{ github.ref_name 或 base_ref }} --write-receipt
     上传 receipt artifact
-  run:                         # 第二刀才加；用 workflow input enable_run
+  run:
     needs: select
-    若 enable_run：checkout product.repo@default_ref，对每个 selected 跑 product_command
-    禁止请求 forbid_hosts
+    若 enable_run：在调用方 checkout 对每个 selected 跑 product_command
+    禁止请求 forbid_hosts；不 checkout 外国产品仓
 ```
 
 接入方构建 workflow **不得** `workflow_call` 本文件。本文件也 **不得** `workflow_call` 接入方 Verify。
 
-`enable_run` 默认 `false`。
+`enable_run` 默认 `false`。本工作本的 `overlay-check` 打开它，并把 `branch` 钉成 `main`，这样 agent 分支仍跑 armed 工具测试。
 
-### 4.12 run（第二刀，契约先写）
+### 4.12 run（测试和 CI 同一条门）
 
-- 工作目录：接入方代码 pin，不是浮动 `main`。
+- 工作目录：调用方当前 checkout（`--workdir`）。本工作本不 clone `product.repo`（避免误拉 LearningGuidePortal）。
 - 命令：suite 的 `product_command`，缺省则跳过该 suite（记 receipt `skipped_no_command`，不红）。
-- 环境：接入方 e2e 已有的本地/CI 假密钥模式。禁止注入生产 Stripe/SES URL。
-- `baseURL` 只许 `127.0.0.1` / `localhost`。命中 `forbid_hosts` → 退出 2。
-- 失败：仅 armed 命令非 0 使 job 红。
+- 环境：接入方已有的本地/CI 假密钥模式。禁止注入生产 Stripe/SES URL。
+- 命令文本命中 `forbid_hosts` 的 URL → 退出 2，不启动该命令。
+- 失败：仅 armed 命令非 0 使 job 红（退出 5）。无 `--write-receipt` → 退出 2。
+- 本工作本：armed 的 `product_command` 就是 Forge/Overlay 的 unittest + dry-run。不要再开旁路 `self-test`。
 
 禁止：自动把 `cases.md` PR 进接入方 `tests/` 并挂上构建门。
 
@@ -545,7 +547,7 @@ forge/
   CODEOWNERS.example
   forge.example.yaml
 overlay/
-  __init__.py / validate.py / generate.py / select.py / receipt.py / review.py / run.py
+  __init__.py / validate.py / select.py / receipt.py / review.py / run.py
 schema/
   suite.schema.json
   inbox.schema.json
@@ -564,7 +566,7 @@ examples/learning-guide/
 .github/workflows/
   forge-guard.yml
   overlay.yml
-  self-test.yml          # 测本仓 forge/overlay，不测 LG 产品
+  overlay-check.yml      # 本仓自用：validate + select + run；兼跑 LG fixture
 docs/design.md           # 本文
 docs/inbox.md            # Overlay 输入面
 docs/test-spec.md        # 测试体系规格（两棵树 + 通用 function_id）
@@ -594,18 +596,17 @@ docs/2026-09-10-对话整理.md
 
 **第一刀（两件产品都能装到「任意仓」意义上成立）**
 
-1. Overlay：`validate` + `select` + receipt + schema；self-test 覆盖 blocked 不入选。
+1. Overlay：`validate` + `select` + `run` + receipt + schema；blocked 不入选、不红。
 2. `examples/learning-guide`：三篇 inbox（my-learning / payment / login）各对一个 suite；支付/登录 `blocked`。
 3. Forge：默认 Ruleset JSON + `apply --dry-run` / 对测试仓 apply；agent-policy。
-4. reusable overlay workflow 只跑 validate+select（`enable_run=false`）。
-5. 无 `generate` 也能用手写 suite 证明状态机。
+4. reusable overlay workflow：validate + select；`enable_run` 时在调用方 checkout 跑 `product_command`。
+5. 本工作本 `overlay-check` 打开 `enable_run`；测试和 CI 同一条门。无 `generate` 也能用手写 suite 证明状态机。
 
 **第二刀**
 
 1. `overlay generate` 稳定（temperature=0，提示词入仓）。
-2. `enable_run` + `product_command`。
-3. `forge-guard.yml`。
-4. 可选：select 按 PR 文件 ∩ `packages` 收窄 functional 集。
+2. `forge-guard.yml`。
+3. 可选：select 按 PR 文件 ∩ `packages` 收窄 functional 集。
 
 **以后**
 
