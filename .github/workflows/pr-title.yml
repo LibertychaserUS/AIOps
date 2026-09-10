@@ -1,0 +1,35 @@
+# PR-title middleware. Same function as local `python -m forge pr-title`.
+# pull_request only — a push to a feature branch has no PR title; do not
+# attach this to overlay-check (that job must stay green on push).
+# Check name is the job name `pr-title` (stable for Ruleset required_checks).
+# No GitHub write. No model. No husky/npm.
+
+name: pr-title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  pr-title:
+    name: pr-title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Lint PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: python -m forge pr-title

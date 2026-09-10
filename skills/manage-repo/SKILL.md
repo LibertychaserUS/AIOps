@@ -1,13 +1,13 @@
 ---
 name: manage-repo
-description: Act as 管理端 (repo admin / maintainer) on GitHub-native review and merge. This skill should be used when applying a Forge Ruleset, setting required checks, writing CODEOWNERS, merging a green+approved PR, rejecting a PR that lacks the PR-name title prefix or six headings (docs/pr-brief.md), or arming/blocking an Overlay suite (`reviewed_by`). Admin PRs use title `[管理][<product>]`. Do not use to open a feature PR or fix armed-red as a developer (use dev-pr). Do not invent branch, workflow, or skill prefixes. Product install SOP stays in use-forge and use-overlay.
+description: Act as 管理端 (repo admin / maintainer) on GitHub-native review and merge. This skill should be used when applying a Forge Ruleset, setting required checks, writing CODEOWNERS, merging a green+approved PR, rejecting a PR that fails pr-title or lacks the six headings (docs/pr-brief.md), or arming/blocking an Overlay suite (`reviewed_by`). Admin PRs use Conventional Commits type(product/admin). Do not use to open a feature PR or fix armed-red as a developer (use dev-pr). Do not invent branch, workflow, or skill prefixes. Product install SOP stays in use-forge and use-overlay.
 metadata:
   short-description: Admin Ruleset, merge, Overlay arm/block
 ---
 
 # Manage Repo（管理端）
 
-Review and merge live on **GitHub**. You are the human who installs the cage and writes Overlay receipts of review. There is no admin portal. RBAC: [`docs/rbac.md`](../../docs/rbac.md). Product SOP: [`../use-forge/SKILL.md`](../use-forge/SKILL.md), [`../use-overlay/SKILL.md`](../use-overlay/SKILL.md). PR 名分工只写标题前缀：[`docs/pr-brief.md`](../../docs/pr-brief.md)。标题前缀不是权限。模板：[`.github/PULL_REQUEST_TEMPLATE.md`](../../.github/PULL_REQUEST_TEMPLATE.md)。
+Review and merge live on **GitHub**. You are the human who installs the cage and writes Overlay receipts of review. There is no admin portal. RBAC: [`docs/rbac.md`](../../docs/rbac.md). Product SOP: [`../use-forge/SKILL.md`](../use-forge/SKILL.md), [`../use-overlay/SKILL.md`](../use-overlay/SKILL.md). PR 标题必须过检查 **`pr-title`**（`python -m forge pr-title`，Conventional Commits）：[`docs/pr-brief.md`](../../docs/pr-brief.md)。标题 `actor` 不是权限。模板：[`.github/PULL_REQUEST_TEMPLATE.md`](../../.github/PULL_REQUEST_TEMPLATE.md)。
 
 ## Instructions
 
@@ -26,11 +26,11 @@ Do not vendor `forge/`, `overlay/`, `schema/`, or `prompts/` into the adopter pr
    PYTHONPATH=../AIOps python3 -m forge status --repo OWNER/NAME
    ```
    Token: `FORGE_GITHUB_TOKEN` or `GITHUB_TOKEN`, Administration: write. Humans run live apply. Agents do not.
-2. **Set required checks in the GitHub Ruleset UI** (or the payload Forge applied). Use the adopter’s own job names (their build gate, plus `overlay-check` only if they installed Overlay). Forge does not create those jobs. CodeRabbit may be a check; it must **not** be the only merge gate.
+2. **Set required checks in the GitHub Ruleset UI** (or the payload Forge applied). Use the adopter’s own job names (their build job, plus `overlay-check` only if they installed Overlay, plus `pr-title` if they installed the title workflow). This workshop lists `overlay-check` and `pr-title` in `forge.yaml`. Forge does not create those jobs. CodeRabbit may be a check; it must **not** be the only merge gate.
 3. **Paste CODEOWNERS / team names.** Copy wording from [`forge/CODEOWNERS.example`](../../forge/CODEOWNERS.example) into the product `.github/CODEOWNERS`. Put people in **GitHub org teams**. Do not build a local ACL file that GitHub will not enforce.
 4. **Paste agent policy text** from [`forge/agent-policy.md`](../../forge/agent-policy.md) into the adopter `AGENTS.md`. Do not vendor `forge/`.
-5. **Refuse a PR** whose **title** lacks `[<role>][<product>]` or whose body lacks any of the six 解说规格 headings ([`docs/pr-brief.md`](../../docs/pr-brief.md)). The title prefix is the only 分工 label; do not ask authors to rename branches, workflows, or skills. Body **分工** is who reviews/merges ([`docs/rbac.md`](../../docs/rbac.md)), not the prefix.
-6. **Merge on GitHub** when required checks are green and the Ruleset approval count is met (default 1). You (or another human with write) click merge. Do not let an agent merge. Do not self-approve an agent PR you prompted if you are the only reviewer and the Ruleset needs a second human — get another person. The title prefix is not who may merge. If **you** open an admin/docs PR, title it `[管理][Forge|Overlay|CI|docs] …`. Leave `cursor/…` / `copilot/` alone.
+5. **Refuse a PR** whose **title** fails `python -m forge pr-title` or whose body lacks any of the six 解说规格 headings ([`docs/pr-brief.md`](../../docs/pr-brief.md)). The title `actor` is the only 分工 label; do not ask authors to rename branches, workflows, or skills. Body **分工** is who reviews/merges ([`docs/rbac.md`](../../docs/rbac.md)), not the title actor.
+6. **Merge on GitHub** when required checks are green and the Ruleset approval count is met (default 1). You (or another human with write) click merge. **Do not merge if `pr-title` is red.** Do not let an agent merge. Do not self-approve an agent PR you prompted if you are the only reviewer and the Ruleset needs a second human — get another person. The title `actor` is not who may merge. If **you** open an admin/docs PR, title it `feat(forge/admin): …` or `docs(docs/admin): …` and run `python -m forge pr-title --title "…"`. Leave `cursor/…` / `copilot/` alone.
 7. **Do not open a second constitution.** No SaaS admin, no OAuth app, no RBAC API. Bypass stays empty in the default Ruleset; if you add bypass, do it in the GitHub UI, not in Overlay.
 
 ### Overlay — humans arm or block
@@ -50,32 +50,36 @@ Do not vendor `forge/`, `overlay/`, `schema/`, or `prompts/` into the adopter pr
 ### Never
 
 - Do not vendor the tool into the product commit repo.
-- Do not invent role prefixes on branches, workflows, or skill names. 分工 = GitHub **PR 名（标题）前缀** `[<role>][<product>]` only. Do not replace it with Conventional Commits `type(product/actor)` or a `pr-title` workflow.
+- Do not invent role prefixes on branches, workflows, or skill names. 分工 = GitHub PR 标题 `actor` only.
+- Do not invent a private `[开发][Overlay]` title language.
+- Do not merge when `pr-title` is red.
 - Do not live-apply Forge in Overlay CI or to LearningGuidePortal.
 - Do not change LearningGuidePortal Verify. Do not attach / run / gate intern-workspace Proctor. Do not edit Deepseek3. Do not press `ilovelearningguide.com`.
 - Do not let CodeRabbit be the only required merge check.
 - Do not let agents write `reviewed_by`, receipts, or `status: armed`.
 - Do not generate on push. Do not implement a portal.
-- Do not merge a PR that lacks the title prefix or the six headings.
+- Do not merge a PR that fails `pr-title` or lacks the six headings.
+- Do not add mandatory husky / npm as the merge lock.
 
 ## Examples
 
 ```text
 # Install the cage (admin machine, sibling tool checkout)
 PYTHONPATH=../AIOps python3 -m forge apply --repo OWNER/PRODUCT --path forge.yaml --dry-run
-# Then live apply with an admin token. Then in GitHub: required checks = Verify + overlay-check.
-# If you open a PR for the yaml/docs: title [管理][Forge] apply protected-default ruleset
+# Then live apply with an admin token. Then in GitHub: required checks = Verify + overlay-check + pr-title (if installed).
+# If you open a PR for the yaml/docs: title feat(forge/admin): apply protected-default ruleset
+# Local: python3 -m forge pr-title --title "feat(forge/admin): apply protected-default ruleset"
 
 # Overlay arm (hand yaml; review CLI does not write yet)
 # suites/my-slice/suite.yaml → status: armed, reviewed_by: alice, reviewed_at: 2026-09-10T12:00:00Z, armed_reason: landing page ships
 PYTHONPATH=../AIOps python3 -m overlay validate --root .
 ```
 
-Merge: GitHub PR page, after the brief is present, checks green, and approval. Not Overlay. Not a custom 管理端.
+Merge: GitHub PR page, after the brief is present, checks green (including `pr-title`), and approval. Not Overlay. Not a custom 管理端.
 
 ## Performance Notes
 
-`forge apply` is one GET + one POST/PUT. Overlay arm is a yaml edit + local `validate`. No model. Token only on explicit apply.
+`forge apply` is one GET + one POST/PUT. Title lint is a regex. Overlay arm is a yaml edit + local `validate`. No model. Token only on explicit apply.
 
 ## Troubleshooting
 
@@ -84,10 +88,15 @@ Merge: GitHub PR page, after the brief is present, checks green, and approval. N
 | 想做管理端网页管 merge | 停。GitHub Ruleset + 人点 merge。见 [`docs/rbac.md`](../../docs/rbac.md)。 |
 | `overlay review` 不改文件 | 这一刀拒绝写盘。手改 `suite.yaml`。 |
 | 想在 overlay-check 里 `forge apply` | 停。admin token 只在人本机或受保护的 dispatch。 |
-| CodeRabbit 绿了就想当唯一门 | 停。勾接入方构建 check；Overlay 若已装再勾 overlay-check。 |
+| CodeRabbit 绿了就想当唯一门 | 停。勾接入方构建 check；Overlay 若已装再勾 overlay-check；标题 workflow 已装再勾 `pr-title`。 |
+| `pr-title` 红了还想合 | 停。拒收。让作者改 PR 名。见 [`docs/pr-brief.md`](../../docs/pr-brief.md)。 |
 | Agent 开的 PR 没人 Approve | 人审。Agent 不得自 Approve、不得自 merge。 |
-| 想用 `管理/` 当分支前缀 | 停。分工只写 PR 标题。分支仍 `cursor/` 或人的习惯名。 |
+| 想用 `管理/` 当分支前缀 | 停。分工只写 PR 标题 actor。分支仍 `cursor/` 或人的习惯名。 |
+| 标题是 `[管理][Forge] …` | 拒收。改成 `feat(forge/admin): …`。 |
 | 想把 `forge/` 拷进产品仓 | 停。`$use-forge`。 |
 | 想对 LearningGuidePortal live apply | 停。fixture，不是试验场。 |
-| 标题没有 `[开发][Overlay]` 这种前缀 | 拒收。让作者改 **PR 名**。不要改分支名。见 [`docs/pr-brief.md`](../../docs/pr-brief.md)。 |
 | 正文缺「做了什么」等六节 | 拒收。用 [`.github/PULL_REQUEST_TEMPLATE.md`](../../.github/PULL_REQUEST_TEMPLATE.md)。 |
+
+## Lock（不绿不能合）
+
+`pr-title` 红则不合。Ruleset 勾上 `forge.yaml` `required_checks` 里的 `pr-title` 之后，红则不能合。见 [`docs/pr-brief.md`](../../docs/pr-brief.md)。

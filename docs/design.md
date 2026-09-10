@@ -150,8 +150,11 @@ Merge Queue：第一刀不装。人多了由接入方在同一 Ruleset 上打开
 ```text
 python -m forge apply  --repo OWNER/NAME [--path forge.yaml] [--dry-run]
 python -m forge status --repo OWNER/NAME
+python -m forge pr-title --title "feat(overlay/dev): subject"
 python -m forge revoke --repo OWNER/NAME --name forge-protected-default
 ```
+
+`pr-title`：纯函数锁 GitHub **PR 标题**（Conventional Commits + 必填 scope `product/actor`）。退出 `0`/`2`。不写 GitHub。规格：[`pr-brief.md`](pr-brief.md)。Actions 检查名 `pr-title`，只跑 `pull_request`。
 
 `apply`：
 

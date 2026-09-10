@@ -11,6 +11,14 @@ Forge is a standard part: Ruleset + policy + optional guard. It does not generat
 
 **Who reviews and merges:** GitHub humans + Ruleset, not Overlay, not a portal. RBAC: [`docs/rbac.md`](../../docs/rbac.md). **管理端** (apply, required checks, CODEOWNERS, merge, Overlay arm/block): [`../manage-repo/SKILL.md`](../manage-repo/SKILL.md). **开发端** (open PR, fix armed-red, no live apply): [`../dev-pr/SKILL.md`](../dev-pr/SKILL.md). Agents: this SOP + [`forge/agent-policy.md`](../../forge/agent-policy.md) — no self-merge, no self-approve.
 
+## Lock / 不绿不能合
+
+原则：[`docs/sop-lock.md`](../../docs/sop-lock.md)。只锁可机器判定的子集，不 NLP 扫散文。
+
+- LearningGuidePortal apply 拒绝、dry-run 不写 API：`python -m forge apply` + Forge 单测 → CI **`overlay-check`**
+- push 不 generate、不 `workflow_call` Verify、本工作本 `required_checks` 含 `overlay-check` 与 `sop-lock`：`python -m forge sop-lock` → CI **`sop-lock`**
+- 不绿不能合。人审：谁合、要不要 live apply、别的仓有没有 vendor 工具。
+
 ## Instructions
 
 Follow these steps. Stay imperative. Do not invent a second constitution.
@@ -58,7 +66,7 @@ CI reuse path: `uses: LibertychaserUS/AIOps/.github/workflows/forge-guard.yml@<t
    ```
 5. **Humans and agents land the same way:** open a PR. No push to protected branches. No self-merge. No self-approve. Do not edit the adopter’s existing build workflow. Developers follow `$dev-pr`. Merge is a GitHub click after checks are green — `$manage-repo`, not Forge CI.
 6. **Do not touch Overlay gates.** Forge must not write `reviewed_by`, receipts, or `status: armed`. Agents must not arm.
-7. **Required checks** stay the adopter’s names (their build job, plus `overlay-check` only if they installed Overlay). Forge does not create those jobs.
+7. **Required checks** stay the adopter’s names (their build job, plus `overlay-check` only if they installed Overlay, plus `pr-title` if they installed the title workflow). This workshop lists `overlay-check` and `pr-title`. Forge does not create those jobs. Title lock: `python -m forge pr-title` — [`../../docs/pr-brief.md`](../../docs/pr-brief.md).
 
 Guard workflow is later. First slice is Ruleset + policy + CLI.
 

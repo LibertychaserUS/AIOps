@@ -5,7 +5,7 @@ PR 的 **review 和 merge 由 GitHub 上的人 + Repository Ruleset 管**，不�
 控制面只有这一套：
 
 - GitHub org **teams**（谁是 admin / maintainer / writer）
-- Repository **Ruleset**（禁直推、必须 PR、批准数、required checks）
+- Repository **Ruleset**（禁直推、必须 PR、批准数、required checks）。本工作本声明的 check 名：`overlay-check`、`pr-title`（见 `forge.yaml`）。`pr-title` 红则不合。。本工作本声明的 check 名：`overlay-check`、`pr-title`（见 `forge.yaml`）。`pr-title` 红则不合。
 - **CODEOWNERS**（哪条路径必须谁审）
 - Overlay `suite.yaml` 的人审字段（`reviewed_by`、`armed` / `blocked`）
 
@@ -60,10 +60,10 @@ CI、模型、Forge、Proctor 不得把状态写成 `armed`。
 
 GitHub PR 的标题 + 正文就是解说面。不是门户。规格：[`pr-brief.md`](pr-brief.md)。模板：[`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md)。
 
-- 标题：**PR 名（标题）前缀** `[<role>][<product>] <imperative>` — 帽子 + 主产品。这是唯一的名分工标记。不是权限，不改分支名 / workflow 名 / skill 名。`cursor/…-6842` 保持原样。
+- 标题：Conventional Commits `type(product/actor): subject`，必须过 `python -m forge pr-title`。CI 检查名 **`pr-title`**。`actor` 是唯一的名分工标记（`dev`\|`admin`\|`agent`）。不是权限，不改分支名 / workflow 名 / skill 名。`cursor/…-6842` 保持原样。
 - 正文六节必须原样：`做了什么` `为什么` `动了哪些门` `怎么验` `不做什么` `分工`
-- 正文「分工」写谁审、谁可合（本节）。标题前缀不代替这一节。
-- **开发写。管理拒收**无规格或标题无此前缀的 PR。
+- 正文「分工」写谁审、谁可合（本节）。标题 `actor` 不代替这一节。
+- **开发写。管理拒收** `pr-title` 红或正文无规格的 PR。Ruleset 勾上 `pr-title` 之后，红则不能合。
 
 ---
 

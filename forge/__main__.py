@@ -1,4 +1,4 @@
-"""python -m forge apply|status"""
+"""python -m forge apply|status|pr-title"""
 
 from __future__ import annotations
 
@@ -11,12 +11,13 @@ from typing import Any, TextIO
 from forge import EXIT_CONFIG, EXIT_OK
 from forge.apply import DEFAULT_API, default_urlopen, run_apply
 from forge.status import run_status
+from forge.title import run_pr_title
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m forge",
-        description="Install or inspect the Forge GitHub ruleset. Does not write CODEOWNERS, AGENTS.md, or workflows.",
+        description="Install or inspect the Forge GitHub ruleset. Lint PR titles. Does not write CODEOWNERS, AGENTS.md, or workflows.",
     )
     sub = parser.add_subparsers(dest="command")
 
@@ -32,6 +33,17 @@ def _parser() -> argparse.ArgumentParser:
 
     status_p = sub.add_parser("status", help="read-only: is the ruleset installed?")
     status_p.add_argument("--repo", required=True, help="OWNER/NAME")
+
+    title_p = sub.add_parser(
+        "pr-title",
+        aliases=["title"],
+        help="lint a GitHub PR title (Conventional Commits + product/actor). Exit 0/2. No GitHub write.",
+    )
+    title_p.add_argument(
+        "--title",
+        default=None,
+        help='PR title, e.g. "feat(overlay/dev): add cover triad". Default: env PR_TITLE.',
+    )
     return parser
 
 
@@ -81,6 +93,13 @@ def main(
             stdout=out,
             stderr=err,
             environ=env_dict,
+        )
+    if args.command in {"pr-title", "title"}:
+        return run_pr_title(
+            title=args.title,
+            environ=env_dict,
+            stdout=out,
+            stderr=err,
         )
     parser.print_help(err)
     return EXIT_CONFIG

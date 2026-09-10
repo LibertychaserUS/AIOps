@@ -11,9 +11,9 @@
 | **用例设计** | [`skills/design-cases/SKILL.md`](../skills/design-cases/SKILL.md) | 同一文件（旧入口 [`agents/case-design.md`](agents/case-design.md)） |
 | **管理端**（Ruleset / merge / arm） | [`skills/manage-repo/SKILL.md`](../skills/manage-repo/SKILL.md) | 不扮演管理端：不 apply、不合、不写 `reviewed_by` |
 | **开发端**（开 PR / 修 armed 红） | [`skills/dev-pr/SKILL.md`](../skills/dev-pr/SKILL.md) | 同一文件 + [`../forge/agent-policy.md`](../forge/agent-policy.md)；只开草稿 PR |
-| **PR 名 / 解说规格** | [`pr-brief.md`](pr-brief.md) + [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md) | 分工 = GitHub **PR 标题前缀** `[<role>][<product>]` + 正文六节。不改分支 / workflow / skill 名 |
+| **PR 名 / 解说规格** | [`pr-brief.md`](pr-brief.md) + `python -m forge pr-title` + [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md) | Conventional Commits `type(product/actor): subject`。检查名 `pr-title`。正文六节。不改分支 / workflow / skill 名 |
 
-PR 的 review 和 merge：**GitHub 上的人 + Ruleset**，不是 Overlay，不是自建管理端。RBAC：[`rbac.md`](rbac.md)。CodeRabbit 只建议，不能当唯一 merge 门。开发写解说规格，管理拒收标题无 `[<role>][<product>]` 前缀或正文缺六节的 PR。标题前缀不是分支名。
+PR 的 review 和 merge：**GitHub 上的人 + Ruleset**，不是 Overlay，不是自建管理端。RBAC：[`rbac.md`](rbac.md)。CodeRabbit 只建议，不能当唯一 merge 门。开发写解说规格，管理拒收 `pr-title` 红或正文缺六节的 PR。标题 `actor` 不是分支名。Ruleset 勾上 `pr-title` 之后，红则不能合。
 
 Overlay 的测试规格（`suites/`）和 CI（`overlay-check`）是一条链：只跑 `armed` 的 `product_command`。不要再开一套旁路 unittest workflow。
 

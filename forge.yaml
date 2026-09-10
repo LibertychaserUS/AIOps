@@ -8,6 +8,7 @@ deny_paths:
   - .github/workflows/ci.yml
 required_checks:
   - overlay-check
+  - pr-title
 review:
   min_approvals: 1
   code_owners: false
