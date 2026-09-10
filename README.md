@@ -19,6 +19,7 @@ Status: Forge first slice is `python -m forge apply --dry-run` (no live apply). 
 - Inbox 输入面：[`docs/inbox.md`](docs/inbox.md)
 - 测试体系规格（两棵树 + 接入方自选 `function_id`）：[`docs/test-spec.md`](docs/test-spec.md)
 - **使用 SOP / skill：** [`skills/use-forge/SKILL.md`](skills/use-forge/SKILL.md)、[`skills/use-overlay/SKILL.md`](skills/use-overlay/SKILL.md)、[`docs/sop.md`](docs/sop.md)
+- **接到其他项目：** 工具留在本仓或你的 **fork**。不要把 `forge/`、`overlay/`、`schema/`、`prompts/` 提交进产品仓。产品仓只留薄配置 + `inbox/` / `suites/` + 一条 `uses:` 工具仓 reusable workflow（pin tag/SHA）。步骤见 [`docs/products.md`](docs/products.md) 与两条 skill。
 - Agent skill（IEEE 子集）：[`docs/agents/ieee-test-system.md`](docs/agents/ieee-test-system.md)
 - Agent：读文档编成契约 [`docs/agents/overlay-contract.md`](docs/agents/overlay-contract.md)；用例设计 / 覆盖 [`docs/agents/case-design.md`](docs/agents/case-design.md)；IEEE 剖面 [`docs/agents/ieee-test-system.md`](docs/agents/ieee-test-system.md)
 - 产品怎么接到别的仓：[`docs/products.md`](docs/products.md)

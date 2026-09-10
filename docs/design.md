@@ -81,7 +81,8 @@ Learning Guide / `LearningGuidePortal` 是 **第一个接入方（fixture）**�
                          （不改其构建 workflow）
 ```
 
-账本：接入方 Git。本工作本只发布 **模板、CLI、reusable workflow、JSON Schema**。  
+账本：接入方 Git（薄配置 + `inbox/` / `suites/`）。本工作本只发布 **模板、CLI、reusable workflow、JSON Schema**。  
+接入方产品仓 **不要** vendor `forge/`、`overlay/`、`schema/`、`prompts/`；CLI 用旁边的本工作本或 fork（`PYTHONPATH`），CI 用 `uses:` 再 checkout 工具仓。  
 运行时：GitHub Actions + 标准 CPython 3.12+。  
 两件产品独立版本（`forge@v1` / `overlay@v1`），可只装一件。
 
@@ -225,11 +226,13 @@ jobs:
 
 ### 3.10 接入步骤（任意仓）
 
-1. 复制 `forge.yaml` example，改 `protect` / `deny_paths`。
-2. 复制 `agent-policy.md` 进 `AGENTS.md`。
-3. 按需复制 `CODEOWNERS.example`。
-4. `python -m forge apply --repo owner/name`。
-5. （可选）挂 `forge-guard.yml@forge-v1`。
+不要把 `forge/` 包打进产品仓。工具留在本工作本或 fork。
+
+1. 产品仓只加 `forge.yaml`（从 example 改 `protect` / `deny_paths`）。
+2. 把 `agent-policy.md` **文本**贴进 `AGENTS.md`（不是拷目录）。
+3. 按需把 `CODEOWNERS.example` 文本贴进产品仓。
+4. `PYTHONPATH=<工具仓> python -m forge apply --repo owner/name`。
+5. （可选）产品仓薄 workflow：`uses:` `forge-guard.yml@forge-v1`（pin tag/SHA，不要 `main`）。
 6. 在 GitHub UI 把接入方**自己的**构建 check 标 required（Forge 不代写名字以外的 job）。
 
 LG：`deny_paths` 含 `.github/workflows/ci.yml`。不改 Verify 内容。
@@ -246,7 +249,9 @@ LG：`deny_paths` 含 `.github/workflows/ci.yml`。不改 Verify 内容。
 
 Overlay 让任意仓：**先有人审过的用例页，再按三种状态决定跑不跑**。不替代构建门。第一刀产出给人看的用例，不是门禁用的 Playwright 源码。
 
-### 4.2 目录（接入方仓内，或旁边一个 overlay 仓）
+### 4.2 目录（产品仓只留薄层；工具在本工作本或 fork）
+
+产品仓提交这些，**不要**提交 `overlay/` 包：
 
 ```text
 inbox/<id>.md
@@ -254,11 +259,12 @@ suites/<id>/suite.yaml
 suites/<id>/cases.md
 suites/<id>/trace.yaml          # 可选
 overlay.yaml
+invariants.yaml                 # 可选
 receipts/<run-id>.yaml          # 程序写，不提交密钥
-prompts/                        # 可选覆写；缺省用产品自带
+.github/workflows/*.yml         # 薄 uses: overlay.yml@<tag-or-sha>
 ```
 
-本工作本：`schema/` 冻契约；`examples/learning-guide/` 是 fixture。
+`prompts/` 缺省用工具仓自带；接入方不必拷进产品仓。本工作本：`schema/` 冻契约；`examples/learning-guide/` 是 fixture。CI 在调用方无 `overlay/` 时 checkout 本工作本（见 `overlay.yml`）。
 
 ### 4.3 状态机（三种，不许更多）
 
@@ -460,10 +466,11 @@ jobs:
   run:
     needs: select
     若 enable_run：在调用方 checkout 对每个 selected 跑 product_command
+    调用方无 overlay/ 时 checkout 本工作本到 _aiops（不要把包拷进产品仓）
     禁止请求 forbid_hosts；不 checkout 外国产品仓
 ```
 
-接入方构建 workflow **不得** `workflow_call` 本文件。本文件也 **不得** `workflow_call` 接入方 Verify。
+接入方产品仓只 `uses:` 本文件（pin `overlay-v1` / SHA），不要 vendor `overlay/`。接入方构建 workflow **不得** `workflow_call` 本文件。本文件也 **不得** `workflow_call` 接入方 Verify。
 
 `enable_run` 默认 `false`。本工作本的 `overlay-check` 打开它，并把 `branch` 钉成 `main`，这样 agent 分支仍跑 armed 工具测试。
 

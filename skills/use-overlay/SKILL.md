@@ -5,8 +5,9 @@ description: >-
   validate, select armed suites, run their product_command in CI. Test and
   CI are the same gate. Use when adopting Overlay, writing inbox/suites,
   asking how to cover corner cases, running overlay validate/select/run/cover,
-  or wiring overlay-check. Do not use for GitHub Rulesets (use use-forge).
-  Do not generate or arm without a human.
+  or wiring overlay-check. Do not vendor overlay/ into the product git repo.
+  Do not use for GitHub Rulesets (use use-forge). Do not generate or arm
+  without a human.
 ---
 
 # Use Overlay
@@ -17,63 +18,119 @@ Overlay is a standard part. Freeze the contract, not a product’s numbers. Agen
 
 ## Instructions
 
+### Reuse — tool stays out of the product commit repo
+
+**Do not upload / vendor the tool into the adopter's product git repo** (the repo they commit and push). 不要把工具上传到接入方要提交、推送的产品仓。
+
+| Keep here | Never `git add` into the product tree |
+|---|---|
+| This workshop `LibertychaserUS/AIOps`, **or** the adopter's **fork** of this workshop | `overlay/`, `forge/`, `schema/`, `prompts/`, this workshop's Python packages |
+
+The product repo commits **only**:
+
+- `overlay.yaml`
+- `inbox/`
+- `suites/`
+- `invariants.yaml` (optional)
+- a thin workflow that `uses:` [`.github/workflows/overlay.yml`](../../.github/workflows/overlay.yml) from the **tool** repo — pin a **tag or commit SHA**, not floating `main`
+
+That is the whole adoption surface. Do **not** copy `overlay/` into the product tree so that CI sees `local=true`. When `overlay/__init__.py` is absent, the reusable workflow checkouts `LibertychaserUS/AIOps` into `_aiops` and sets `PYTHONPATH`. **That checkout is the correct reuse path.**
+
+Local CLI: checkout the tool repo or fork **beside** the product. Set `PYTHONPATH`. Do not `git add` the tool tree.
+
+```text
+# sibling checkouts — product git must not contain overlay/
+../AIOps/          # LibertychaserUS/AIOps or your fork
+./my-product/      # overlay.yaml + inbox/ + suites/ only
+
+cd my-product
+PYTHONPATH=../AIOps python3 -m overlay validate --root .
+PYTHONPATH=../AIOps python3 -m overlay cover --root .
+```
+
+If you forked the workshop, `uses:` **your fork** at a pin. A fork that diverges from upstream should point the workflow's tool checkout at that fork (the default in this workshop checkouts `LibertychaserUS/AIOps`). Never pin floating `main`.
+
 ### Humans / agents — write
 
 1. **One slice = one inbox.** `inbox/<id>.md` (front matter + short Markdown). Same `id` as `suites/<id>/` after compile. Do not vendor a whole PRD.
-2. **Read the adopter docs**, then compile. `function_id` is whatever stable, unique, non-whitespace string the docs already use. Do not invent a second numbering system for unit / e2e / k6. The same id is what CI receipts point at when a command fails.
+2. **Read the adopter docs**, then compile. `function_id` is whatever stable, unique, non-whitespace string the docs already use. Do not invent a second numbering system for unit / e2e / k6. The same id is what CI receipts point at when a command fails. Do not couple the kernel to one product's routes, domains, or numbering.
 3. **Design cases against the whole overlay root**, not one inbox. Method: [`docs/agents/case-design.md`](../../docs/agents/case-design.md). `armed` needs Functional / Negative / Edge. Global corners go in `invariants.yaml` and must be cited in some `cases.md`. Coupled leaves get `span: interaction` + `relates` — no `CROSS-01` series, no pairwise explosion.
-4. **Validate and print cover** (no model):
+4. **Validate and print cover** (no model). Use `PYTHONPATH` to the tool checkout when you are not inside this workshop:
    ```text
-   python -m overlay validate --root .
-   python -m overlay cover --root .
+   PYTHONPATH=../AIOps python3 -m overlay validate --root .
+   PYTHONPATH=../AIOps python3 -m overlay cover --root .
    ```
-5. **`generate` is not on this path.** Do not run it on push. When it exists: human or `workflow_dispatch` only; output `status: draft`; never write `reviewed_by` or `armed`. Until then, hand-write `suites/<id>/`.
-6. **Humans arm or block.** Edit `suite.yaml` only. `blocked` = reviewed, not ready to gate. `armed` = reviewed and claimed testable. Agents must not arm. An `armed` suite that should gate CI needs a `product_command`. Missing command is skip, not red.
+5. **`generate` is not on this path.** Do not run it on push. When it exists: human or `workflow_dispatch` only; output `status: draft`; never write `reviewed_by` or `armed`. Until then, hand-write `suites/<id>/`. Token only on explicit generate.
+6. **Humans arm or block.** Edit `suite.yaml` only. `blocked` = reviewed, not ready to gate. `armed` = reviewed and claimed testable. Agents must not arm. Models must not write `reviewed_by` or receipts. CI must not auto-arm. An `armed` suite that should gate CI needs a `product_command`. Missing command is skip, not red.
 
 ### CI — same gate as the tests
 
-7. Wire reusable [`.github/workflows/overlay.yml`](../../.github/workflows/overlay.yml). This workshop’s `overlay-check.yml` uses `enable_run: true` and pins `branch: main` so agent branches still run the armed tool tests.
-8. Push / PR runs **validate + select + run**. `run` executes each selected suite’s `product_command` in the **caller checkout**. It does not clone a foreign product repo (Learning Guide Portal is never checked out from here). No generate. No token spend.
-9. Local equivalent:
+7. Wire a **thin** caller that `uses:` the reusable overlay workflow from the tool repo (pin tag/SHA). This workshop’s `overlay-check.yml` uses `enable_run: true` and pins `branch: main` so agent branches still run the armed **tool** tests — that file is for this workshop, not something to copy the Python package from.
+8. Push / PR runs **validate + select + run**. `run` executes each selected suite’s `product_command` in the **caller (product) checkout**. It does not clone a foreign product repo (Learning Guide Portal is never checked out from here). It **does** checkout the tool repo when `overlay/` is not local. No generate. No token spend on push.
+9. Local equivalent (tool next door):
    ```text
-   python -m overlay select --branch main --root . --write-receipt receipts/
-   python -m overlay run --branch main --root . --workdir . --write-receipt receipts-run/
+   PYTHONPATH=../AIOps python3 -m overlay select --branch main --root . --write-receipt receipts/
+   PYTHONPATH=../AIOps python3 -m overlay run --branch main --root . --workdir . --write-receipt receipts-run/
    ```
    Only `armed` suites whose `kind` is in `overlay.yaml` for that branch. `draft` / `blocked` drop and must not redden the job. Unknown branch → empty set, still green. Failed armed command → exit 5 (job red). Command hitting `forbid_hosts` → exit 2, command not started.
 10. Receipts are program-written (`wrote_by: select` or `wrote_by: run`). Models must not write them. `run` without `--write-receipt` is no evidence (exit 2).
 
 ### Never
 
-- Do not replace or `workflow_call` the adopter’s existing build workflow (Learning Guide Verify is the first example).
-- Do not attach Proctor. Do not hit production hosts in `forbid_hosts`.
+- Do not vendor `overlay/` / `forge/` / `schema/` / `prompts/` into the product commit repo.
+- Do not replace or `workflow_call` the adopter’s existing build workflow (Learning Guide Verify is the first example). Never change LearningGuidePortal Verify.
+- Do not apply Overlay live onto Learning Guide Portal from this workshop. Do not checkout `LearningGuidePortal`.
+- Do not attach / run / gate intern-workspace Proctor. Do not edit Deepseek3.
+- Do not hit production hosts in `forbid_hosts` (LG: `ilovelearningguide.com`). No CD.
 - Do not put `status` / `reviewed_by` on inbox.
+- Do not generate on push. Do not arm as an agent. CI does not auto-arm.
 - Do not keep a second unit-test workflow that bypasses Overlay select. If a test should gate, it is an armed `product_command`.
 
 ## Examples
 
-This workshop (already adopted):
+This workshop (already adopted; it **is** the tool repo, so local `overlay/` is correct **here only**):
 
 ```text
-python -m overlay validate --root .
-python -m overlay select --branch main --root .
+python3 -m overlay validate --root .
+python3 -m overlay select --branch main --root .
 # selected: forge-apply, overlay-select
 # dropped: overlay-generate (blocked)
-python -m overlay cover --root .
-python -m overlay run --branch main --root . --workdir . --write-receipt receipts-run/
+python3 -m overlay cover --root .
+python3 -m overlay run --branch main --root . --workdir . --write-receipt receipts-run/
 # forge-apply → forge unit tests + apply --dry-run
 # overlay-select → schema/check.py + overlay unit tests
 ```
 
-Learning Guide is a **fixture** under `examples/learning-guide/`, not the Overlay kernel. Its armed suite has no `product_command` (skip, not red). This workshop must not checkout `LearningGuidePortal`.
+Another product — thin caller only, pin a tag or SHA (not `main`):
+
+```yaml
+# .github/workflows/overlay-check.yml  — in the PRODUCT repo
+name: overlay-check
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  overlay:
+    uses: LibertychaserUS/AIOps/.github/workflows/overlay.yml@<tag-or-sha>
+    with:
+      enable_run: true
+      root: "."
+```
+
+Learning Guide is a **fixture** under `examples/learning-guide/`, not the Overlay kernel. Its armed suite has no `product_command` (skip, not red). This workshop must not checkout `LearningGuidePortal`. Never apply live to that product.
 
 ## Performance Notes
 
-validate / select are local YAML. `run` is local subprocess in the caller checkout. Token only on explicit generate (not shipped). Do not parse docx on this path.
+validate / select are local YAML. `run` is local subprocess in the caller checkout. Token only on explicit generate (not shipped). Do not parse docx on this path. Adopter CI checkouts the tool repo once per job when `overlay/` is absent — that is cheaper and safer than vendoring.
 
 ## Troubleshooting
 
 | 现象 | 处理 |
 |---|---|
+| 想把 `overlay/` 拷进产品仓好过 CI | 停。让 `local=false`，reusable workflow 会 checkout `LibertychaserUS/AIOps`。 |
+| validate 找不到 `overlay` 模块 | 本地设 `PYTHONPATH` 指向工作本或 fork；不要 `git add overlay/`。 |
 | validate 退出 2 | 契约红。读打印的路径。不是业务功能红。 |
 | blocked 把 check 染红 | bug。blocked 必须丢弃。 |
 | armed 命令失败退出 5 | 修那个 `function_id` 对应的代码或命令。回执里有 `ran` + `exit_code`。 |
@@ -85,3 +142,4 @@ validate / select are local YAML. `run` is local subprocess in the caller checko
 | 另开一个 unittest workflow | 停。把命令写进 armed suite。 |
 | 抓不到全局 corner | 先读全部 inbox/suites，把性质写成 invariant，再写叶子。不要两两穷尽。 |
 | armed 缺 Edge | 契约红。补技法。 |
+| `uses: …@main` | 停。pin tag 或 SHA。 |

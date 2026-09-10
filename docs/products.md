@@ -1,6 +1,6 @@
 # 两件产品：怎么做、怎么复用
 
-本仓是工作本，不是某一家业务仓。做出两件 **可安装到任意 GitHub 仓** 的产品。Learning Guide 是第一个接入方，不是产品本身。
+本仓是工作本，不是某一家业务仓。做出两件 **可接到任意 GitHub 仓** 的产品（产品仓只留薄配置，不 vendor 工具包）。Learning Guide 是第一个接入方，不是产品本身。
 
 | 产品 | 代号 | 一句话 |
 |---|---|---|
@@ -13,14 +13,34 @@
 
 ---
 
+## 复用：工具不进产品仓
+
+**不要把工具（`forge/`、`overlay/`、`schema/`、`prompts/`、本工作本的 Python 包）上传到接入方要提交、推送的产品 Git 仓。** 工具留在 `LibertychaserUS/AIOps` 的本地 git，或接入方 **fork** 的本工作本。
+
+产品仓只提交薄层：
+
+| 产品仓提交 | 不提交 |
+|---|---|
+| `forge.yaml` / `overlay.yaml` | `forge/` 包、`overlay/` 包 |
+| `inbox/` / `suites/` / 可选 `invariants.yaml` | `schema/`、`prompts/`（产品自带；接入方不必拷） |
+| 一条薄 workflow：`uses:` 工具仓的 reusable workflow，pin **tag 或 SHA**，不要 `main` | 把本工作本整树 vendor / submodule 进产品仓 |
+
+本地：工具仓或 fork 与产品仓并排放。`PYTHONPATH=<工具仓>` 再跑 `python3 -m forge` / `python3 -m overlay`。不要为了 import 把包 `git add` 进产品树。
+
+CI：产品仓没有 `overlay/__init__.py` 时，reusable [`overlay.yml`](../.github/workflows/overlay.yml) 会 checkout `LibertychaserUS/AIOps` 到 `_aiops` 并设 `PYTHONPATH`。这是正确复用路径。不要为了让 `local=true` 把 `overlay/` 拷进产品仓。
+
+Fork 若已分叉、SHA 不在上游：`uses:` 指向该 fork 的 pin；fork 里的 workflow 把工具 checkout 改成自己的 fork。
+
+---
+
 ## 共同规矩
 
-- 账本是 **接入方自己的 GitHub 仓**，不是本仓数据库，不是门户。
-- 交付物是 **模板 + CPython CLI + reusable workflow**，不是 SaaS。
+- 账本是 **接入方自己的 GitHub 仓**，不是本仓数据库，不是门户。账本文件是薄配置 + inbox/suites，不是工具源码。
+- 交付物是 **模板 + CPython CLI + reusable workflow**，不是 SaaS。CLI 从本工作本或 fork 跑，不打进产品仓。
 - 标准 CPython 3.12+。C 扩展只留给量过的热路径。
 - 不做 CD。不打接入方生产域名。不改接入方已有构建 workflow（Learning Guide 的 Verify 是这一条的第一例）。
-- 不 attach 任何仓的 Proctor / intern 监考。
-- Agent 只开 PR，不直推保护分支，不自 merge，不写 Overlay 的 `reviewed_by` / 回执。
+- 不 attach 任何仓的 Proctor / intern 监考。不改 Deepseek3。不对 `LearningGuidePortal` live apply。
+- Agent 只开 PR，不直推保护分支，不自 merge，不写 Overlay 的 `reviewed_by` / 回执，不 `armed`。CI 不自动 armed。token 只在人点的 `generate`，不在 push。
 
 ---
 
@@ -32,15 +52,15 @@
 
 ### 做成什么（标准件）
 
-装进任意 `owner/repo` 的一组文件 + 一条 GitHub API 调用：
+标准件留在本工作本（或 fork）。接入方产品仓只加薄配置，再对目标 `owner/repo` 跑一条 GitHub API（从工具仓调用 `python -m forge`）：
 
-| 标准件 | 作用 | 接入方要改的 |
+| 标准件（在工具仓） | 作用 | 产品仓要改的 |
 |---|---|---|
-| `forge/ruleset.protected-default.json` | 保护 `main`（及接入方列出的分支）：禁 force push、禁直推、必须 PR | 分支名 |
-| `forge/CODEOWNERS.example` | 路径 → 必须审的人 | 团队 @名 |
-| `forge/agent-policy.md` | 写进接入方 `AGENTS.md` / Copilot instructions：只开 PR、不碰 secrets、不改构建门 | 仓名 |
-| `.github/workflows/forge-guard.yml` | reusable：校验 PR 来自允许的前缀、没有改保护 workflow | 分支前缀（默认 `cursor/`, `copilot/`） |
-| `python -m forge apply --repo owner/name` | 用 GitHub API 安装 Ruleset（幂等） | token 权限 |
+| `forge/ruleset.protected-default.json` | 保护 `main`（及接入方列出的分支）：禁 force push、禁直推、必须 PR | 分支名写在产品仓 `forge.yaml` |
+| `forge/CODEOWNERS.example` | 路径 → 必须审的人 | 按需把**文本**贴进产品仓 `.github/CODEOWNERS`，不拷 `forge/` |
+| `forge/agent-policy.md` | 写进接入方 `AGENTS.md` / Copilot instructions：只开 PR、不碰 secrets、不改构建门 | 贴文本，不 vendor 包 |
+| `.github/workflows/forge-guard.yml` | reusable：校验 PR 来自允许的前缀、没有改保护 workflow | 产品仓一条薄 `uses:`（pin tag/SHA） |
+| `python -m forge apply --repo owner/name` | 用 GitHub API 安装 Ruleset（幂等） | 本机 `PYTHONPATH` 指向工具仓；token 权限 |
 
 评审：继续用接入方已有的 **CodeRabbit**（或同等 PR review）。Forge 不重做 diff 审。Copilot review 只当建议，不当 merge 门。
 
@@ -49,13 +69,18 @@
 ### 接入（任意项目）
 
 ```text
-1. 在目标仓加 forge-guard workflow（uses: this-repo/.github/workflows/forge-guard.yml@vX）
-2. 复制 CODEOWNERS、agent-policy 片段
-3. forge apply --repo owner/name
-4. 把「构建已绿」设为 required check（用接入方自己的 CI 名，不替他们写）
+0. 工具留在 LibertychaserUS/AIOps 或你的 fork。不要 git add forge/ 进产品仓。
+1. 产品仓只加 forge.yaml（从 forge.example.yaml 改 protect / deny_paths）
+2. 按需把 CODEOWNERS、agent-policy 的文本贴进产品仓（不是拷 forge/ 目录）
+3. 本地：PYTHONPATH=<工具仓> python3 -m forge apply --repo owner/name --dry-run
+   人拿 admin token 再 apply。禁止对 LearningGuidePortal live apply。
+4. （guard 落地后）产品仓加一条薄 workflow：
+   uses: LibertychaserUS/AIOps/.github/workflows/forge-guard.yml@<tag-or-sha>
+   不要 pin 浮动 main。
+5. 把「构建已绿」设为 required check（用接入方自己的 CI 名，不替他们写）
 ```
 
-Learning Guide：Ruleset 加在产品仓 + 本工作本；**不改** `.github/workflows/ci.yml`。Agent 改产品代码只能开 PR。
+Learning Guide：本工作本可放 fixture；**不改** 产品仓 `.github/workflows/ci.yml` / Verify，不从这里 checkout Portal，不 live apply。Agent 改产品代码只能开 PR。
 
 ### 第一刀 / 以后
 
@@ -82,22 +107,30 @@ Learning Guide：Ruleset 加在产品仓 + 本工作本；**不改** `.github/wo
 | `python -m overlay generate` | 读 inbox，编成契约合法的 `suites/<id>/`，`status: draft`。无写死 FR 表 | 提示词可覆写 |
 | `python -m overlay select --branch` | 只输出该分支该跑的 `armed` | `overlay.yaml` 的 branches |
 | `python -m overlay receipt` | 程序写回执，模型不写 | 无 |
-| `.github/workflows/overlay.yml` | reusable：校验契约 + select + 在调用方 checkout 里跑 `product_command` | 哪条命令；不要从本工作本 checkout 外国产品仓 |
-| `overlay.yaml` | 产品仓 pin、分支、never_red | **整份都是接入方的** |
+| `.github/workflows/overlay.yml` | reusable：校验契约 + select + 在**产品仓** checkout 里跑 `product_command`；产品仓无 `overlay/` 时再 checkout 本工作本到 `_aiops` | 产品仓一条薄 `uses:`（pin tag/SHA）；不要把 `overlay/` 拷进产品仓；不要从本工作本 checkout 外国产品仓 |
+| `overlay.yaml` | 产品仓 pin、分支、never_red | **整份都是接入方的**；只提交这份 yaml，不提交 Overlay 源码 |
 
 状态机、回执、和 Proctor 的语义对齐（没审过不跑、没证据不过）是 Overlay 的标准，不复制七段监考。
 
 ### 接入（任意项目）
 
 ```text
-目标仓（或旁边一个 overlay 仓）里：
+工具仓（LibertychaserUS/AIOps 或你的 fork，不要推进产品仓）：
+  overlay/ schema/ prompts/ .github/workflows/overlay.yml
+
+产品仓只提交：
   inbox/                 该项目的需求摘录（一篇 inbox = 一个 suite；合同见 docs/inbox.md）
   suites/                该项目的测试树实例（cases.md 用 function_id；两棵树对齐叶子）
   overlay.yaml           指向该项目的代码仓与脚本
-  uses: overlay.yml@vX
+  invariants.yaml        可选
+  .github/workflows/overlay-check.yml
+      uses: LibertychaserUS/AIOps/.github/workflows/overlay.yml@<tag-or-sha>
+
+本地：
+  PYTHONPATH=<工具仓> python3 -m overlay validate --root <产品仓>
 ```
 
-Learning Guide 只是一份 **fixture**：`examples/learning-guide/overlay.yaml` 指向 `LearningGuidePortal`，支付/登录默认 `blocked`，My Learning 可 `armed`。别的项目换 inbox 和 `product_command`，不改 Overlay 源码。
+Learning Guide 只是一份 **fixture**：`examples/learning-guide/overlay.yaml` 指向 `LearningGuidePortal`，支付/登录默认 `blocked`，My Learning 可 `armed`。别的项目换 inbox 和 `product_command`，不改 Overlay 源码，也不要把 Overlay 源码打进那个产品仓。不 checkout Portal，不 live forge apply。
 
 ### 第一刀 / 以后
 
@@ -134,22 +167,24 @@ Learning Guide 只是一份 **fixture**：`examples/learning-guide/overlay.yaml`
 
 ## 本仓怎么长（实现时）
 
+这是**工具工作本**（或它的 fork）的树，不是产品仓该拷的树。
+
 ```text
-forge/                  # 产品 A
+forge/                  # 产品 A — 留在本仓 / fork
   ruleset.protected-default.json
   CODEOWNERS.example
   agent-policy.md
   apply.py
-overlay/                # 产品 B（或 src/overlay）
+overlay/                # 产品 B — 留在本仓 / fork
   validate.py
   select.py
   run.py
   receipt.py
-schema/                 # Overlay 契约，跨项目冻住
-examples/learning-guide/   # 第一个接入方，不是核心
+schema/                 # Overlay 契约，跨项目冻住；不打进产品仓
+examples/learning-guide/   # 第一个接入方 fixture，不是核心
 .github/workflows/
-  overlay.yml
-  overlay-check.yml
+  overlay.yml           # reusable；产品仓 uses: 本文件 @ pin
+  overlay-check.yml     # 本工作本自用
 ```
 
-版本：`forge@v1`、`overlay@v1` 分开打 tag。接入方 pin tag，不 pin 本仓 `main`。
+版本：`forge@v1`、`overlay@v1` 分开打 tag。接入方 pin tag 或 SHA，不 pin 本仓 `main`。

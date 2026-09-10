@@ -1,6 +1,8 @@
 # Reusable Overlay CI: validate + select, and optionally run armed product_command.
-# Same-repo checkout only. No foreign product clone. No generate. No tokens on push.
-# Do not workflow_call a product ci.yml / Verify.
+# Always checkout the caller (product). If overlay/ is absent (correct adopter
+# shape), checkout LibertychaserUS/AIOps into _aiops — do not vendor overlay/
+# into the product repo. No foreign product clone (never LearningGuidePortal).
+# No generate. No tokens on push. Do not workflow_call a product ci.yml / Verify.
 
 name: overlay
 
@@ -39,6 +41,7 @@ jobs:
       - name: Detect Overlay package
         id: pkg
         run: |
+          # local=true only in this workshop. Adopters must not copy overlay/ in.
           if [ -f overlay/__init__.py ]; then
             echo "local=true" >> "$GITHUB_OUTPUT"
           else
@@ -85,6 +88,7 @@ jobs:
       - name: Detect Overlay package
         id: pkg
         run: |
+          # local=true only in this workshop. Adopters must not copy overlay/ in.
           if [ -f overlay/__init__.py ]; then
             echo "local=true" >> "$GITHUB_OUTPUT"
           else
@@ -149,6 +153,7 @@ jobs:
       - name: Detect Overlay package
         id: pkg
         run: |
+          # local=true only in this workshop. Adopters must not copy overlay/ in.
           if [ -f overlay/__init__.py ]; then
             echo "local=true" >> "$GITHUB_OUTPUT"
           else
