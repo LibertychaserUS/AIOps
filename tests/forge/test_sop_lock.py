@@ -28,6 +28,11 @@ class WorkshopSopLockTests(unittest.TestCase):
         for rel in (".agents/skills", ".cursor/skills", ".claude/skills"):
             self.assertTrue((ROOT / rel / "use-forge" / "SKILL.md").is_file())
             self.assertTrue((ROOT / rel / "use-overlay" / "SKILL.md").is_file())
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("--agent codex", readme)
+        self.assertIn("--agent cursor", readme)
+        self.assertIn("--agent claude-code", readme)
+        self.assertNotIn("--agent copilot", readme)
 
     def test_workshop_is_green(self) -> None:
         stdout = io.StringIO()

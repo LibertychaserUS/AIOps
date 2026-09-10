@@ -47,11 +47,10 @@ mkdir -p ~/.agents/skills
 ln -s /abs/path/to/AIOps/skills/use-forge ~/.agents/skills/use-forge
 ln -s /abs/path/to/AIOps/skills/use-overlay ~/.agents/skills/use-overlay
 
-# or GitHub CLI into Codex’s shared project dir
-gh skill install LibertychaserUS/AIOps --agent copilot --pin overlay-v1.0.1
+# or GitHub CLI (copies SKILL.md into .agents/skills; prefer symlink so doc links stay in this workshop)
+gh skill install LibertychaserUS/AIOps use-forge --agent codex --scope project --pin overlay-v1.0.1
+gh skill install LibertychaserUS/AIOps use-overlay --agent codex --scope project --pin overlay-v1.0.1
 ```
-
-(`gh skill install --agent copilot` writes `.agents/skills`, which Codex and several other hosts share.)
 
 ### Cursor
 
@@ -74,14 +73,15 @@ mkdir -p ~/.cursor/skills
 ln -s /abs/path/to/AIOps/skills/use-forge ~/.cursor/skills/use-forge
 ln -s /abs/path/to/AIOps/skills/use-overlay ~/.cursor/skills/use-overlay
 
-gh skill install LibertychaserUS/AIOps --agent cursor --pin overlay-v1.0.1
+gh skill install LibertychaserUS/AIOps use-forge --agent cursor --scope project --pin overlay-v1.0.1
+gh skill install LibertychaserUS/AIOps use-overlay --agent cursor --scope project --pin overlay-v1.0.1
 ```
 
-Cloud Agents only see **project** skills in the repo, or `~/.cursor/skills` if you turn on Sync Skills. UI: Customize → Skills, or add this GitHub repo as a remote skill source.
+Cloud Agents see **project** skills in the clone. Personal `~/.cursor/skills` need Sync Skills. UI: Customize → Skills.
 
 ### Claude Code
 
-Spec: project `.claude/skills/<name>/SKILL.md`, user `~/.claude/skills/<name>/SKILL.md`.
+Spec: [Claude Code skills](https://code.claude.com/docs/en/skills). Project `.claude/skills/<name>/SKILL.md`; user `~/.claude/skills/<name>/SKILL.md`. Sibling workshop: `claude --add-dir ../AIOps` (loads that tree’s `.claude/skills/`).
 
 | Scope | Standard path |
 |---|---|
@@ -100,10 +100,14 @@ mkdir -p ~/.claude/skills
 ln -s /abs/path/to/AIOps/skills/use-forge ~/.claude/skills/use-forge
 ln -s /abs/path/to/AIOps/skills/use-overlay ~/.claude/skills/use-overlay
 
-gh skill install LibertychaserUS/AIOps --agent claude-code --pin overlay-v1.0.1
+# or load this workshop without copying (official --add-dir)
+claude --add-dir ../AIOps
+
+gh skill install LibertychaserUS/AIOps use-forge --agent claude-code --scope project --pin overlay-v1.0.1
+gh skill install LibertychaserUS/AIOps use-overlay --agent claude-code --scope project --pin overlay-v1.0.1
 ```
 
-Restart the agent after adding paths. Then `/use-forge` or `/use-overlay`, or let it pick from the description.
+Restart the agent after adding paths. Then `/use-forge` or `/use-overlay`, or let it pick from the description. CLI still needs `PYTHONPATH=../AIOps`.
 
 ---
 
@@ -225,7 +229,7 @@ PRs into `main` are a capstone: squash, then start the next branch from the **ne
 
 ---
 
-## 5. Skills (Codex / Agent Skills)
+## 5. Skills (index)
 
 | Read this | When |
 |---|---|
@@ -239,7 +243,7 @@ PRs into `main` are a capstone: squash, then start the next branch from the **ne
 | [`docs/design.md`](docs/design.md) | Implementer source of truth |
 | [`AGENTS.md`](AGENTS.md) | Hard constraints for agents in **this** repo |
 
-Codex also loads `.agents/skills/` (symlinks to `skills/`).
+Import paths are in **Native skills** above. This workshop: `.agents/skills/` (Codex), `.cursor/skills/` (Cursor), `.claude/skills/` (Claude Code) — all symlinks to `skills/`.
 
 ---
 
@@ -247,7 +251,7 @@ Codex also loads `.agents/skills/` (symlinks to `skills/`).
 
 - Do not change LearningGuidePortal Verify. Do not clone `First-Light-TechHK/LearningGuidePortal` from here.
 - Do not attach, run, or gate intern-workspace Proctor. Do not edit Deepseek3.
-- Do not press production (`ilovelearningguide.com`). No CD.
+- Do not press production (`ilovelearningguide.com`). No production CD. Publishing tags is human `forge release` / Actions `release`, not a deploy.
 - Do not vendor the tool into a product commit repo.
 - Do not generate on push. Do not auto-arm. Do not write receipts or `reviewed_by` as a model.
 - Do not self-merge, self-approve, or treat CodeRabbit as the only merge gate.
