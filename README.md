@@ -20,6 +20,7 @@ Status: Forge first slice is `python -m forge apply --dry-run` (no live apply). 
 - 测试体系规格（两棵树 + 接入方自选 `function_id`）：[`docs/test-spec.md`](docs/test-spec.md)
 - **使用 skill（Codex `SKILL.md`）：** [`skills/use-forge/SKILL.md`](skills/use-forge/SKILL.md)、[`skills/use-overlay/SKILL.md`](skills/use-overlay/SKILL.md)、[`skills/design-cases/SKILL.md`](skills/design-cases/SKILL.md)、管理端 [`skills/manage-repo/SKILL.md`](skills/manage-repo/SKILL.md)、开发端 [`skills/dev-pr/SKILL.md`](skills/dev-pr/SKILL.md)。索引：[`docs/sop.md`](docs/sop.md)。Codex 仓内发现路径：`.agents/skills/`（指向同一批 skill）。
 - **PR review / merge 与 RBAC：** GitHub 上的人 + Ruleset，不是门户。[`docs/rbac.md`](docs/rbac.md)。
+- **PR 名 / 解说规格：** 分工只写 **PR 标题前缀** `[<role>][<product>]`，不是分支 / workflow / skill 名。正文六节。开发写，管理拒收无规格。[`docs/pr-brief.md`](docs/pr-brief.md)。模板：[`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md)。
 - **接到其他项目：** 工具留在本仓或你的 **fork**。不要把 `forge/`、`overlay/`、`schema/`、`prompts/` 提交进产品仓。产品仓只留薄配置 + `inbox/` / `suites/` + 一条 `uses:` 工具仓 reusable workflow（pin tag/SHA）。步骤见 [`docs/products.md`](docs/products.md) 与 `use-forge` / `use-overlay`。
 - Agent：读文档编成契约 [`docs/agents/overlay-contract.md`](docs/agents/overlay-contract.md)；用例设计 / 覆盖 [`skills/design-cases/SKILL.md`](skills/design-cases/SKILL.md)（旧入口 [`docs/agents/case-design.md`](docs/agents/case-design.md)）；IEEE 剖面 [`docs/agents/ieee-test-system.md`](docs/agents/ieee-test-system.md)
 - 产品怎么接到别的仓：[`docs/products.md`](docs/products.md)

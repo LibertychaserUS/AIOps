@@ -1,4 +1,4 @@
 interface:
   display_name: "Dev PR"
   short_description: "Open PRs; do not arm or apply Forge"
-  default_prompt: "Use $dev-pr as 开发端: open a PR, fix armed-red, request review. Do not push protect, self-merge, arm Overlay, or live forge apply."
+  default_prompt: "Use $dev-pr as 开发端: open a PR titled [<role>][<product>] <imperative>, fix armed-red, request review. Do not invent branch prefixes. Do not push protect, self-merge, arm Overlay, or live forge apply."

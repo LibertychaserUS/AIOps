@@ -4,7 +4,7 @@
 工作本：`LibertychaserUS/AIOps`  
 约束原文：[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md)
 
-本文是实现的单一对照。摘要见 [`products.md`](products.md)。Inbox 见 [`inbox.md`](inbox.md)。测试规格见 [`test-spec.md`](test-spec.md)。Agent 编译契约：[`agents/overlay-contract.md`](agents/overlay-contract.md)。IEEE 剖面：[`agents/ieee-test-system.md`](agents/ieee-test-system.md)。对话过程稿见 [`architecture.md`](architecture.md)。
+本文是实现的单一对照。摘要见 [`products.md`](products.md)。Inbox 见 [`inbox.md`](inbox.md)。测试规格见 [`test-spec.md`](test-spec.md)。PR 解说规格：[`pr-brief.md`](pr-brief.md)。Agent 编译契约：[`agents/overlay-contract.md`](agents/overlay-contract.md)。IEEE 剖面：[`agents/ieee-test-system.md`](agents/ieee-test-system.md)。对话过程稿见 [`architecture.md`](architecture.md)。
 
 Overlay 冻**字段与对齐方式**，不冻某产品的编号、PRD 树或 IEEE 文件名。接入方文档说了什么 id，人/agent 读完编进契约即可。两棵树用同一个接入方自选的 `function_id` 对齐。
 
@@ -588,6 +588,8 @@ docs/agents/ieee-test-system.md
 schema/check.py          # 形状检查；不是产品 CLI
 docs/products.md
 docs/rbac.md             # GitHub-native review/merge；管理端 vs 开发端
+docs/pr-brief.md          # PR 解说规格（标题分工 + 六节正文）
+.github/PULL_REQUEST_TEMPLATE.md
 docs/2026-09-10-对话整理.md
 skills/use-forge/ SKILL.md
 skills/use-overlay/ SKILL.md

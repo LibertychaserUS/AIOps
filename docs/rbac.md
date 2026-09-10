@@ -11,7 +11,7 @@ PR 的 **review 和 merge 由 GitHub 上的人 + Repository Ruleset 管**，不�
 
 不要第二套权限库、不要 admin Web、不要数据库 RBAC、不要为角色再做一个门户。协作仍在 **GitHub + CodeRabbit**。Forge 不重做 diff 审。CodeRabbit **只建议，不能当唯一 merge 门**。
 
-角色怎么干活：管理端 [`../skills/manage-repo/SKILL.md`](../skills/manage-repo/SKILL.md)，开发端 [`../skills/dev-pr/SKILL.md`](../skills/dev-pr/SKILL.md)。产品 SOP 仍是 [`../skills/use-forge/SKILL.md`](../skills/use-forge/SKILL.md) 与 [`../skills/use-overlay/SKILL.md`](../skills/use-overlay/SKILL.md)。
+角色怎么干活：管理端 [`../skills/manage-repo/SKILL.md`](../skills/manage-repo/SKILL.md)，开发端 [`../skills/dev-pr/SKILL.md`](../skills/dev-pr/SKILL.md)。产品 SOP 仍是 [`../skills/use-forge/SKILL.md`](../skills/use-forge/SKILL.md) 与 [`../skills/use-overlay/SKILL.md`](../skills/use-overlay/SKILL.md)。PR 解说面：[`pr-brief.md`](pr-brief.md)。
 
 ---
 
@@ -53,6 +53,17 @@ RBAC 不另做：GitHub 团队成员资格决定谁能推/合；Ruleset 执行�
 - `armed` 要 `armed_reason`；`blocked` 要 `blocked_reason`
 
 CI、模型、Forge、Proctor 不得把状态写成 `armed`。
+
+---
+
+## PR 解说面
+
+GitHub PR 的标题 + 正文就是解说面。不是门户。规格：[`pr-brief.md`](pr-brief.md)。模板：[`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md)。
+
+- 标题：**PR 名（标题）前缀** `[<role>][<product>] <imperative>` — 帽子 + 主产品。这是唯一的名分工标记。不是权限，不改分支名 / workflow 名 / skill 名。`cursor/…-6842` 保持原样。
+- 正文六节必须原样：`做了什么` `为什么` `动了哪些门` `怎么验` `不做什么` `分工`
+- 正文「分工」写谁审、谁可合（本节）。标题前缀不代替这一节。
+- **开发写。管理拒收**无规格或标题无此前缀的 PR。
 
 ---
 
