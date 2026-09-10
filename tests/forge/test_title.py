@@ -216,6 +216,7 @@ class WorkshopConfigTests(unittest.TestCase):
         self.assertIn("pull_request", text)
         self.assertNotIn("\n  push:\n", text)
         self.assertIn("python -m forge pr-title", text)
+        self.assertIn("pip install -r requirements.txt", text)
         overlay = (ROOT / ".github" / "workflows" / "overlay-check.yml").read_text(encoding="utf-8")
         self.assertNotIn("pr-title", overlay)
         self.assertNotIn("forge pr-title", overlay)

@@ -91,7 +91,7 @@ class DryRunTests(unittest.TestCase):
         stdout = io.StringIO()
         stderr = io.StringIO()
         code = main(
-            ["submit", "--repo", REPO, "--title", TITLE, "--dry-run"],
+            ["submit", "--repo", REPO, "--title", TITLE, "--head", HEAD, "--dry-run"],
             urlopen=fake.urlopen,
             environ={},
             stdout=stdout,
@@ -108,14 +108,13 @@ class DryRunTests(unittest.TestCase):
         stdout = io.StringIO()
         stderr = io.StringIO()
         code = main(
-            ["submit", "--repo", REPO, "--title", TITLE, "--dry-run"],
+            ["submit", "--repo", REPO, "--title", TITLE, "--head", HEAD, "--dry-run"],
             urlopen=fake.urlopen,
             environ={SUBMIT_TOKEN_ENV: "forge-submit-ci-dry-run"},
             stdout=stdout,
             stderr=stderr,
             base_url=FAKE_API,
         )
-        # CLI dry-run uses real git HEAD (this workshop branch), which is not protect.
         self.assertEqual(code, EXIT_OK, stderr.getvalue())
         self.assertIn("dry-run", stdout.getvalue())
         self.assertIn(REQUIRE_SUBMIT_TOKEN, stdout.getvalue())
@@ -237,12 +236,49 @@ class LiveFakeApiTests(unittest.TestCase):
         self.assertFalse(any("/merge" in path for _method, path, _body in fake.calls))
 
 
+class HeadResolutionTests(unittest.TestCase):
+    def test_detached_head_is_refused(self) -> None:
+        def git(args, cwd=None):
+            if args[:2] == ["rev-parse", "--abbrev-ref"]:
+                return "HEAD"
+            raise AssertionError(args)
+
+        code, _out, err, fake, pusher = _submit(
+            dry_run=True,
+            head=None,
+            git_runner=git,
+            environ={SUBMIT_TOKEN_ENV: "t"},
+        )
+        self.assertEqual(code, EXIT_CONFIG)
+        self.assertIn("detached HEAD", err)
+        self.assertEqual(fake.calls, [])
+        self.assertEqual(pusher.calls, [])
+
+    def test_github_head_ref_used_when_detached(self) -> None:
+        def git(args, cwd=None):
+            if args[:2] == ["rev-parse", "--abbrev-ref"]:
+                return "HEAD"
+            raise AssertionError(args)
+
+        code, out, err, fake, pusher = _submit(
+            dry_run=True,
+            head=None,
+            git_runner=git,
+            environ={SUBMIT_TOKEN_ENV: "t", "GITHUB_HEAD_REF": HEAD},
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn(f"head: {HEAD}", out)
+        self.assertEqual(fake.calls, [])
+        self.assertEqual(pusher.calls, [])
+
+
 class WorkshopCiTests(unittest.TestCase):
     def test_overlay_check_does_not_live_submit(self) -> None:
         root = Path(__file__).resolve().parents[2]
         command = (root / "suites" / "forge-apply" / "suite.yaml").read_text(encoding="utf-8")
         self.assertIn("forge submit", command)
         self.assertIn("--dry-run", command)
+        self.assertIn("--head", command)
         self.assertIn("FORGE_SUBMIT_TOKEN=", command)
         overlay = (root / ".github" / "workflows" / "overlay-check.yml").read_text(encoding="utf-8")
         self.assertNotIn("forge submit", overlay)
