@@ -2,7 +2,9 @@
 
 实现对照以本文 + [`design.md`](design.md) §4 为准。Inbox 合同见 [`inbox.md`](inbox.md)。Agent skill：[`agents/ieee-test-system.md`](agents/ieee-test-system.md)。读文档怎么编进契约：[`agents/overlay-contract.md`](agents/overlay-contract.md)。
 
-测试体系**需要规格**。规格**追溯**产品 PRD 的切片，**不抄** PRD 的文档规格。
+Overlay 是**标准件**：冻契约（字段、状态、对齐方式），不冻某产品的编号、PRD 树、IEEE 文件名。人/agent 读接入方文档，编成契约形状。
+
+测试体系**需要规格**。规格**追溯**产品意图，**不抄**文档形状。
 
 ---
 
@@ -11,7 +13,7 @@
 | 问 | 答 |
 |---|---|
 | 测试体系要不要规格？ | 要。否则无法审、无法选、失败时说不清「哪条 PRD 功能 / 哪个测试节点」。 |
-| 要不要跟随 PRD 规格？ | **跟随意图、范围、功能编号。不跟随文档形状。** |
+| 契约冻编号和目录吗？ | **不冻。** 接入方文档里已有什么编号、树什么形状，就读什么。 |
 | 产品和测试是不是同一棵目录树？ | 不是。两棵树，形状不同，用同一个 `function_id` 对齐。 |
 | 要不要另写一本「测试规格说明书」按 PRD 章节镜像？ | 不要。那是第二本 PRD，禁止。 |
 | 要不要 IEEE 全套文档？ | **不要**二十份 Word。**要** IEEE 的识别 + 层次 + 双向追溯。 |
@@ -21,12 +23,12 @@
 | 规格 | 住哪 | 回答什么 | 跟随谁 |
 |---|---|---|---|
 | 产品 PRD / 设计 / FR | 产品仓（可是 docx） | 产品该做什么 | 产品自己的文档树 |
-| Overlay **元规格** | 本仓 `docs/` + `schema/` | 任意接入方的测试树长什么样 | **不**跟随任何产品 PRD 目录或路由 |
+| Overlay **契约** | 本仓 `docs/` + `schema/` | 编进来之后长什么样 | **不**跟随任何产品目录或编号法 |
 | 接入方 **测试规格** | `suites/<id>/` | 这一刀测哪些 `function_id`、跑不跑 | 追溯同一 inbox 钉死的 PRD 切片 |
 
 本仓测 Overlay / Forge，对照 [`design.md`](design.md)，**不**对照 Learning Guide 的七份 PRD。LG 只出现在 [`examples/learning-guide/`](../examples/learning-guide/)。
 
-内核 / `schema/` 例子用语法合法的通用号（`LOGIN-01`、`CHK-02`），不要写某产品路由或域名。
+内核 / `schema/` / 设计例只用通用形：`owner/name`、`FN-login-retry`。不要写某产品路由或域名。
 
 ---
 
@@ -77,31 +79,20 @@ PRD / design / FR / UC      <-->  function_id（同一个 id）
 
 ---
 
-## 4. `function_id`
+## 4. `function_id`（契约，不是号段法律）
 
-产品无关语法（内核契约，不是某家产品的号段）：
+契约只问：非空；仓内作为叶子身份唯一；稳定；无空白。谁选字符串：**接入方**。文档已有则抄（`ML-FR-004`、`PAY-01`、`REQ-3`、`FN-login-retry` 都可以）。没有则铸。内核没有合法编号表。
 
-```text
-^[A-Z]{2,8}(-[A-Z]{1,6})?-[0-9]{2,3}$
-```
+schema **不得**把 `REQ-n`、`ML-FR-004`、`PAY-01`、`LOGIN-01` 或 `^[A-Z]{2,8}(-[A-Z]{1,6})?-[0-9]{2,3}$` 写成法律。
 
-| 合法 | 不合法（第二套号族或已废弃） |
+| 做 | 不做 |
 |---|---|
-| `PAY-01`、`AUTH-01`、`LEARN-02`、`KS-01` | `E2E-B1`、`UT-007`、`REQ-1`、`FN-login-retry` |
-| `ML-FR-004`、`ML-FR-007`、`LOGIN-01` | 把 level 写成 `E2E-004` 当主键 |
+| 和文档叶子用同一个 id | 再发明 `E2E-B1`、`UT-007` 当第二套主键 |
+| inbox 行**可以**带上该 id | 规定必须像 `LOGIN-01` 或禁止 `FN-login-retry` |
+| generate 沿用已有 id，没有则新铸 | 把 level 做成另一套号段 |
+| 人审后 id 保持稳定 | 换文件名就换 id |
 
-可选实例 id：`<function_id>/<level>/<seq>`，例如 `ML-FR-004/unit/01`、`PAY-01/k6/01`。
-
-废弃 inbox 本地 `REQ-n` 当标题 id。旧草稿若还有 `## REQ-`，`validate` 契约红。
-
-登记：
-
-1. PRD / design 已有编号且符合语法 → In scope **抄**该号。
-2. PRD 没有编号 → 这篇 inbox **铸造**一个符合语法的 id，写入 In scope 行首；此后稳定。
-3. generate 把同一 id 抄进 `cases.md` 的 `## <function_id> <一句话>`。不得改写成 `REQ-n`。
-4. 后一刀落到产品仓测试文件时，文件名也带同一 id。
-
-一篇 inbox 可以有多条叶子（多行 In scope）。suite 目录名与 `function_id` 是两套东西，不要混成一套编号法。
+可选实例路径（接入方习惯，不是契约）：`<function_id>/<level>/…`。一篇 inbox 可以有多条叶子。suite 目录名不是 `function_id`。
 
 ---
 
@@ -124,7 +115,7 @@ PRD / design / FR / UC      <-->  function_id（同一个 id）
 |---|---|
 | PRD 章节树 / 目录 | 一篇 inbox 只切一块。 |
 | PRD 文件格式 | Overlay 不解析 docx；不把 PRD 当 schema。 |
-| 某产品的路由 / 域名 | 只许 fixture。内核例子用 `LOGIN-01`，不用 LG 路径。 |
+| 某产品的路由 / 域名 | 只许 fixture。内核例子用 `FN-login-retry`，不用 LG 路径。 |
 | PRD 版本号锁死 | 用 `source.ref` pin，不搞双版本书。 |
 | PRD 验收标准原文当用例 | 用例要有步骤和期望。 |
 | 全 PRD 覆盖义务 | 未切进 inbox = 不管。 |
@@ -181,9 +172,10 @@ Functional / Negative / Edge
 schema: overlay-trace/v1
 suite: checkout-retry
 items:
-  - function_id: LOGIN-01
+  - function_id: FN-login-retry
+    case_id: FN-login-retry/functional
+    type: functional
     level: unit
-    case_id: LOGIN-01/unit/01
     type: functional
 ```
 
@@ -214,9 +206,9 @@ items:
 ## 11. 校验（`overlay validate`）
 
 1. 有 suite 则 `suite.yaml.source` == `inbox/<id>.md`。
-2. `cases.md` 非空。`armed` 至少一条 `## <function_id>`（§4 语法）。`blocked`/`draft` 允许很薄。
-3. 不得出现 `## REQ-` 标题。不得把 `status: armed` 写进用例正文当门。
-4. inbox **In scope** 每一列表项必须以 `function_id` 开头，后接空格和说明。
+2. `cases.md` 非空。`armed` 至少一条以 `function_id` 开头的 `##` 标题（非空、无空白）。`blocked`/`draft` 允许很薄。
+3. 不得把 `status: armed` 写进用例正文当门。
+4. **不**因为 In scope 没有 id、或 id 不像 FR 号 / `LOGIN-01` 而红。有 id 则须无空白。
 5. `cases.md` 的 `function_id` 标题必须能在同一篇 inbox 的 In scope（或 User cases 行首）找到；Out of scope 不得当标题。
 6. 若有 `trace.yaml`：符合 schema；`suite` 等于目录名；`function_id` 能在 `cases.md` 找到；`level` ∈ `unit`\|`integration`\|`smoke`\|`k6`\|`e2e`；`type` ∈ `functional`\|`negative`\|`edge`。
 7. 不因为「产品仓还有没切的 PRD」而红。
@@ -237,7 +229,7 @@ items:
 - 测试规格驱动改产品 Verify。
 - Overlay 元规格里出现某产品的路由或域名（只许 fixture）。
 - 为 unit / e2e / k6 各做一套主键（`E2E-B1` vs `UT-007` vs `LOAD-001`）。
-- 内核 schema 写死某产品的 `ML-FR-*` 清单。语法本身是产品无关的。
+- 内核 schema 写死某产品的 `ML-FR-*` 清单，或把 FR / `LOGIN-01` 号段正则写成法律。
 
 ---
 
