@@ -17,6 +17,14 @@ python -m forge pr-title --title "feat(overlay/dev): add cover triad and invaria
 
 退出 `0` 绿、`2` 红。CI 同名检查 **`pr-title`**（只跑 `pull_request`）。本工作本 `forge.yaml` `required_checks` 已列入 `overlay-check`、`pr-title`、`sop-lock`；Ruleset 勾上之后，红则不能合。代推前 `python -m forge check` 红则不能提交。不要 live `forge apply`。不要用 husky/npm 挡 `git commit`。
 
+本仓 PR #3 的 GitHub 标题必须改成下面这一行（Agents 的 GitHub write 会 404，需要人在 UI 改名）：
+
+```text
+feat(overlay/agent): adopt Overlay CI and Conventional Commit PR titles
+```
+
+（若这单以 Forge submit 为主，也可用 `feat(forge/dev): add submit middleware and lock the Forge/Ops split`。不要另造第二种语法。）
+
 ---
 
 ## PR 名（标题）前缀
