@@ -137,6 +137,7 @@ Learning Guide：本工作本可放 fixture；**不改** 产品仓 `.github/work
   invariants.yaml        可选
   .github/workflows/overlay-check.yml
       uses: LibertychaserUS/AIOps/.github/workflows/overlay.yml@<tag-or-sha>
+      # 产品仓自己的薄 caller，不是本工作本的 overlay-check.yml / ci.yml
 
 本地：
   PYTHONPATH=<工具仓> python3 -m overlay validate --root <产品仓>
@@ -195,11 +196,11 @@ overlay/                # 产品 B — 留在本仓 / fork
 schema/                 # Overlay 契约，跨项目冻住；不打进产品仓
 examples/learning-guide/   # 第一个接入方 fixture，不是核心
 .github/workflows/
-  overlay.yml           # reusable；产品仓 uses: 本文件 @ pin
-  overlay-check.yml     # Overlay 产品门（validate+select+run；ci-select 可 skip）
+  overlay.yml           # reusable；产品仓 uses: 本文件 @ pin（不要拷本工作本 ci.yml）
+  overlay-check.yml     # Overlay 产品门 + Ops DAG（validate+select+run；ci-select 可 skip）
   forge-check.yml       # Forge 产品门（unit + apply --dry-run；ci-select 可 skip）
-  pr-title.yml          # 通用；永远跑
-  sop-lock.yml          # 通用；永远跑；不是第三件产品
+  ci.yml                # 本工作本通用检查：pr-title + sop-lock（检查名不变）
+  release.yml           # 人点发布两条产品 tag；不是 CI
 ```
 
 版本：两个产品两个 tag，不要看成一个 Latest。下一刀 pin `overlay-v1.0.1` / `forge-v1.0.1`（人在 `main` 上 `python -m forge release` 或 Actions `release` `workflow_dispatch`；见 [`release.md`](release.md)）。现在仍可 pin [`overlay-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.0) 与 [`forge-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.0)。不 pin `main`。起步：仓库根 [`README.md`](../README.md)。

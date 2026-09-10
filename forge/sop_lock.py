@@ -116,7 +116,10 @@ def _collect_env_keys(node: Any) -> list[str]:
 
 
 def _is_forge_unit_layer(path: Path, data: dict[str, Any], script: str) -> bool:
-    """Forge product CI may discover tests/forge. That is not an Overlay select bypass."""
+    """Forge product CI may discover tests/forge. That is not an Overlay select bypass.
+
+    ci.yml is the workshop common-check file (pr-title + sop-lock), not this layer.
+    """
     name = str(data.get("name") or "")
     filename = path.name
     forge_file = filename in {"forge-check.yml", "forge-check.yaml"}
@@ -268,6 +271,72 @@ def check_skills(root: Path) -> list[Issue]:
     return issues
 
 
+def _job_runs(job: Any) -> list[str]:
+    return _collect_runs(job) if isinstance(job, dict) else []
+
+
+COMMON_LEFTOVER_WORKFLOWS = ("pr-title.yml", "sop-lock.yml")
+
+
+def _check_workshop_ci(root: Path) -> list[Issue]:
+    """Common checks live in ci.yml. Product doors stay in their own files."""
+    path = root / ".github" / "workflows" / "ci.yml"
+    rel = _rel(root, path)
+    issues: list[Issue] = []
+    for leftover in COMMON_LEFTOVER_WORKFLOWS:
+        extra = root / ".github" / "workflows" / leftover
+        if extra.is_file():
+            issues.append(
+                Issue(
+                    _rel(root, extra),
+                    "common checks live in ci.yml; delete leftover " + leftover,
+                )
+            )
+    if not path.is_file():
+        issues.append(Issue(rel, "missing ci.yml for common checks (jobs pr-title + sop-lock)"))
+        return issues
+    text = path.read_text(encoding="utf-8")
+    data = _load_workflow(path)
+    on_field = (data or {}).get("on") or (data or {}).get(True)
+    if _has_path_filter(on_field):
+        issues.append(Issue(rel, "must not path-filter on: (workflow must start; skip jobs with success)"))
+    if "pull_request" not in text:
+        issues.append(Issue(rel, "must run on pull_request"))
+    jobs = (data or {}).get("jobs")
+    if not isinstance(jobs, dict):
+        issues.append(Issue(rel, "ci.yml must define jobs"))
+        return issues
+    for check_name in COMMON_CHECKS:
+        if f"name: {check_name}" not in text:
+            issues.append(Issue(rel, f"must keep check name {check_name}"))
+    pr_job = jobs.get("pr-title")
+    if not isinstance(pr_job, dict):
+        issues.append(Issue(rel, "must have job pr-title"))
+    else:
+        when = str(pr_job.get("if") or "")
+        if "pull_request" not in when:
+            issues.append(Issue(rel, "pr-title job must run only on pull_request"))
+        runs = _job_runs(pr_job)
+        if not any("python -m forge pr-title" in script for script in runs):
+            issues.append(Issue(rel, "pr-title job must run python -m forge pr-title"))
+        if any(CI_SELECT_RE.search(script) for script in runs):
+            issues.append(Issue(rel, "common pr-title must always run (no ci-select skip)"))
+    sop_job = jobs.get("sop-lock")
+    if not isinstance(sop_job, dict):
+        issues.append(Issue(rel, "must have job sop-lock"))
+    else:
+        runs = _job_runs(sop_job)
+        if not any("python -m forge sop-lock" in script for script in runs):
+            issues.append(Issue(rel, "sop-lock job must run python -m forge sop-lock"))
+        if any(CI_SELECT_RE.search(script) for script in runs):
+            issues.append(Issue(rel, "common sop-lock must always run (no ci-select skip)"))
+    if SUBMIT_RUN_RE.search(text):
+        issues.append(Issue(rel, "must not call forge submit"))
+    if GENERATE_RUN_RE.search(text):
+        issues.append(Issue(rel, "must not run overlay generate"))
+    return issues
+
+
 def _check_product_workflow(root: Path, filename: str, check_name: str) -> list[Issue]:
     path = root / ".github" / "workflows" / filename
     rel = _rel(root, path)
@@ -366,36 +435,7 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
                     issues.append(Issue("forge.yaml", f"ci.products.{product}.check must be {check}"))
         except Exception as exc:
             issues.append(Issue("forge.yaml", f"ci selector is not loadable: {exc}"))
-    pr_title = root / ".github" / "workflows" / "pr-title.yml"
-    if not pr_title.is_file():
-        issues.append(Issue(".github/workflows/pr-title.yml", "missing pr-title workflow"))
-    else:
-        text = pr_title.read_text(encoding="utf-8")
-        data = _load_workflow(pr_title)
-        if "pull_request" not in text:
-            issues.append(Issue(_rel(root, pr_title), "must run on pull_request"))
-        if re.search(r"(?m)^  push:", text):
-            issues.append(Issue(_rel(root, pr_title), "must not run on push"))
-        on_field = (data or {}).get("on") or (data or {}).get(True)
-        if _has_path_filter(on_field):
-            issues.append(Issue(_rel(root, pr_title), "common pr-title must not path-filter on:"))
-        if CI_SELECT_RE.search(text):
-            issues.append(Issue(_rel(root, pr_title), "common pr-title must always run (no ci-select skip)"))
-    sop_wf = root / ".github" / "workflows" / "sop-lock.yml"
-    if not sop_wf.is_file():
-        issues.append(Issue(".github/workflows/sop-lock.yml", "missing sop-lock workflow"))
-    else:
-        text = sop_wf.read_text(encoding="utf-8")
-        data = _load_workflow(sop_wf)
-        if "name: sop-lock" not in text or "python -m forge sop-lock" not in text:
-            issues.append(
-                Issue(_rel(root, sop_wf), "must be the sop-lock check running python -m forge sop-lock")
-            )
-        on_field = (data or {}).get("on") or (data or {}).get(True)
-        if _has_path_filter(on_field):
-            issues.append(Issue(_rel(root, sop_wf), "common sop-lock must not path-filter on:"))
-        if CI_SELECT_RE.search(text):
-            issues.append(Issue(_rel(root, sop_wf), "common sop-lock must always run (no ci-select skip)"))
+    issues.extend(_check_workshop_ci(root))
     issues.extend(_check_product_workflow(root, "forge-check.yml", "forge-check"))
     forge_check = root / ".github" / "workflows" / "forge-check.yml"
     if forge_check.is_file():

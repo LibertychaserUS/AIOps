@@ -361,11 +361,10 @@ class WorkshopCiTests(unittest.TestCase):
         self.assertIn("status: blocked", suite)
         self.assertNotIn("python -m forge submit", suite)
         for name in (
+            "ci.yml",
             "overlay-check.yml",
             "overlay.yml",
             "forge-check.yml",
-            "pr-title.yml",
-            "sop-lock.yml",
             "release.yml",
         ):
             text = (root / ".github" / "workflows" / name).read_text(encoding="utf-8")

@@ -219,7 +219,7 @@ type(product/actor): subject
 
 Body needs these six headings, verbatim: `做了什么` / `为什么` / `动了哪些门` / `怎么验` / `不做什么` / `分工`. Spec: [`docs/pr-brief.md`](docs/pr-brief.md). Template: [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md).
 
-**通用检查 ≠ 产品门.** `pr-title` and `sop-lock` always run. `overlay-check` / `forge-check` are selected via `forge.yaml` `ci` (skip = success).
+**通用检查 ≠ 产品门.** In **this workshop**, common CI is `.github/workflows/ci.yml` (jobs `pr-title` + `sop-lock`). Forge / Overlay product doors stay in `forge-check.yml` / `overlay-check.yml`. Required check names are unchanged. Adopters do **not** copy this workshop `ci.yml`; Overlay adopters still pin reusable `overlay.yml` from a thin product-repo `overlay-check.yml`. `pr-title` and `sop-lock` always run. `overlay-check` / `forge-check` are selected via `forge.yaml` `ci` (skip = success).
 
 PRs into `main` are a capstone: squash, then start the next branch from the **new** `main` SHA. Do not stack on a `cursor/` head that is about to be squashed.
 

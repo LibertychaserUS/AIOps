@@ -36,4 +36,4 @@ Forge apply on this workshop prints a Ruleset payload in dry-run and does not wr
 
 # Notes
 
-This suite is Overlay cover/validate demo only (`status: blocked`). Do not arm it as Overlay's product_command gate. Forge unit tests and `apply --dry-run` run on `.github/workflows/forge-check.yml` when `forge.yaml` `ci` selects the Forge product. Title and SOP are common checks (`pr-title`, `sop-lock`), not Forge-owned. Overlay `overlay-check` must not select or run this suite. CI must not call `forge submit`. Live apply needs an admin token (`FORGE_GITHUB_TOKEN`).
+This suite is Overlay cover/validate demo only (`status: blocked`). Do not arm it as Overlay's product_command gate. Forge unit tests and `apply --dry-run` run on `.github/workflows/forge-check.yml` when `forge.yaml` `ci` selects the Forge product. Title and SOP are common checks (`pr-title`, `sop-lock`) in this workshop's `ci.yml`, not Forge-owned. Overlay `overlay-check` must not select or run this suite. CI must not call `forge submit`. Live apply needs an admin token (`FORGE_GITHUB_TOKEN`).
