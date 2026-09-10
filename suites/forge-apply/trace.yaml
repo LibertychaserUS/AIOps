@@ -1,0 +1,7 @@
+schema: overlay-trace/v1
+suite: forge-apply
+items:
+  - function_id: FN-forge-apply
+    case_id: FN-forge-apply/functional
+    type: functional
+    level: unit

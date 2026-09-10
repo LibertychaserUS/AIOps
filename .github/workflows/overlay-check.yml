@@ -1,0 +1,17 @@
+# This workshop uses Overlay on itself. Preview only. No generate. No product Verify.
+
+name: overlay-check
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  overlay:
+    uses: ./.github/workflows/overlay.yml
+    with:
+      enable_run: false
+      root: "."

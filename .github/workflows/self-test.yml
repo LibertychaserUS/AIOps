@@ -46,3 +46,9 @@ jobs:
       enable_run: false
       root: examples/learning-guide
       branch: main
+
+  overlay-self:
+    uses: ./.github/workflows/overlay.yml
+    with:
+      enable_run: false
+      root: "."

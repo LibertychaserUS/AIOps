@@ -1,0 +1,13 @@
+id: forge-apply
+title: Forge dry-run on this workshop
+status: armed
+kind: functional
+subject: product
+source: inbox/forge-apply.md
+packages:
+  - forge
+reviewed_by: workshop
+reviewed_at: 2026-09-10T00:00:00Z
+blocked_reason: null
+armed_reason: apply --dry-run and fake-API tests ship.
+product_command: null

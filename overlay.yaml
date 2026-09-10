@@ -1,0 +1,19 @@
+schema: overlay-config/v1
+product:
+  repo: LibertychaserUS/AIOps
+  default_ref: 1f78cf58ce03dba187a784488a5ef37eab39abc7
+branches:
+  main:
+    run: [functional, regression]
+  test:
+    run: [functional, regression]
+  hotfix:
+    run: [functional]
+kinds:
+  concurrency: later
+  agent: later
+never_red_statuses:
+  - draft
+  - blocked
+forbid_hosts:
+  - ilovelearningguide.com

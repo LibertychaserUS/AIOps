@@ -1,0 +1,13 @@
+id: overlay-select
+title: Overlay select preview on this workshop
+status: armed
+kind: functional
+subject: product
+source: inbox/overlay-select.md
+packages:
+  - overlay
+reviewed_by: workshop
+reviewed_at: 2026-09-10T00:00:00Z
+blocked_reason: null
+armed_reason: validate and select ship; self-test already runs them.
+product_command: null

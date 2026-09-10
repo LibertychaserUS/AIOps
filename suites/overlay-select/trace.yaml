@@ -1,0 +1,7 @@
+schema: overlay-trace/v1
+suite: overlay-select
+items:
+  - function_id: FN-overlay-select
+    case_id: FN-overlay-select/functional
+    type: functional
+    level: unit
