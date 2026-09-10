@@ -1,26 +1,21 @@
 ---
 name: use-overlay
-description: >-
-  SOP for using Overlay: write inbox, design cases (triad + invariants),
-  validate, select armed suites, run their product_command in CI. Test and
-  CI are the same gate. Use when adopting Overlay, writing inbox/suites,
-  asking how to cover corner cases, running overlay validate/select/run/cover,
-  or wiring overlay-check. Do not vendor overlay/ into the product git repo.
-  Do not use for GitHub Rulesets (use use-forge). Do not generate or arm
-  without a human.
+description: Operate Overlay (inbox, suites, validate, select, run, cover) without vendoring the tool into a product repo. This skill should be used when adopting Overlay, writing inbox or suites, covering corner cases, running overlay validate/select/run/cover, or wiring overlay-check. Do not use for GitHub Rulesets (use use-forge). Do not generate or arm without a human.
+metadata:
+  short-description: Adopt Overlay without vendoring the tool
 ---
 
 # Use Overlay
 
-Overlay is a standard part. Freeze the contract, not a product’s numbers. Agents **read adopter docs and compile** them into `inbox/` + `suites/`. Detailed compile rules: [`docs/agents/overlay-contract.md`](../../docs/agents/overlay-contract.md). IEEE subset: [`docs/agents/ieee-test-system.md`](../../docs/agents/ieee-test-system.md).
+Overlay is a standard part. Freeze the contract, not a product’s numbers. Agents **read adopter docs and compile** them into `inbox/` + `suites/`. Detailed compile rules: [`docs/agents/overlay-contract.md`](../../docs/agents/overlay-contract.md). IEEE subset: [`docs/agents/ieee-test-system.md`](../../docs/agents/ieee-test-system.md). Case design: [`../design-cases/SKILL.md`](../design-cases/SKILL.md).
 
 **Test and CI are one chain.** `suites/<id>/` is the test spec. `product_command` is what CI runs after `select` keeps only `armed`. There is no second test job beside Overlay.
 
 ## Instructions
 
-### Reuse — tool stays out of the product commit repo
+### Reuse — keep the tool out of the product commit repo
 
-**Do not upload / vendor the tool into the adopter's product git repo** (the repo they commit and push). 不要把工具上传到接入方要提交、推送的产品仓。
+Do not upload or vendor the tool into the adopter's product git repo (the repo they commit and push). 不要把工具上传到接入方要提交、推送的产品仓。
 
 | Keep here | Never `git add` into the product tree |
 |---|---|
@@ -54,7 +49,7 @@ If you forked the workshop, `uses:` **your fork** at a pin. A fork that diverges
 
 1. **One slice = one inbox.** `inbox/<id>.md` (front matter + short Markdown). Same `id` as `suites/<id>/` after compile. Do not vendor a whole PRD.
 2. **Read the adopter docs**, then compile. `function_id` is whatever stable, unique, non-whitespace string the docs already use. Do not invent a second numbering system for unit / e2e / k6. The same id is what CI receipts point at when a command fails. Do not couple the kernel to one product's routes, domains, or numbering.
-3. **Design cases against the whole overlay root**, not one inbox. Method: [`docs/agents/case-design.md`](../../docs/agents/case-design.md). `armed` needs Functional / Negative / Edge. Global corners go in `invariants.yaml` and must be cited in some `cases.md`. Coupled leaves get `span: interaction` + `relates` — no `CROSS-01` series, no pairwise explosion.
+3. **Design cases against the whole overlay root**, not one inbox. Method: [`../design-cases/SKILL.md`](../design-cases/SKILL.md) (linked notes: [`docs/agents/case-design.md`](../../docs/agents/case-design.md)). `armed` needs Functional / Negative / Edge. Global corners go in `invariants.yaml` and must be cited in some `cases.md`. Coupled leaves get `span: interaction` + `relates` — no `CROSS-01` series, no pairwise explosion.
 4. **Validate and print cover** (no model). Use `PYTHONPATH` to the tool checkout when you are not inside this workshop:
    ```text
    PYTHONPATH=../AIOps python3 -m overlay validate --root .
@@ -85,6 +80,7 @@ If you forked the workshop, `uses:` **your fork** at a pin. A fork that diverges
 - Do not put `status` / `reviewed_by` on inbox.
 - Do not generate on push. Do not arm as an agent. CI does not auto-arm.
 - Do not keep a second unit-test workflow that bypasses Overlay select. If a test should gate, it is an armed `product_command`.
+- Two products stay independent: Overlay does not install Rulesets; Forge does not arm suites.
 
 ## Examples
 
@@ -140,6 +136,6 @@ validate / select are local YAML. `run` is local subprocess in the caller checko
 | 想 push 时 generate | 停。人点或 dispatch。 |
 | 想自动 armed | 停。人改 `suite.yaml`。 |
 | 另开一个 unittest workflow | 停。把命令写进 armed suite。 |
-| 抓不到全局 corner | 先读全部 inbox/suites，把性质写成 invariant，再写叶子。不要两两穷尽。 |
+| 抓不到全局 corner | 先读全部 inbox/suites，把性质写成 invariant，再写叶子。不要两两穷尽。见 `$design-cases`。 |
 | armed 缺 Edge | 契约红。补技法。 |
 | `uses: …@main` | 停。pin tag 或 SHA。 |

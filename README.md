@@ -18,10 +18,9 @@ Status: Forge first slice is `python -m forge apply --dry-run` (no live apply). 
 - **完整详细设计：** [`docs/design.md`](docs/design.md)
 - Inbox 输入面：[`docs/inbox.md`](docs/inbox.md)
 - 测试体系规格（两棵树 + 接入方自选 `function_id`）：[`docs/test-spec.md`](docs/test-spec.md)
-- **使用 SOP / skill：** [`skills/use-forge/SKILL.md`](skills/use-forge/SKILL.md)、[`skills/use-overlay/SKILL.md`](skills/use-overlay/SKILL.md)、[`docs/sop.md`](docs/sop.md)
-- **接到其他项目：** 工具留在本仓或你的 **fork**。不要把 `forge/`、`overlay/`、`schema/`、`prompts/` 提交进产品仓。产品仓只留薄配置 + `inbox/` / `suites/` + 一条 `uses:` 工具仓 reusable workflow（pin tag/SHA）。步骤见 [`docs/products.md`](docs/products.md) 与两条 skill。
-- Agent skill（IEEE 子集）：[`docs/agents/ieee-test-system.md`](docs/agents/ieee-test-system.md)
-- Agent：读文档编成契约 [`docs/agents/overlay-contract.md`](docs/agents/overlay-contract.md)；用例设计 / 覆盖 [`docs/agents/case-design.md`](docs/agents/case-design.md)；IEEE 剖面 [`docs/agents/ieee-test-system.md`](docs/agents/ieee-test-system.md)
+- **使用 skill（Codex `SKILL.md`）：** [`skills/use-forge/SKILL.md`](skills/use-forge/SKILL.md)、[`skills/use-overlay/SKILL.md`](skills/use-overlay/SKILL.md)、[`skills/design-cases/SKILL.md`](skills/design-cases/SKILL.md)。索引：[`docs/sop.md`](docs/sop.md)。Codex 仓内发现路径：`.agents/skills/`（指向同一批 skill）。
+- **接到其他项目：** 工具留在本仓或你的 **fork**。不要把 `forge/`、`overlay/`、`schema/`、`prompts/` 提交进产品仓。产品仓只留薄配置 + `inbox/` / `suites/` + 一条 `uses:` 工具仓 reusable workflow（pin tag/SHA）。步骤见 [`docs/products.md`](docs/products.md) 与 `use-forge` / `use-overlay`。
+- Agent：读文档编成契约 [`docs/agents/overlay-contract.md`](docs/agents/overlay-contract.md)；用例设计 / 覆盖 [`skills/design-cases/SKILL.md`](skills/design-cases/SKILL.md)（旧入口 [`docs/agents/case-design.md`](docs/agents/case-design.md)）；IEEE 剖面 [`docs/agents/ieee-test-system.md`](docs/agents/ieee-test-system.md)
 - 产品怎么接到别的仓：[`docs/products.md`](docs/products.md)
 - 约束：[`docs/2026-09-10-对话整理.md`](docs/2026-09-10-对话整理.md)
 - Overlay 契约：[`schema/suite.schema.json`](schema/suite.schema.json)、[`schema/inbox.schema.json`](schema/inbox.schema.json)、[`schema/trace.schema.json`](schema/trace.schema.json)、[`schema/receipt.example.yaml`](schema/receipt.example.yaml)

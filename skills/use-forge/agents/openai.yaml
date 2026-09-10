@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use Forge"
+  short_description: "Install Forge; do not vendor the tool"
+  default_prompt: "Use $use-forge to adopt Forge on a product repo. Keep forge/ in LibertychaserUS/AIOps or a fork; commit only forge.yaml."

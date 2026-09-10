@@ -1,11 +1,8 @@
 ---
 name: use-forge
-description: >-
-  SOP for installing and using Forge on a GitHub repo. PR-only protected
-  branches, no direct push, no self-merge. Use when adopting Forge, running
-  forge apply/status, writing agent policy, or asking how people and agents
-  land code. Do not vendor forge/ into the product git repo. Do not use for
-  Overlay inbox/suites (use use-overlay).
+description: Install and operate Forge (GitHub Ruleset, agent policy, apply/status) without vendoring the tool into a product repo. This skill should be used when adopting Forge, writing forge.yaml, running forge apply or status, pasting agent policy, or asking how people and agents land code. Do not use for Overlay inbox or suites (use use-overlay).
+metadata:
+  short-description: Install Forge without vendoring the tool
 ---
 
 # Use Forge
@@ -14,9 +11,11 @@ Forge is a standard part: Ruleset + policy + optional guard. It does not generat
 
 ## Instructions
 
-### Reuse — tool stays out of the product commit repo
+Follow these steps. Stay imperative. Do not invent a second constitution.
 
-**Do not upload / vendor the tool into the adopter's product git repo** (the repo they commit and push). 不要把工具上传到接入方要提交、推送的产品仓。
+### Reuse — keep the tool out of the product commit repo
+
+Do not upload or vendor the tool into the adopter's product git repo (the repo they commit and push). 不要把工具上传到接入方要提交、推送的产品仓。
 
 | Keep here | Never `git add` into the product tree |
 |---|---|
@@ -67,7 +66,7 @@ Guard workflow is later. First slice is Ruleset + policy + CLI.
 - Do not apply live to Learning Guide Portal. Do not press production (`ilovelearningguide.com`).
 - Do not change LearningGuidePortal Verify. Do not attach / run / gate intern-workspace Proctor. Do not edit Deepseek3.
 - Do not generate on push. Do not arm as an agent. Do not write receipts / `reviewed_by`.
-- CI only; no CD.
+- CI only; no CD. Two products stay independent: Forge does not write Overlay `status`.
 
 ## Examples
 

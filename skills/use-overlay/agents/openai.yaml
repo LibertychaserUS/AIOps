@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use Overlay"
+  short_description: "Adopt Overlay; do not vendor the tool"
+  default_prompt: "Use $use-overlay to adopt Overlay on a product repo. Keep overlay/ in LibertychaserUS/AIOps or a fork; commit only thin config."

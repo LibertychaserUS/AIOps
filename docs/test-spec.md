@@ -1,6 +1,6 @@
 # 测试体系规格
 
-实现对照以本文 + [`design.md`](design.md) §4 为准。Inbox 合同见 [`inbox.md`](inbox.md)。Agent skill：[`agents/ieee-test-system.md`](agents/ieee-test-system.md)。读文档怎么编进契约：[`agents/overlay-contract.md`](agents/overlay-contract.md)。用例设计与覆盖：[`agents/case-design.md`](agents/case-design.md)。
+实现对照以本文 + [`design.md`](design.md) §4 为准。Inbox 合同见 [`inbox.md`](inbox.md)。Agent skill：[`agents/ieee-test-system.md`](agents/ieee-test-system.md)。读文档怎么编进契约：[`agents/overlay-contract.md`](agents/overlay-contract.md)。用例设计与覆盖：[`../skills/design-cases/SKILL.md`](../skills/design-cases/SKILL.md)（旧入口 [`agents/case-design.md`](agents/case-design.md)）。
 
 Overlay 是**标准件**：冻契约（字段、状态、对齐方式），不冻某产品的编号、PRD 树、IEEE 文件名。人/agent 读接入方文档，编成契约形状。
 
@@ -165,7 +165,7 @@ Functional / Negative / Edge
 4. In scope 有几行带 id，generate 就抽几条。
 5. `kind: user-case`：场景行首同样带 `function_id`。
 6. `kind: figma-ref`：第一刀只出对照说明；若有 In scope，行首仍要 id。
-7. 全局边角写成 `invariants.yaml` + 用例点名；交互用 `trace.yaml` 的 `span` / `relates`。方法：[`agents/case-design.md`](agents/case-design.md)。
+7. 全局边角写成 `invariants.yaml` + 用例点名；交互用 `trace.yaml` 的 `span` / `relates`。方法：[`../skills/design-cases/SKILL.md`](../skills/design-cases/SKILL.md)。
 
 可选 `trace.yaml`（[`schema/trace.schema.json`](../schema/trace.schema.json)）：
 

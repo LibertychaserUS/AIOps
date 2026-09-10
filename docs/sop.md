@@ -2,10 +2,13 @@
 
 给人对照。Agent 先读对应 skill，再读本文。
 
+格式：Codex / Agent Skills 的 `SKILL.md`（YAML `name` + `description`，`name` 等于目录名）。仓内路径 `skills/<name>/`；Codex 还会读 `.agents/skills/`（同一批 skill 的符号链接）。
+
 | 产品 | 人怎么做 | Agent 怎么做 |
 |---|---|---|
 | **Forge** | [`skills/use-forge/SKILL.md`](../skills/use-forge/SKILL.md) | 同一文件 + [`../forge/agent-policy.md`](../forge/agent-policy.md) |
-| **Overlay** | [`skills/use-overlay/SKILL.md`](../skills/use-overlay/SKILL.md) | 同一文件 + [`agents/overlay-contract.md`](agents/overlay-contract.md) + [`agents/case-design.md`](agents/case-design.md) |
+| **Overlay** | [`skills/use-overlay/SKILL.md`](../skills/use-overlay/SKILL.md) | 同一文件 + [`agents/overlay-contract.md`](agents/overlay-contract.md) + [`../skills/design-cases/SKILL.md`](../skills/design-cases/SKILL.md) |
+| **用例设计** | [`skills/design-cases/SKILL.md`](../skills/design-cases/SKILL.md) | 同一文件（旧入口 [`agents/case-design.md`](agents/case-design.md)） |
 
 Overlay 的测试规格（`suites/`）和 CI（`overlay-check`）是一条链：只跑 `armed` 的 `product_command`。不要再开一套旁路 unittest workflow。
 
