@@ -1,0 +1,15 @@
+# Optional companion to suites/<id>/cases.md.
+# Traces REQ-n to a case. First slice: validate shape if present; do not require.
+
+schema: overlay-trace/v1
+suite: my-learning
+items:
+  - requirement_id: REQ-1
+    case_id: REQ-1/functional
+    type: functional
+  - requirement_id: REQ-1
+    case_id: REQ-1/negative
+    type: negative
+  - requirement_id: REQ-1
+    case_id: REQ-1/edge
+    type: edge

@@ -4,7 +4,7 @@
 工作本：`LibertychaserUS/AIOps`  
 约束原文：[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md)
 
-本文是实现的单一对照。摘要见 [`products.md`](products.md)。Inbox 见 [`inbox.md`](inbox.md)。对话过程稿见 [`architecture.md`](architecture.md)。
+本文是实现的单一对照。摘要见 [`products.md`](products.md)。Inbox 见 [`inbox.md`](inbox.md)。测试规格见 [`test-spec.md`](test-spec.md)。对话过程稿见 [`architecture.md`](architecture.md)。
 
 ---
 
@@ -328,7 +328,7 @@ inbox ────────────────► draft ─────�
 | `armed_reason` | string\|null | `armed` 必填 |
 | `product_command` | string\|null | 后一刀；第一刀必须 null 或忽略 |
 
-`cases.md`：人读。结构（生成器必须吐这个骨架，人可改）：
+`cases.md` 就是接入方**测试规格正文**（完整合同：[`docs/test-spec.md`](test-spec.md)）。生成器必须吐这个骨架，人可改：
 
 ```markdown
 # <title>
@@ -347,7 +347,9 @@ inbox ────────────────► draft ─────�
 …
 ```
 
-`trace.yaml`（可选）：`{ requirement_id, case_id, type }` 列表。第一刀不强制。
+`REQ-n` 来自同一篇 inbox 的 In scope / User cases，不来自产品仓 PRD 目录。测试规格**追溯** PRD 切片，**不抄** PRD 章节树。不要另写 `spec.md` 或「测试规格说明书」。
+
+`trace.yaml`（可选，schema：[`schema/trace.schema.json`](../schema/trace.schema.json)）：`{ requirement_id, case_id, type }`。第一刀有则校验，无则不红。`armed` 至少一条 `## REQ-`；`blocked`/`draft` 允许正文很薄。
 
 非法 yaml / 缺必填 / 第四种 status：`overlay validate` 非 0。这是 Overlay **契约红**，不是业务功能红。
 
@@ -545,6 +547,8 @@ schema/
   suite.schema.json
   inbox.schema.json
   inbox.example.md
+  trace.schema.json
+  trace.example.yaml
   receipt.example.yaml
   overlay-config 规则写在 design §4.6
 prompts/extract.md
@@ -560,6 +564,7 @@ examples/learning-guide/
   self-test.yml          # 测本仓 forge/overlay，不测 LG 产品
 docs/design.md           # 本文
 docs/inbox.md            # Overlay 输入面
+docs/test-spec.md        # 测试体系规格（追溯 PRD，不抄 PRD）
 docs/products.md
 docs/2026-09-10-对话整理.md
 ```
@@ -608,7 +613,7 @@ docs/2026-09-10-对话整理.md
 | LG 事实 | 落在哪 |
 |---|---|
 | Verify = Typecheck → Lint → Build and test | Forge `deny_paths`；Overlay 不 `workflow_call` |
-| 七份 PRD 在 `docs/phase1/source-prd/*.docx` | inbox `source` pin，正文只摘录 |
+| 七份 PRD 在 `docs/phase1/source-prd/*.docx` | inbox `source` pin，正文只摘录；测试规格不镜像七份目录 |
 | 支付 / 登录未就绪 | suite `blocked` |
 | My Learning 已合部分 | 可 `armed` |
 | 测试栈 node:test + Playwright | 第二刀 `product_command`，不改成 Python |
@@ -633,6 +638,7 @@ Overlay
 - [ ] 回执只由 select/run 写。
 - [ ] 无生产 URL；无 Proctor/Deepseek3 路径。
 - [ ] LG fixture：支付/登录 blocked 时预演绿。
+- [ ] 测试规格在 `suites/`；不另写按 PRD 章节镜像的规格书。
 - [ ] 内核 import 不出现 `LearningGuide` / `ilovelearningguide`（只许 examples/）。
 
 组合

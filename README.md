@@ -13,6 +13,7 @@ Status: design written; no installer or generator yet.
 
 - **完整详细设计：** [`docs/design.md`](docs/design.md)
 - Inbox 输入面：[`docs/inbox.md`](docs/inbox.md)
+- 测试体系规格：[`docs/test-spec.md`](docs/test-spec.md)
 - 产品怎么接到别的仓：[`docs/products.md`](docs/products.md)
 - 约束：[`docs/2026-09-10-对话整理.md`](docs/2026-09-10-对话整理.md)
 - Overlay 契约：[`schema/suite.schema.json`](schema/suite.schema.json)、[`schema/inbox.schema.json`](schema/inbox.schema.json)、[`schema/receipt.example.yaml`](schema/receipt.example.yaml)

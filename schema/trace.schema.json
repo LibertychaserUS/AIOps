@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aiops.local/schema/trace.schema.json",
+  "title": "Overlay suites/<id>/trace.yaml",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "suite", "items"],
+  "properties": {
+    "schema": { "const": "overlay-trace/v1" },
+    "suite": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "maxLength": 64
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["requirement_id", "case_id", "type"],
+        "properties": {
+          "requirement_id": {
+            "type": "string",
+            "pattern": "^REQ-[1-9][0-9]*$"
+          },
+          "case_id": { "type": "string", "minLength": 1 },
+          "type": { "enum": ["functional", "negative", "edge"] }
+        }
+      }
+    }
+  }
+}

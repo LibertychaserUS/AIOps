@@ -16,5 +16,6 @@ blocked_reason: null          # required when status is blocked
 armed_reason: null            # required when status is armed (why code is claimed testable)
 product_command: null         # later: product-repo npm script; unused in slice 1
 
-# Companion: suites/<id>/cases.md is the human page (functional / negative / edge).
+# Companion: suites/<id>/cases.md is the adopter test spec (REQ-n + functional / negative / edge).
 # Companion: suites/<id>/trace.yaml is optional (requirement id → case id).
+# Test spec traces the inbox slice; it does not mirror the product PRD chapter tree.

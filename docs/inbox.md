@@ -2,7 +2,7 @@
 
 Overlay 的输入面。实现对照以本文 + [`design.md`](design.md) §4 为准。Front matter JSON Schema：[`schema/inbox.schema.json`](../schema/inbox.schema.json)。
 
-Inbox **不是**用例，**不是**门禁，**不是**产品仓里的那份大 PRD。它是：人（产品）用一篇短 Markdown 说「请就这个范围出可审用例」。`generate` 只读这里。`select` / `run` 不读这里。
+Inbox **不是**用例，**不是**门禁，**不是**产品仓里的那份大 PRD，**也不是**测试规格。它是：人（产品）用一篇短 Markdown 说「请就这个范围出可审用例」。测试规格在 `suites/<id>/`（见 [`test-spec.md`](test-spec.md)）。`generate` 只读这里。`select` / `run` 不读这里。
 
 ---
 
@@ -148,7 +148,7 @@ overlay generate --inbox inbox/<id>.md
 
 - `generate` 的 `--inbox` 必须是 `inbox/<id>.md`。输出目录默认 `suites/<id>/`。
 - 写出的 `suite.yaml`：`id`、`source: inbox/<id>.md`、`packages` 从 inbox 拷；`status: draft`；`reviewed_*` 空。
-- `cases.md` 开头可写一行：`<!-- inbox-readiness: not-ready -->` 给审的人看。
+- `cases.md` 是测试规格正文（`REQ-n` 来自本 inbox，不来自 PRD 目录）。开头可写一行：`<!-- inbox-readiness: not-ready -->` 给审的人看。
 - 一对多：**第一刀不做**。支付、登录、My Learning = 三篇 inbox，三个 suite。不要一篇 inbox 生成三个目录。
 - 多对一：禁止。两个 inbox 不得指向同一 `suites/<id>/`。
 

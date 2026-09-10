@@ -1,6 +1,6 @@
 # AI CI Overlay — 架构、技术栈与系统设计
 
-**完整详细设计（实现对照）在 [`design.md`](design.md)。** Inbox 合同：[`inbox.md`](inbox.md)。本文是演进过程稿。
+**完整详细设计（实现对照）在 [`design.md`](design.md)。** Inbox：[`inbox.md`](inbox.md)。测试规格：[`test-spec.md`](test-spec.md)。本文是演进过程稿。
 
 对照约束：[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md)。
 
@@ -233,10 +233,10 @@ inbox ──────────► draft
 | 文件 | 角色 |
 |---|---|
 | `suite.yaml` | 机器读：状态、集种类、包、审核者 |
-| `cases.md` | 人读：功能 / 负面 / 边界用例（先给人看） |
-| `trace.yaml` | 可选：需求条 → 用例 id，便于看缺口 |
+| `cases.md` | 接入方测试规格正文（追溯 inbox，不抄 PRD 目录） |
+| `trace.yaml` | 可选：需求条 → 用例 id |
 
-第一刀 `cases.md` 是用例，不是可执行 Playwright。可执行脚本是后一刀，且默认仍不进产品 Verify。
+第一刀 `cases.md` 是测试规格，不是可执行 Playwright。完整合同见 [`test-spec.md`](test-spec.md)。可执行脚本是后一刀，且默认仍不进产品 Verify。
 
 **Overlay 配置**（`config/overlay.yaml`）
 

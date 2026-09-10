@@ -9,7 +9,7 @@
 
 两件产品独立版本、独立接入、独立失败。Forge 不懂用例；Overlay 不管谁该 merge。接入方可以只装一件。
 
-完整详细设计：[`design.md`](design.md)。过程稿：[`architecture.md`](architecture.md)。约束：[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md)。
+完整详细设计：[`design.md`](design.md)。Inbox：[`inbox.md`](inbox.md)。测试规格：[`test-spec.md`](test-spec.md)。过程稿：[`architecture.md`](architecture.md)。约束：[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md)。
 
 ---
 
@@ -78,7 +78,7 @@ Learning Guide：Ruleset 加在产品仓 + 本工作本；**不改** `.github/wo
 
 | 标准件 | 作用 | 接入方要改的 |
 |---|---|---|
-| `schema/suite.schema.json` + `suite.yaml` 字段 | `draft` / `blocked` / `armed`，三种不许加 | 无 |
+| `schema/suite.schema.json` + `cases.md` | 接入方测试规格：三种状态 + `REQ-n`（追溯 inbox，不抄 PRD） | 无 |
 | `python -m overlay generate` | 一篇 `inbox/<id>.md` → 一个 `suites/<id>/`，`status: draft`（才花 token；不改 inbox） | 提示词可覆写 |
 | `python -m overlay select --branch` | 只输出该分支该跑的 `armed` | `overlay.yaml` 的 branches |
 | `python -m overlay receipt` | 程序写回执，模型不写 | 无 |
@@ -92,7 +92,7 @@ Learning Guide：Ruleset 加在产品仓 + 本工作本；**不改** `.github/wo
 ```text
 目标仓（或旁边一个 overlay 仓）里：
   inbox/                 该项目的需求摘录（一篇 inbox = 一个 suite；合同见 docs/inbox.md）
-  suites/                该项目的用例
+  suites/                该项目的测试规格（cases.md 正文；追溯 inbox，不抄 PRD 目录）
   overlay.yaml           指向该项目的代码仓与脚本
   uses: overlay.yml@vX
 ```
