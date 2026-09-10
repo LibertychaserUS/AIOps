@@ -1,6 +1,6 @@
 # AI CI Overlay — 架构、技术栈与系统设计
 
-**完整详细设计（实现对照）在 [`design.md`](design.md)。** Inbox：[`inbox.md`](inbox.md)。测试规格：[`test-spec.md`](test-spec.md)。本文是演进过程稿。
+**完整详细设计（实现对照）在 [`design.md`](design.md)。** Inbox：[`inbox.md`](inbox.md)。测试规格：[`test-spec.md`](test-spec.md)。编译契约：[`agents/overlay-contract.md`](agents/overlay-contract.md)。IEEE 剖面：[`agents/ieee-test-system.md`](agents/ieee-test-system.md)。本文是演进过程稿。
 
 对照约束：[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md)。
 
@@ -226,15 +226,15 @@ inbox ──────────► draft
 
 ### 4.4 核心对象
 
-**Inbox 条目**（`inbox/<id>.md`）— 完整合同见 [`inbox.md`](inbox.md)。一篇 inbox 对应一个 suite；`readiness` 只是提示，不写 `status`。
+**Inbox 条目**（`inbox/<id>.md`）— 完整合同见 [`inbox.md`](inbox.md)。一篇 inbox 对应一个 suite；`readiness` 只是提示，不写 `status`。In scope **可以**带接入方自选的 `function_id`。产品文档树与测试树形状不同，对齐靠这个 id，见 [`test-spec.md`](test-spec.md)。
 
 **Suite**（`suites/<id>/`）
 
 | 文件 | 角色 |
 |---|---|
 | `suite.yaml` | 机器读：状态、集种类、包、审核者 |
-| `cases.md` | 接入方测试规格正文（追溯 inbox，不抄 PRD 目录） |
-| `trace.yaml` | 可选：需求条 → 用例 id |
+| `cases.md` | 接入方测试规格正文（`function_id` 与 PRD 功能同一 id；追溯 inbox，不抄 PRD 目录） |
+| `trace.yaml` | 可选：`function_id` × level → 用例 id |
 
 第一刀 `cases.md` 是测试规格，不是可执行 Playwright。完整合同见 [`test-spec.md`](test-spec.md)。可执行脚本是后一刀，且默认仍不进产品 Verify。
 
@@ -242,7 +242,7 @@ inbox ──────────► draft
 
 ```yaml
 product:
-  repo: First-Light-TechHK/LearningGuidePortal
+  repo: owner/name
   default_ref: <pin>
 branches:
   main:
@@ -263,9 +263,9 @@ never_red_statuses: [draft, blocked]
 
 ```text
 inbox md
-  → 抽需求条（提示词骨架借 ai-testcase-generation-engine）
-  → 每条出 functional / negative / edge
-  → 写成 cases.md；suite.yaml 固定 status=draft
+  → 读摘录；已有 function_id 则沿用，没有则铸（无写死 FR 表）
+  → 每条出 functional / negative / edge（技法，不是第二套 id）
+  → 写成 cases.md（## function_id）；suite.yaml 固定 status=draft
   → 打开 PR，人改 status + reviewed_by
 ```
 

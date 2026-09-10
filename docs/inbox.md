@@ -2,7 +2,7 @@
 
 Overlay 的输入面。实现对照以本文 + [`design.md`](design.md) §4 为准。Front matter JSON Schema：[`schema/inbox.schema.json`](../schema/inbox.schema.json)。
 
-Inbox **不是**用例，**不是**门禁，**不是**产品仓里的那份大 PRD，**也不是**测试规格。它是：人（产品）用一篇短 Markdown 说「请就这个范围出可审用例」。测试规格在 `suites/<id>/`（见 [`test-spec.md`](test-spec.md)）。`generate` 只读这里。`select` / `run` 不读这里。
+Inbox **不是**用例，**不是**门禁，**不是**产品仓里的那份大 PRD，**也不是**测试规格。它是：人（产品）用一篇短 Markdown 说「请就这个范围出可审用例」。测试规格在 `suites/<id>/`（见 [`test-spec.md`](test-spec.md)；编译：[`agents/overlay-contract.md`](agents/overlay-contract.md)）。`generate` 只读这里。`select` / `run` 不读这里。
 
 ---
 
@@ -57,8 +57,8 @@ packages:
 一句话：用户付费失败后能重试且不双扣。
 
 ## In scope
-- 失败页上的「重试」
-- 幂等键已存在时不新建支付
+- FN-login-retry 失败页上的「重试」
+- FN-checkout-idempotent 幂等键已存在时不新建支付
 
 ## Out of scope
 - 新的支付渠道
@@ -81,7 +81,7 @@ packages:
 | User cases | 编号场景；`kind: user-case` 时本节是主体 |
 | Notes | 给审的人：哪些该 blocked |
 
-`kind: prd`：In scope 里写需求条（一行一条，生成器抽成 REQ-n）。  
+`kind: prd`：In scope 一行一条。行首**可以**带接入方自铸的 `function_id`（非空、无空白）。文档已有编号则抄；没有可以先写句子，generate 或人再铸 id。schema 不规定号段。generate 把同一 id 抄进 `cases.md` 二级标题。  
 `kind: figma-ref`：正文只许 `https://` 链接列表 + 一句对照说明，不许贴图二进制。
 
 禁止在正文放密钥、真实卡号、完整学生 prompt、生产 URL（`overlay.yaml` 的 `forbid_hosts` 命中则 validate 失败）。
@@ -148,8 +148,8 @@ overlay generate --inbox inbox/<id>.md
 
 - `generate` 的 `--inbox` 必须是 `inbox/<id>.md`。输出目录默认 `suites/<id>/`。
 - 写出的 `suite.yaml`：`id`、`source: inbox/<id>.md`、`packages` 从 inbox 拷；`status: draft`；`reviewed_*` 空。
-- `cases.md` 是测试规格正文（`REQ-n` 来自本 inbox，不来自 PRD 目录）。开头可写一行：`<!-- inbox-readiness: not-ready -->` 给审的人看。
-- 一对多：**第一刀不做**。支付、登录、My Learning = 三篇 inbox，三个 suite。不要一篇 inbox 生成三个目录。
+- `cases.md` 是测试规格正文（`function_id` 来自本 inbox 已写的 id 或当场铸造，不来自本仓 FR 表）。开头可写一行：`<!-- inbox-readiness: not-ready -->` 给审的人看。
+- 一对多：**第一刀不做**。三篇切片 = 三篇 inbox，三个 suite。不要一篇 inbox 生成三个目录。
 - 多对一：禁止。两个 inbox 不得指向同一 `suites/<id>/`。
 
 ---
@@ -168,6 +168,7 @@ overlay generate --inbox inbox/<id>.md
 8. 正文不含 `forbid_hosts`（读接入方 `overlay.yaml`）。
 9. 无 suite 也可以过（尚未 generate 不是错）。
 10. 若已有 `suites/<id>/suite.yaml`，其 `source` 必须等于 `inbox/<id>.md`。
+11. **不**因为 In scope 行没有 id、或 id 不像 FR 号 / `LOGIN-01` 而红。有 id 则须无空白，并与后来的 `cases.md` 标题一致。
 
 Inbox 校验失败 = Overlay **契约红**（退出码 2），与 `blocked` 不当红不是同一件事。
 

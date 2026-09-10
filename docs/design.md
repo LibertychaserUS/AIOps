@@ -4,7 +4,9 @@
 工作本：`LibertychaserUS/AIOps`  
 约束原文：[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md)
 
-本文是实现的单一对照。摘要见 [`products.md`](products.md)。Inbox 见 [`inbox.md`](inbox.md)。测试规格见 [`test-spec.md`](test-spec.md)。对话过程稿见 [`architecture.md`](architecture.md)。
+本文是实现的单一对照。摘要见 [`products.md`](products.md)。Inbox 见 [`inbox.md`](inbox.md)。测试规格见 [`test-spec.md`](test-spec.md)。Agent 编译契约：[`agents/overlay-contract.md`](agents/overlay-contract.md)。IEEE 剖面：[`agents/ieee-test-system.md`](agents/ieee-test-system.md)。对话过程稿见 [`architecture.md`](architecture.md)。
+
+Overlay 冻**字段与对齐方式**，不冻某产品的编号、PRD 树或 IEEE 文件名。接入方文档说了什么 id，人/agent 读完编进契约即可。两棵树用同一个接入方自选的 `function_id` 对齐。
 
 ---
 
@@ -307,7 +309,8 @@ inbox ────────────────► draft ─────�
 
 禁止出现在 inbox 上：`status`、`reviewed_by`、`armed`、`blocked`、`product_command`。  
 `figma-ref`：只许 URL，第一刀不当输入给视觉模型。  
-一对多第一刀不做：支付、登录、My Learning = 三篇 inbox，三个 suite。
+In scope **可以**在行首带接入方自选的 `function_id`（非空、无空白）；不是必须，也不是某号段正则。文档已有则抄，没有则铸。  
+一对多第一刀不做：三篇切片 = 三篇 inbox，三个 suite。
 
 ### 4.5 Suite 契约
 
@@ -328,12 +331,12 @@ inbox ────────────────► draft ─────�
 | `armed_reason` | string\|null | `armed` 必填 |
 | `product_command` | string\|null | 后一刀；第一刀必须 null 或忽略 |
 
-`cases.md` 就是接入方**测试规格正文**（完整合同：[`docs/test-spec.md`](test-spec.md)）。生成器必须吐这个骨架，人可改：
+`cases.md` 就是接入方**测试规格正文**（完整合同：[`docs/test-spec.md`](test-spec.md)；编译：[`docs/agents/overlay-contract.md`](agents/overlay-contract.md)；IEEE 剖面：[`docs/agents/ieee-test-system.md`](agents/ieee-test-system.md)）。产品文档树与测试树不是同一形状；用同一个接入方自选的 `function_id` 对齐。生成器必须吐这个骨架，人可改：
 
 ```markdown
 # <title>
 
-## REQ-<n> <需求条>
+## FN-login-retry <一句话功能>
 
 ### Functional
 - 标题
@@ -347,9 +350,9 @@ inbox ────────────────► draft ─────�
 …
 ```
 
-`REQ-n` 来自同一篇 inbox 的 In scope / User cases，不来自产品仓 PRD 目录。测试规格**追溯** PRD 切片，**不抄** PRD 章节树。不要另写 `spec.md` 或「测试规格说明书」。
+`function_id` 契约：非空、仓内作为叶子身份唯一、稳定、无空白。接入方选字符串——文档已有则抄，没有则铸（内核例子用 `FN-login-retry`）。schema **不**把 `REQ-n`、FR 号段正则或 `LOGIN-01` 写成法律。层次是同一 id 的面。技法落在 `type`。测试规格**追溯**文档切片，**不抄** PRD 章节树。
 
-`trace.yaml`（可选，schema：[`schema/trace.schema.json`](../schema/trace.schema.json)）：`{ requirement_id, case_id, type }`。第一刀有则校验，无则不红。`armed` 至少一条 `## REQ-`；`blocked`/`draft` 允许正文很薄。
+`trace.yaml`（可选，schema：[`schema/trace.schema.json`](../schema/trace.schema.json)）：`{ function_id, case_id, type, level? }`。第一刀有则校验，无则不红。`level` 可缺。`armed` 至少一条 `## <function_id>`。回执事件应带 `function_id`，失败才能指回那片叶子。
 
 非法 yaml / 缺必填 / 第四种 status：`overlay validate` 非 0。这是 Overlay **契约红**，不是业务功能红。
 
@@ -368,8 +371,8 @@ kinds:
   concurrency: later          # later → select 永不选这类
   agent: later
 never_red_statuses: [draft, blocked]
-forbid_hosts:                 # runner 拒绝
-  - ilovelearningguide.com    # fixture 默认带上；其他接入方列自己的生产域
+forbid_hosts:                 # runner 拒绝；接入方列自己的生产域
+  - prod.example.com
 ```
 
 分支不在表里：select 输出空集，预演绿（没东西跑 ≠ 失败）。
@@ -399,8 +402,8 @@ python -m overlay run      --branch NAME [--root .]    # 第二刀
 1. `validate` 该 inbox。
 2. 拼提示词：产品自带 `prompts/extract.md` + `prompts/generate-cases.md`，接入方可在自己仓覆写同名文件。
 3. 调 OpenAI 兼容 HTTP：`OPENAI_BASE_URL` + `OPENAI_API_KEY`（或 `OPENROUTER_API_KEY`）。`temperature=0`。超时 60s。
-4. 解析模型 JSON（需求条 + 三类用例）。失败则非 0，不写半套文件。
-5. 渲染 `cases.md`。写 `suite.yaml`：`status=draft`，`kind=functional`，`subject=product`，`source` 指向 inbox。
+4. 解析模型 JSON（`function_id` + 三类技法用例）。必须抄 inbox In scope 行首的 id，不得改写成 `REQ-n`。失败则非 0，不写半套文件。内核没有写死的某产品 FR 清单。
+5. 渲染 `cases.md`（二级标题为 `function_id`）。写 `suite.yaml`：`status=draft`，`kind=functional`，`subject=product`，`source` 指向 inbox。
 6. 不打开 PR（Forge 管怎么落地）。调用方可随后自己开 PR。
 
 参考：[ai-testcase-generation-engine](https://github.com/rohitpkumar/ai-testcase-generation-engine) 的「抽需求 → 功能/负面/边界」。不借 CSV/pandas 主路径。用例页格式参考 figma-playwright-gen-ai 的标题/步骤/期望，不借 Streamlit/Ollama。
@@ -473,9 +476,9 @@ jobs:
 
 ### 4.13 提示词（产品自带，接入方可覆写）
 
-`prompts/extract.md`：只抽需求条 JSON：`[{id, text}]`。  
+`prompts/extract.md`：只抽功能条 JSON：`[{function_id, text}]`。`function_id` 必须抄 inbox In scope 行首，不得改成 `REQ-n`。  
 `prompts/generate-cases.md`：每条出 functional/negative/edge，字段 `title,steps[],expected`。  
-系统约定：只输出 JSON；不要写 `status`；不要给支付/登录类建议 `armed`（那是人的事）。
+系统约定：只输出 JSON；不要写 `status`；不要建议 `armed`（那是人的事）。
 
 ### 4.14 Overlay 测试
 
@@ -564,7 +567,10 @@ examples/learning-guide/
   self-test.yml          # 测本仓 forge/overlay，不测 LG 产品
 docs/design.md           # 本文
 docs/inbox.md            # Overlay 输入面
-docs/test-spec.md        # 测试体系规格（追溯 PRD，不抄 PRD）
+docs/test-spec.md        # 测试体系规格（两棵树 + 通用 function_id）
+docs/agents/overlay-contract.md
+docs/agents/ieee-test-system.md
+schema/check.py          # 形状检查；不是产品 CLI
 docs/products.md
 docs/2026-09-10-对话整理.md
 ```
@@ -639,7 +645,9 @@ Overlay
 - [ ] 无生产 URL；无 Proctor/Deepseek3 路径。
 - [ ] LG fixture：支付/登录 blocked 时预演绿。
 - [ ] 测试规格在 `suites/`；不另写按 PRD 章节镜像的规格书。
-- [ ] 内核 import 不出现 `LearningGuide` / `ilovelearningguide`（只许 examples/）。
+- [ ] `cases.md` / `trace.yaml` / 回执用接入方自选的 `function_id`；level 不是第二套编号。
+- [ ] schema / 内核 / 设计例不把 `REQ-n`、FR 号段正则、`LOGIN-01` 或 IEEE 文件名写成法律。
+- [ ] 内核 import 与设计例不出现 `LearningGuide` / `ilovelearningguide`（只许 examples/）。
 
 组合
 

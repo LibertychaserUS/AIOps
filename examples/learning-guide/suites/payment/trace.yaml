@@ -1,0 +1,16 @@
+# Compiled fixture only.
+schema: overlay-trace/v1
+suite: payment
+items:
+  - function_id: PAY-01
+    level: e2e
+    case_id: PAY-01/e2e/01
+    type: functional
+  - function_id: PAY-01
+    level: e2e
+    case_id: PAY-01/e2e/02
+    type: negative
+  - function_id: PAY-01
+    level: k6
+    case_id: PAY-01/k6/01
+    type: edge

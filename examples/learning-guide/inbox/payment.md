@@ -17,7 +17,7 @@ Payment and entitlements. Cases may exist; the suite must stay `blocked` so the 
 
 # In scope
 
-- Draft cases for payment and entitlement user paths.
+- PAY-01 Entitlement updates after a configured payment.
 
 # Out of scope
 

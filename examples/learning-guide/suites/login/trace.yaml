@@ -1,0 +1,16 @@
+# Compiled fixture only.
+schema: overlay-trace/v1
+suite: login
+items:
+  - function_id: AUTH-01
+    level: e2e
+    case_id: AUTH-01/e2e/01
+    type: functional
+  - function_id: AUTH-01
+    level: e2e
+    case_id: AUTH-01/e2e/02
+    type: negative
+  - function_id: AUTH-01
+    level: integration
+    case_id: AUTH-01/integration/01
+    type: edge

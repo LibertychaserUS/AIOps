@@ -6,5 +6,8 @@ Workshop for two reusable products: **Forge** (ordered GitHub collab) and **Over
 - Do not attach/run/gate the intern workspace Proctor from here.
 - Do not edit Deepseek3.
 - Do not press production (`ilovelearningguide.com`).
-- Do not couple Forge/Overlay core to one product’s routes or domains.
+- Do not couple Forge/Overlay core to one product’s routes, domains, or numbering.
+- Overlay freezes the contract (fields, states, leaf id rules). Adopter docs pick the strings and tree shapes. Agents read those docs and compile into `schema/`.
+- Do not require `REQ-n`, `ML-FR-*`, `PAY-01`, `LOGIN-01`, or `^[A-Z]{2,8}(-[A-Z]{1,6})?-[0-9]{2,3}$` in kernel/schema. `function_id` is a free, stable, unique, non-whitespace string.
 - Constraints: `docs/2026-09-10-对话整理.md`. Full design: `docs/design.md`.
+- Compile skill: `docs/agents/overlay-contract.md`. IEEE profile (id / level / trace, not 20 Word docs): `docs/agents/ieee-test-system.md`.

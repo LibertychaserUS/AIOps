@@ -17,7 +17,7 @@ Registration and session. Cases may exist; the suite must stay `blocked` so the 
 
 # In scope
 
-- Draft cases for login and session user paths.
+- AUTH-01 Valid session sees own data.
 
 # Out of scope
 

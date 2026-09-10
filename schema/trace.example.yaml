@@ -1,15 +1,17 @@
 # Optional companion to suites/<id>/cases.md.
-# Traces REQ-n to a case. First slice: validate shape if present; do not require.
+# Traces an adopter-minted function_id to a case. Kernel example — not a catalog.
 
 schema: overlay-trace/v1
-suite: my-learning
+suite: checkout-retry
 items:
-  - requirement_id: REQ-1
-    case_id: REQ-1/functional
+  - function_id: FN-login-retry
+    case_id: FN-login-retry/functional
     type: functional
-  - requirement_id: REQ-1
-    case_id: REQ-1/negative
+    level: unit
+  - function_id: FN-login-retry
+    case_id: FN-login-retry/functional
+    type: functional
+    level: e2e
+  - function_id: FN-checkout-idempotent
+    case_id: FN-checkout-idempotent/negative
     type: negative
-  - requirement_id: REQ-1
-    case_id: REQ-1/edge
-    type: edge
