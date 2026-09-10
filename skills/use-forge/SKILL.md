@@ -79,7 +79,7 @@ Guard workflow is later. First slice is Ruleset + policy + CLI.
 - Do not apply live to Learning Guide Portal. Do not press production (`ilovelearningguide.com`).
 - Do not change LearningGuidePortal Verify. Do not attach / run / gate intern-workspace Proctor. Do not edit Deepseek3.
 - Do not generate on push. Do not arm as an agent. Do not write receipts / `reviewed_by`.
-- CI only; no CD. Two products stay independent: Forge does not write Overlay `status`.
+- CI only; no production CD. Publish tags with `$manage-repo` `python -m forge release` after merge (see [`docs/release.md`](../../docs/release.md)). Two products stay independent: Forge does not write Overlay `status`.
 - Do not build an admin Web or a second RBAC database. Review/merge stay on GitHub (`$manage-repo`).
 - Do not skip `FORGE_SUBMIT_TOKEN`. Ambient `gh auth` is not enough. CI `GITHUB_TOKEN` is 合入锁, not 代推.
 
@@ -113,7 +113,7 @@ Illegal: `apply --repo First-Light-TechHK/LearningGuidePortal`. Illegal: apply o
 
 ## Performance Notes
 
-Dry-run apply is local JSON. Live apply is one GET + one POST or PUT. No model. No CD. Overlay 模型 token 只在人点的 `generate`，不在 push。Forge 代推是另一把钥匙：`FORGE_SUBMIT_TOKEN`，缺则红（含 dry-run）。
+Dry-run apply is local JSON. Live apply is one GET + one POST or PUT. No model. No production CD. Overlay 模型 token 只在人点的 `generate`，不在 push。Forge 代推是另一把钥匙：`FORGE_SUBMIT_TOKEN`，缺则红（含 dry-run）。合入后发版：`python -m forge release`（人点，不是 push）。
 
 ## Troubleshooting
 

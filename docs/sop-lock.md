@@ -69,7 +69,9 @@ GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge
 | CI/合入失败：PR 打回；Ops/CI 留日志准备 debug | `python -m forge bounce` 写 `ops-debug.yaml` + artifact | 人是否真去看 artifact | 不合入 |
 | 不 vendor 工具进产品仓 | — | **仅人审**（本仓 CI 看不见别的仓） | |
 | 不 attach Proctor；不改 Deepseek3 | — | **仅人审** | |
-| 不做 CD、不打生产（人手） | 命令命中 `forbid_hosts` 已锁 | 人在 runner 外打域名 | |
+| 不做生产 CD、不打生产（人手） | 命令命中 `forbid_hosts` 已锁 | 人在 runner 外打域名 | 发布产品 tag ≠ 打生产；见 `docs/release.md` |
+| 发新版本：两条 tag，仅 `workflow_dispatch` / `forge release` | `sop-lock` 扫 `release.yml` + `docs/release.md`；`python -m forge release --dry-run` | 人是否真点发布 | 不在 push 上自动发 |
+| Codex/Cursor/Claude Code 能发现 `use-forge` / `use-overlay` | `sop-lock` 扫 `.agents/skills` `.cursor/skills` `.claude/skills` → `skills/` | 外来仓是否 `gh skill install` | 不 vendor 工具包 |
 | 不自建管理端门户 / 第二套 RBAC | — | **仅人审** | |
 | Agent 同一 PR 把 suite 标 `armed` | — | **仅人审**（易过拟合，不锁） | |
 | 用例文案是否真测到角 | — | **仅人审** | `cover` 只看技法标题与 token |

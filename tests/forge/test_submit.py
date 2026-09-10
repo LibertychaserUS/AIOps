@@ -366,6 +366,7 @@ class WorkshopCiTests(unittest.TestCase):
             "forge-check.yml",
             "pr-title.yml",
             "sop-lock.yml",
+            "release.yml",
         ):
             text = (root / ".github" / "workflows" / name).read_text(encoding="utf-8")
             self.assertNotIn("python -m forge submit", text)

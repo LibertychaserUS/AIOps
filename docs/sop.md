@@ -2,7 +2,7 @@
 
 给人对照。Agent 先读对应 skill，再读本文。
 
-格式：Codex / Agent Skills 的 `SKILL.md`（YAML `name` + `description`，`name` 等于目录名）。仓内路径 `skills/<name>/`；Codex 还会读 `.agents/skills/`（同一批 skill 的符号链接）。
+格式：Agent Skills 的 `SKILL.md`（YAML `name` + `description`，`name` 等于目录名）。仓内路径 `skills/<name>/`。发现路径（同一批 symlink）：`.agents/skills/`（Codex）、`.cursor/skills/`（Cursor）、`.claude/skills/`（Claude Code）。
 
 | 产品 / 角色 | 人怎么做 | Agent 怎么做 |
 |---|---|---|
@@ -23,6 +23,8 @@ Overlay 的测试规格（`suites/`）和 Overlay CI（`overlay-check`）是一�
 ---
 
 ## 接到其他项目：工具不进产品仓
+
+外来 agent 导入 skill：根 README「Native skills」；`gh skill install LibertychaserUS/AIOps --pin <tag>`。本仓发现路径：`.agents/skills`（Codex）、`.cursor/skills`（Cursor）、`.claude/skills`（Claude Code）。发布：[`release.md`](release.md)。
 
 **不要把工具上传到接入方要提交、推送的产品 Git 仓。** 工具留在本工作本的本地 git，或接入方 **fork** 的本工作本。产品仓只留薄配置；CI 用 `uses:` 调用工具仓的 reusable workflow（pin **tag 或 SHA**，不要浮动 `main`）。
 

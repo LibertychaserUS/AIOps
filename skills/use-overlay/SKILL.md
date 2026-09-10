@@ -88,7 +88,7 @@ If you forked the workshop, `uses:` **your fork** at a pin and pass `tool_reposi
 - Do not replace or `workflow_call` the adopter’s existing build workflow (Learning Guide Verify is the first example). Never change LearningGuidePortal Verify.
 - Do not apply Overlay live onto Learning Guide Portal from this workshop. Do not checkout `LearningGuidePortal`.
 - Do not attach / run / gate intern-workspace Proctor. Do not edit Deepseek3.
-- Do not hit production hosts in `forbid_hosts` (LG: `ilovelearningguide.com`). No CD.
+- Do not hit production hosts in `forbid_hosts` (LG: `ilovelearningguide.com`). No production CD.
 - Do not put `status` / `reviewed_by` on inbox.
 - Do not generate on push. Do not arm as an agent. CI does not auto-arm.
 - Do not keep a `self-test` workflow that bypasses Overlay select. Overlay tests that should gate Overlay CI are an Overlay armed `product_command`. Forge tests live on `forge-check`.

@@ -1,4 +1,4 @@
-"""python -m forge apply|status|submit|check|pr-title|sop-lock|ci-select|ops-review|bounce"""
+"""python -m forge apply|status|submit|check|pr-title|sop-lock|ci-select|ops-review|bounce|release"""
 
 from __future__ import annotations
 
@@ -23,8 +23,8 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m forge",
         description=(
-            "Forge: 开发侧 check + submit (代推 draft PR); Ops apply/status (Ruleset); pr-title lint. "
-            "Does not merge. Does not write CODEOWNERS, AGENTS.md, or workflows."
+            "Forge: 开发侧 check + submit (代推 draft PR); Ops apply/status (Ruleset); "
+            "Ops release (product tags). Does not merge. Does not write CODEOWNERS, AGENTS.md, or workflows."
         ),
     )
     sub = parser.add_subparsers(dest="command")
@@ -169,6 +169,30 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="dry_run",
         help="write the report only; no PR comment",
+    )
+
+    release_p = sub.add_parser(
+        "release",
+        help="Ops: publish overlay-v* and/or forge-v* GitHub Releases. Not production CD. Never merges.",
+    )
+    release_p.add_argument("--repo", required=True, help="OWNER/NAME")
+    release_p.add_argument("--version", required=True, help="semver without prefix, e.g. 1.0.1")
+    release_p.add_argument(
+        "--products",
+        default="both",
+        help="both (default), overlay, or forge",
+    )
+    release_p.add_argument(
+        "--sha",
+        default=None,
+        help="commit to tag. Default: origin/main via API (or GITHUB_SHA).",
+    )
+    release_p.add_argument("--root", default=".", help="workshop root for __version__ check")
+    release_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        help="print the two release payloads; no GitHub write. No token required.",
     )
     return parser
 
@@ -320,6 +344,23 @@ def main(
             stderr=err,
             wait_s=args.wait_s,
             poll_s=args.poll_s,
+        )
+    if args.command == "release":
+        from forge.release import run_release
+
+        sha = args.sha if args.sha is not None else env_dict.get("GITHUB_SHA")
+        return run_release(
+            repo=args.repo,
+            version=args.version,
+            products=args.products,
+            sha=sha,
+            root=Path(args.root),
+            dry_run=args.dry_run,
+            urlopen=opener,
+            base_url=api,
+            stdout=out,
+            stderr=err,
+            environ=env_dict,
         )
     if args.command == "bounce":
         from forge.ops_chain import run_bounce
