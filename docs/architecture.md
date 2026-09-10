@@ -9,7 +9,7 @@
 
 ## 1. 先给结论
 
-做成 **叠在 Git 上的薄层**（对话路线 A），不要做成产品门户、云 agent 舰队或独立测试平台。
+做成 **叠在 Git 上的薄层**（对话路线 A），不要做成产品门户、云 agent 舰队或独立测试平台。云上 agent 若出现，是被这层笼子约束的操作员（DevOps + 协助审），不是系统本身。
 
 系统只补现有 GitHub CI 不做的两件事：
 
@@ -101,6 +101,29 @@ Proctor 的规矩（没审过不跑、没证据不过）**只复用语义**，�
 
 **以后若要一本账：** 适配器只许住在本仓、只许读本仓 `receipts/`、只许在实习机本机把文件交给已有 Proctor。Deepseek3 源码仍不改。没有这条适配器之前，两本账并排已经算结合完成。
 
+### 2.3 多人协作、GitLens / CodeRabbit、云上 agent
+
+痛点是 **产品写的需求和几个人推的代码对不齐**，加上 AI 直推 `main` 会踩踏。GitLens / CodeRabbit 盖住一部分，本仓只补它们不做的。
+
+| 工具 | 盖住 | 不盖 |
+|---|---|---|
+| **GitLens** | 谁改过这文件、本地历史 | 这条需求该不该测、支付能不能红 |
+| **CodeRabbit** | PR diff 上的代码病、风格、浅层风险 | PRD → 可审用例；`draft`/`blocked`/`armed` |
+| **产品 Verify** | 构建门：tsc / lint / build / 已有 test:ci | 未就绪集解禁；需求对齐 |
+| **本仓 overlay** | 需求 → 人审用例；push 只跑 `armed`；comment「碰了谁的包」 | 不替代上面三个 |
+
+「本质上做一个云上 agent DevOps + reviewer」——**作为以后的操作员外形成立，作为第一套系统不成立。** 对话里的路线 B（先做看 `main` 的云 agent）能防踩踏，但不产出用例，和主目标错位。先做 agent 等于自研一只较弱的 CodeRabbit，还是没有人审过的集。
+
+若以后加一只云 agent，必须关在 overlay 笼子里（和「先不做复杂舰队」一致）：
+
+| 角色 | 许 | 不许 |
+|---|---|---|
+| DevOps | 调 `generate`（人点或 dispatch）；跑 `select`/`run`；PR 上写 `packages` | 直推产品 `main`；改 Verify；deploy；打生产 |
+| Reviewer | 对 `draft` 提出「建议 blocked / 建议 armed」+ 理由 | 自己写 `reviewed_by`；自动把支付/登录标 `armed`；用模型写回执 |
+| 协作 | 一笔提交只碰声明过的包；撞包就停、等人 | 多 agent 并行改同一 suite；舰队抢 `main` |
+
+多人协作第一刀不靠 agent，靠两件程序：`suite.yaml` 的 `packages` + push/PR comment 列出碰了谁。开发只修自己 `armed` 红的 diff。GitLens 继续看历史，CodeRabbit 继续看 diff，两样都留下，不重做。
+
 ---
 
 ## 3. 目标与非目标
@@ -125,6 +148,7 @@ Proctor 的规矩（没审过不跑、没证据不过）**只复用语义**，�
 - 对 `ilovelearningguide.com` 发请求或当测试环境。
 - 搬 First-Light 空仓、搬整站开源测试平台。
 - 覆盖率 agent、流量录制、自然语言 E2E 框架（对话表里第一刀标「不用」的那些）。
+- 重做 GitLens / CodeRabbit；云 agent 直推 `main` 或自动 `armed`。
 
 ---
 
@@ -368,6 +392,7 @@ docs/architecture.md        # 本文件
 4. 支付 / 登录 suite：`blocked`。My Learning 已合且可测的切片：`armed`。
 5. `select main` 不含 `blocked`/`draft`。本仓 push 不因此红。
 6. PR comment 能列出 `packages`。
+7. `select` 写出程序回执（`schema/receipt.example.yaml`）；不调用 Proctor。
 
 **第二刀（仍不做门户、不做舰队）**
 
