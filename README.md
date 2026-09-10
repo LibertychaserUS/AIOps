@@ -7,5 +7,5 @@ This repo is the place for generated, human-reviewed test suites and the workflo
 Status: initialized. Architecture is written (standard CPython; C only if a measured hot path appears). No generator or runner yet.
 
 - 约束与第一刀：[`docs/2026-09-10-对话整理.md`](docs/2026-09-10-对话整理.md)
-- 架构 / 技术栈 / 系统设计：[`docs/architecture.md`](docs/architecture.md)（用例页多人编写借用 [HackMD](https://hackmd.io)，git 仍是账本）
+- 架构 / 技术栈 / 系统设计：[`docs/architecture.md`](docs/architecture.md)（两层：GitHub 上规范多人开发 + 自动测例生成/CI）
 - 契约示例：[`schema/suite.example.yaml`](schema/suite.example.yaml)、[`schema/receipt.example.yaml`](schema/receipt.example.yaml)、[`config/overlay.example.yaml`](config/overlay.example.yaml)
