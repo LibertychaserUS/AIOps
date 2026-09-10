@@ -31,7 +31,8 @@ GitHub PR 是解说面。DevOps 和其他 agent 读**标题 + 正文**就知道�
 - `[管理][docs] add PR brief spec`
 
 合法：分支仍叫 `cursor/fix-armed-select`，标题写成 `[开发][Overlay] fix armed select`。  
-非法：把分支改成 `开发/overlay-fix` 来表示角色。非法：把 `overlay-check` 或 `dev-pr` 改名来表示角色。
+非法：把分支改成 `开发/overlay-fix` 来表示角色。非法：把 `overlay-check` 或 `dev-pr` 改名来表示角色。  
+非法：改成 Conventional Commits `type(product/actor): subject`（如 `feat(overlay/dev): …`）来代替这两个方括号。不要为此新开 `pr-title` workflow，也不要把分工写进 scope。
 
 混改：标题只标主产品。其余列在「做了什么」。不要写成 `[开发][Overlay+docs+CI]`。
 

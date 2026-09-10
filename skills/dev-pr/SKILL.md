@@ -38,7 +38,7 @@ Do not `git add` `forge/`, `overlay/`, `schema/`, or `prompts/` into the product
 ### Never
 
 - Do not vendor the tool into the product commit repo.
-- Do not invent role prefixes on branches, workflows, or skill names. 分工 = GitHub **PR 名（标题）前缀** only.
+- Do not invent role prefixes on branches, workflows, or skill names. 分工 = GitHub **PR 名（标题）前缀** `[<role>][<product>]` only. Do not replace it with Conventional Commits `type(product/actor)`.
 - Do not push protect. Do not self-merge. Do not self-approve.
 - Do not live `forge apply`. Do not apply in Overlay CI.
 - Do not arm, do not write `reviewed_by` / receipts.

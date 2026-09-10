@@ -50,7 +50,7 @@ Do not vendor `forge/`, `overlay/`, `schema/`, or `prompts/` into the adopter pr
 ### Never
 
 - Do not vendor the tool into the product commit repo.
-- Do not invent role prefixes on branches, workflows, or skill names. 分工 = GitHub **PR 名（标题）前缀** only.
+- Do not invent role prefixes on branches, workflows, or skill names. 分工 = GitHub **PR 名（标题）前缀** `[<role>][<product>]` only. Do not replace it with Conventional Commits `type(product/actor)` or a `pr-title` workflow.
 - Do not live-apply Forge in Overlay CI or to LearningGuidePortal.
 - Do not change LearningGuidePortal Verify. Do not attach / run / gate intern-workspace Proctor. Do not edit Deepseek3. Do not press `ilovelearningguide.com`.
 - Do not let CodeRabbit be the only required merge check.
