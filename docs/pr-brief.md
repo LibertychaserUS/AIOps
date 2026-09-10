@@ -47,6 +47,21 @@ feat(overlay/agent): adopt Overlay CI and Conventional Commit PR titles
 
 非法：#3 squash 之后还拿旧架构枝开 #4 / #5。合法：#5 squash 进 `main`，下一单从新的 `main` 头开。
 
+没有单独的 ISO / RFC 叫「封顶换底」。行业权威锁的是**进主干的那颗提交**，拓扑后果写在平台文档里：
+
+| 权威 | 锁什么 | 和本仓 |
+|---|---|---|
+| [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) FAQ | 规格管 **commit message**。允许 squash：维护者在合入时整理信息，「automatically squash commits from a pull request」 | 标题语法锁的是 squash 进 `main` 的那颗，不是功能枝每一颗 WIP |
+| [GitHub · About pull request merges](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/about-pull-request-merges) | Squash：**one logical change**。短命枝。合完还在同一 head 上继续开 PR，会把已经压进 base 的提交再带进来 | 「封顶」= one logical change；「换底」= 官方对 long-running branch 的警告 |
+| [GitHub · squash 默认用 PR 标题](https://github.blog/changelog/2022-05-11-default-to-pr-titles-for-squash-merge-commit-messages/) + 仓设置 `squash_merge_commit_title=PR_TITLE` | squash 提交的 subject 默认是 PR 标题 | 所以 `pr-title` 锁标题 = 锁 `main` 上的 commit header |
+| [amannn/action-semantic-pull-request](https://github.com/amannn/action-semantic-pull-request) | 为 squash + [semantic-release](https://github.com/semantic-release/semantic-release) 而写；建议仓设置 Default to PR title | 本仓用 CPython 做同一件事，不引入 Node |
+| [GitLab · Squash and merge](https://docs.gitlab.com/ee/user/project/merge_requests/squash_and_merge/) | 一单 MR 合成一颗有意义的提交；多功能分开压，主干只留逻辑单元 | 同一句：一单 = 一颗 |
+| [Graphite · restack / merge stack](https://graphite.com/docs/restack-branches) | 叠枝产品。底 squash 之后必须 `gt sync` / restack 到**新的 trunk SHA**。从 GitHub 直接合、不 restack，上枝会坐在已消失的旧父 SHA 上 | 这就是 #3 之后 #4/#5 的事故。本仓不接 Graphite；用「不叠旧头 + 换底」代替自动 restack |
+
+Linux `gitworkflows(7)` 是 merge-commit / 集成枝模型，和 squash-to-trunk 不是同一套，不拿来当本仓合入法。
+
+合入默认仍 squash。要叠，必须像 Graphite 那样在底合入后 restack 到新 `main`；本仓第一刀不做 restack 机器人，所以 `submit` 只开到 `protect`。
+
 ---
 
 ## PR 名（标题）前缀
