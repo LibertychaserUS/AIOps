@@ -101,22 +101,39 @@ Proctor 的规矩（没审过不跑、没证据不过）**只复用语义**，�
 
 **以后若要一本账：** 适配器只许住在本仓、只许读本仓 `receipts/`、只许在实习机本机把文件交给已有 Proctor。Deepseek3 源码仍不改。没有这条适配器之前，两本账并排已经算结合完成。
 
-### 2.3 多人协作已经有 git 工具
+### 2.3 多人编写：借用 HackMD，不自建
 
-**协作不本仓做。** Git + GitHub 已经是多人工具：分支、PR、review、blame、`CODEOWNERS`、GitLens、CodeRabbit。再造「谁碰了包」评论区或协作后台，是闲活。
+要找的是 **能几个人同时写 inbox / `cases.md` 的现成工具**，不是再造一套 GitHub，也不是路线 C 的产品门户。
 
-踩踏的解法也是 git 自带的：人（和以后的 agent）走 PR，不直推产品 `main`。不靠一只看 `main` 的云交警。
+**选用 [HackMD](https://hackmd.io)**（托管 + [GitHub App](https://github.com/marketplace/hackmd-hub) 双向同步）。
 
-本仓只补 git 工具不做的两件事：需求 → 可审用例；push 只跑 `armed`。`suite.yaml` 的 `packages` 是给选择器用的索引（后一刀可按 PR 已有的文件列表去对），不是新的协作产品。第一刀不用发自定义「碰了谁的包」comment——PR 的 Files 就是。
+| 候选 | 多人同写 md | 回写 GitHub | 第一刀 |
+|---|---|---|---|
+| **HackMD** | 多光标、评论 | 对指定文件 Push/Pull | **采用**：产品经理不用 clone |
+| HedgeDoc | 同写，可自建 | 无原生 git 同步，还要养服务 | 不用（本仓极简，不先加一台编辑器） |
+| 飞书 / 语雀 / Notion / Google Docs | 会写 | 导出脏，git 不再是账本 | 不用 |
+| Outline / CryptPad | 弱同写或偏 wiki | 不接本仓契约 | 不用 |
+| TestRail / Xray 等用例平台 | 有协作 | 重、和状态机重复 | 不用 |
+| 自建编辑器 | — | — | 不用（即路线 C） |
 
-| 已有 | 本仓 |
-|---|---|
-| 分支 / PR / review / blame / GitLens | 不重做 |
-| CodeRabbit 审 diff | 不重做、不替代 |
-| `CODEOWNERS` 点名谁该看 | 能用就用，不自建值班表 |
-| 本仓 overlay | inbox → `draft`/`blocked`/`armed` → `select` |
+Git 仍是系统 of record。HackMD 只是编写面：
 
-云上 agent 若以后出现，也是 **git 上的一个提交者**：开 PR、等人审、调 `generate`/`select`。不许直推 `main`，不许自己写 `reviewed_by`，不许给支付/登录自动 `armed`。它不是协作层，是笼子里的操作员。路线 B（先做看 `main` 的云 agent）仍然不做。
+```text
+产品 / 开发 / 虚拟测试  同时改 HackMD 上的 inbox 或 cases.md
+        │  Push 到本仓分支（GitHub App）
+        ▼
+  inbox/*.md 、 suites/<id>/cases.md
+        │
+        │ 状态仍只改 suite.yaml（PR，人写 reviewed_by）
+        ▼
+  draft → blocked | armed → select
+```
+
+HackMD **不能**改 `status`、不能写回执、不能给支付/登录解禁。`generate` 仍可先出 `draft`，人在 HackMD 上一起改那一页，再 Sync 回来。
+
+GitLens / CodeRabbit / PR / blame 继续管 **代码协作**（谁改了产品仓、diff 好不好）。HackMD 只管 **用例页怎么一起写**。两件事不要并成一个工具。
+
+云上 agent 以后仍是 git 上的提交者：可往 HackMD 或仓里丢 draft，走 PR。不直推 `main`，不自动 `armed`。路线 B 仍然不做。
 
 ---
 
@@ -142,7 +159,7 @@ Proctor 的规矩（没审过不跑、没证据不过）**只复用语义**，�
 - 对 `ilovelearningguide.com` 发请求或当测试环境。
 - 搬 First-Light 空仓、搬整站开源测试平台。
 - 覆盖率 agent、流量录制、自然语言 E2E 框架（对话表里第一刀标「不用」的那些）。
-- 重做 GitLens / CodeRabbit / PR 协作；云 agent 直推 `main` 或自动 `armed`。
+- 自建协作编辑器或用例平台；用飞书/Notion 当系统 of record；云 agent 直推 `main` 或自动 `armed`。
 
 ---
 
@@ -152,7 +169,7 @@ Proctor 的规矩（没审过不跑、没证据不过）**只复用语义**，�
 
 ```text
 产品经理                 开发
-   │  inbox/*.md            │  普通 PR（已有 git 协作）
+   │  inbox/*.md            │  普通 PR；用例页可在 HackMD 同写再 Sync
    ▼                        ▼
 ┌─────────────────────────────────────────┐
 │  LibertychaserUS/AIOps  (Git + Actions) │
@@ -319,7 +336,8 @@ CPython 能写 / 调 C：它自己就是 C 实现，官方 C API、`ctypes` / `c
 | 语言 / 运行时 | **CPython 3.12+**（标准解释器 + 自带字节码编译） | 生成/选择都是 IO 与文本；和参考生成器同族；需要时再接 C | TypeScript 做 overlay；Cython 当主语言；第一刀就写 C 扩展 |
 | 包管理 | **pip + `requirements.txt`（锁 `requirements.lock`）** | 第一刀依赖少 | npm、poetry/pdm 先不上 |
 | 契约 | **YAML + pydantic v2** | 人改 yaml；启动时校验；参考仓已这样用 | Zod、数据库、JSON 配置后台 |
-| 用例正文 | **Markdown** | 产品经理能审；GitHub 能看 | 第一刀就生成产品仓 `.spec.ts` 当门禁 |
+| 用例正文 | **Markdown** | 人审；GitHub 能看 | 第一刀就生成产品仓 `.spec.ts` 当门禁 |
+| 多人编写 | **HackMD + GitHub Sync** | 同写 md，Push 回本仓；不自建工作台 | HedgeDoc 先自建；飞书/Notion 当账本；TestRail |
 | CLI | **`python -m aiops`**（`generate` / `select` / `review`） | 三个命令，无服务 | Streamlit、Next 工作台、tsx |
 | LLM | **OpenAI 兼容 HTTP**（`OPENAI_BASE_URL` + key） | 产品已用 OpenRouter；可换供应商；temperature=0 | 绑死 Deepseek3；强制本机 Ollama；每次 push 调用 |
 | CI | **本仓 GitHub Actions + `setup-python`** | 选择器是纯函数，无密钥也能预演 | 改产品 `ci.yml`；本仓再装 Node（除非后一刀跑产品命令） |
@@ -385,7 +403,7 @@ docs/architecture.md        # 本文件
 3. 生成或手写一页 `cases.md`，人审。
 4. 支付 / 登录 suite：`blocked`。My Learning 已合且可测的切片：`armed`。
 5. `select main` 不含 `blocked`/`draft`。本仓 push 不因此红。
-6. 协作走已有 PR / GitLens / CodeRabbit，不自建评论区。
+6. 用例页用 HackMD 同写并 Sync 进仓；`status` 仍只在 `suite.yaml` 里改。
 7. `select` 写出程序回执（`schema/receipt.example.yaml`）；不调用 Proctor。
 
 **第二刀（仍不做门户、不做舰队）**
