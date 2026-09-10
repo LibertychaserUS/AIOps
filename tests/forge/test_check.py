@@ -81,7 +81,7 @@ class TitleStepTests(unittest.TestCase):
         stdout = io.StringIO()
         stderr = io.StringIO()
         code = run_check(
-            Path("."),
+            ROOT,
             title=None,
             stdout=stdout,
             stderr=stderr,
@@ -94,6 +94,44 @@ class TitleStepTests(unittest.TestCase):
         self.assertEqual(code, EXIT_OK, stderr.getvalue())
         self.assertIn("skip", stdout.getvalue())
         self.assertIn("no --title", stdout.getvalue())
+        self.assertIn("CI lints PR_TITLE", stdout.getvalue())
+        self.assertIn("pr-body", stdout.getvalue())
+        self.assertIn("CI lints PR_BODY", stdout.getvalue())
+
+    def test_bad_body_is_red_when_brief_exists(self) -> None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        code = run_check(
+            ROOT,
+            title=EXAMPLE,
+            body="## 做了什么\n",
+            stdout=stdout,
+            stderr=stderr,
+            environ={},
+            run_unittests=False,
+        )
+        self.assertEqual(code, EXIT_CHECK)
+        self.assertIn("pr-body", stdout.getvalue())
+        self.assertIn("FAIL", stdout.getvalue())
+
+    def test_good_body_is_green_when_brief_exists(self) -> None:
+        from forge.brief import REQUIRED_H2
+
+        body = "\n\n".join(f"## {heading}\n\n-" for heading in REQUIRED_H2)
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        code = run_check(
+            ROOT,
+            title=EXAMPLE,
+            body=body,
+            stdout=stdout,
+            stderr=stderr,
+            environ={},
+            run_unittests=False,
+        )
+        self.assertEqual(code, EXIT_OK, stderr.getvalue())
+        self.assertIn("pr-body", stdout.getvalue())
+        self.assertNotIn("FAIL", stdout.getvalue())
 
 
 class SkipAndFailTests(unittest.TestCase):

@@ -14,6 +14,7 @@ Missing or empty secret exits 2 even on --dry-run. Never print the token.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Callable, Mapping, Sequence
@@ -48,8 +49,13 @@ BODY_HEADINGS = (
 )
 
 DEFAULT_REMOTE = "origin"
+GITHUB_HTTPS_EXTRAHEADER = "http.https://github.com/.extraheader"
 GitRunner = Callable[..., str]
 Pusher = Callable[[str, str], None]
+
+
+def _redact_secrets(text: str) -> str:
+    return re.sub(r"(AUTHORIZATION:\s*bearer\s+)\S+", r"\1[redacted]", text, flags=re.IGNORECASE)
 
 
 def default_git_runner(
@@ -65,7 +71,8 @@ def default_git_runner(
     )
     if result.returncode != 0:
         err = (result.stderr or result.stdout or "").strip() or f"exit {result.returncode}"
-        raise ForgeError(EXIT_CONFIG, f"git {' '.join(args)} failed: {err}")
+        shown = " ".join(_redact_secrets(part) for part in args)
+        raise ForgeError(EXIT_CONFIG, f"git {shown} failed: {_redact_secrets(err)}")
     return (result.stdout or "").strip()
 
 
@@ -75,9 +82,14 @@ def default_pusher(
     *,
     cwd: Path | str | None = None,
     git_runner: GitRunner | None = None,
+    token: str | None = None,
 ) -> None:
     runner = default_git_runner if git_runner is None else git_runner
-    runner(["push", "-u", remote, ref], cwd=cwd)
+    args: list[str] = []
+    if token:
+        args.extend(["-c", f"{GITHUB_HTTPS_EXTRAHEADER}=AUTHORIZATION: bearer {token}"])
+    args.extend(["push", "-u", remote, ref])
+    runner(args, cwd=cwd)
 
 
 def resolve_head(
@@ -266,6 +278,7 @@ def run_submit(
         check_code = checker(
             root,
             title=resolved_title,
+            body=pr_body(),
             stdout=out,
             stderr=err,
             environ=environ,
@@ -295,7 +308,13 @@ def run_submit(
         if push is None:
 
             def push(remote: str, ref: str) -> None:
-                default_pusher(remote, ref, cwd=cwd, git_runner=git_runner)
+                default_pusher(
+                    remote,
+                    ref,
+                    cwd=cwd,
+                    git_runner=git_runner,
+                    token=resolved_token,
+                )
 
         push(DEFAULT_REMOTE, resolved_head)
         print(f"pushed {DEFAULT_REMOTE} {resolved_head}", file=out)

@@ -206,6 +206,13 @@ class WorkflowDagTests(unittest.TestCase):
         self.assertIn("needs: [select, spec, review-bots]", text)
         self.assertNotIn("python -m forge submit", text)
         self.assertNotIn("python -m overlay generate", text)
+        self.assertNotIn("--wait 60", text)
+        self.assertIn("--wait 0", text)
+
+        overlay = (root / ".github" / "workflows" / "overlay.yml").read_text(encoding="utf-8")
+        self.assertIn("tool_repository", overlay)
+        self.assertIn("${{ inputs.tool_repository }}", overlay)
+        self.assertNotIn("repository: LibertychaserUS/AIOps", overlay)
 
 
 if __name__ == "__main__":

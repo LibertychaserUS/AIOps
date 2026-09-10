@@ -31,9 +31,9 @@ Overlay **Ops** Action CI（PR 且选中）顺序：规格 → CodeRabbit/Copilo
 
 本地：工具仓或 fork 与产品仓并排放。`PYTHONPATH=<工具仓>` 再跑 `python3 -m forge` / `python3 -m overlay`。不要为了 import 把包 `git add` 进产品树。
 
-CI：产品仓没有 `overlay/__init__.py` 时，reusable [`overlay.yml`](../.github/workflows/overlay.yml) 会 checkout `LibertychaserUS/AIOps` 到 `_aiops` 并设 `PYTHONPATH`。这是正确复用路径。不要为了让 `local=true` 把 `overlay/` 拷进产品仓。
+CI：产品仓没有 `overlay/__init__.py` 时，reusable [`overlay.yml`](../.github/workflows/overlay.yml) 会 checkout `tool_repository`（默认 `LibertychaserUS/AIOps`）到 `_aiops` 并设 `PYTHONPATH`。这是正确复用路径。不要为了让 `local=true` 把 `overlay/` 拷进产品仓。
 
-Fork 若已分叉、SHA 不在上游：`uses:` 指向该 fork 的 pin；fork 里的 workflow 把工具 checkout 改成自己的 fork。
+Fork 若已分叉、SHA 不在上游：`uses:` 指向该 fork 的 pin，并把 `tool_repository` / `tool_ref` 指到该 fork。永不 checkout LearningGuidePortal。
 
 ---
 

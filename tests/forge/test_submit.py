@@ -9,7 +9,14 @@ from pathlib import Path
 from forge import EXIT_AUTH, EXIT_CONFIG, EXIT_OK, SUBMIT_TOKEN_ENV
 from forge.__main__ import main
 from forge.check import EXIT_CHECK
-from forge.submit import BODY_HEADINGS, MISSING_SUBMIT_TOKEN, REQUIRE_SUBMIT_TOKEN, run_submit
+from forge.submit import (
+    BODY_HEADINGS,
+    GITHUB_HTTPS_EXTRAHEADER,
+    MISSING_SUBMIT_TOKEN,
+    REQUIRE_SUBMIT_TOKEN,
+    default_pusher,
+    run_submit,
+)
 from forge.title import EXAMPLE, lint_title
 
 from tests.forge.fake_github import FakeGitHub
@@ -270,6 +277,67 @@ class HeadResolutionTests(unittest.TestCase):
         )
         self.assertEqual(code, EXIT_OK, err)
         self.assertIn(f"head: {HEAD}", out)
+        self.assertEqual(fake.calls, [])
+        self.assertEqual(pusher.calls, [])
+
+
+class TokenPushTests(unittest.TestCase):
+    def test_default_pusher_injects_submit_token(self) -> None:
+        recorded: list[list[str]] = []
+
+        def git(args, cwd=None):
+            recorded.append(list(args))
+            return ""
+
+        leak = "secret-token-do-not-leak-push"
+        default_pusher("origin", HEAD, git_runner=git, token=leak)
+        self.assertEqual(len(recorded), 1)
+        self.assertIn("-c", recorded[0])
+        self.assertIn(f"{GITHUB_HTTPS_EXTRAHEADER}=AUTHORIZATION: bearer {leak}", recorded[0])
+        self.assertEqual(recorded[0][-4:], ["push", "-u", "origin", HEAD])
+
+    def test_submit_default_pusher_uses_submit_token(self) -> None:
+        recorded: list[list[str]] = []
+
+        def git(args, cwd=None):
+            recorded.append(list(args))
+            return ""
+
+        leak = "secret-token-do-not-leak-push"
+        fake = FakeGitHub()
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        code = run_submit(
+            repo=REPO,
+            title=TITLE,
+            head=HEAD,
+            urlopen=fake.urlopen,
+            base_url=FAKE_API,
+            stdout=stdout,
+            stderr=stderr,
+            environ={SUBMIT_TOKEN_ENV: leak},
+            git_runner=git,
+            check_fn=_ok_check,
+        )
+        self.assertEqual(code, EXIT_OK, stderr.getvalue())
+        self.assertTrue(any("push" in args for args in recorded))
+        joined = " ".join(part for args in recorded for part in args)
+        self.assertIn(f"AUTHORIZATION: bearer {leak}", joined)
+        self.assertNotIn(leak, stdout.getvalue())
+        self.assertNotIn(leak, stderr.getvalue())
+
+    def test_submit_passes_pr_body_to_check(self) -> None:
+        seen: dict[str, object] = {}
+
+        def spy(_root, **kwargs):
+            seen.update(kwargs)
+            return EXIT_OK
+
+        code, _out, err, fake, pusher = _submit(dry_run=True, check_fn=spy)
+        self.assertEqual(code, EXIT_OK, err)
+        body = str(seen.get("body") or "")
+        for heading in BODY_HEADINGS:
+            self.assertIn(heading, body)
         self.assertEqual(fake.calls, [])
         self.assertEqual(pusher.calls, [])
 

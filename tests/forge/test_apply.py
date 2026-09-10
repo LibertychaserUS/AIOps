@@ -91,7 +91,7 @@ class DefaultPayloadTests(unittest.TestCase):
         self.assertGreaterEqual(pr["parameters"]["required_approving_review_count"], 1)
         self.assertFalse(pr["parameters"]["require_code_owner_review"])
 
-        payload = build_payload(load_config(None))
+        payload = build_payload(validate_config({"schema": "forge-config/v1"}))
         self.assertEqual(payload["name"], RULESET_NAME)
         self.assertEqual(payload["bypass_actors"], [])
         self.assertEqual(payload["conditions"]["ref_name"]["include"], ["refs/heads/main"])
@@ -100,18 +100,34 @@ class DefaultPayloadTests(unittest.TestCase):
         self.assertEqual(pr["parameters"]["required_approving_review_count"], 1)
         self.assertIs(pr["parameters"]["require_code_owner_review"], False)
         self.assertIs(pr["parameters"]["dismiss_stale_reviews_on_push"], True)
+        types = [rule["type"] for rule in payload["rules"]]
+        self.assertNotIn("required_status_checks", types)
 
-    def test_example_yaml_uses_defaults_and_does_not_add_required_checks_rule(self) -> None:
+    def test_example_yaml_writes_required_status_checks(self) -> None:
         config = load_config(EXAMPLE)
         self.assertEqual(config.protect, ["main"])
         self.assertEqual(config.min_approvals, 1)
         self.assertIs(config.code_owners, False)
+        self.assertEqual(config.required_checks, ["Verify"])
         payload = build_payload(config)
-        types = [rule["type"] for rule in payload["rules"]]
-        self.assertNotIn("required_status_checks", types)
+        rule = next(
+            item for item in payload["rules"] if item["type"] == "required_status_checks"
+        )
+        contexts = [item["context"] for item in rule["parameters"]["required_status_checks"]]
+        self.assertEqual(contexts, ["Verify"])
+        self.assertIs(rule["parameters"]["strict_required_status_checks_policy"], False)
         lg = load_config(LG_EXAMPLE)
         self.assertEqual(lg.protect, ["main"])
         self.assertIn(".github/workflows/ci.yml", lg.deny_paths)
+
+    def test_workshop_yaml_writes_all_required_checks(self) -> None:
+        config = load_config(ROOT / "forge.yaml")
+        payload = build_payload(config)
+        rule = next(
+            item for item in payload["rules"] if item["type"] == "required_status_checks"
+        )
+        contexts = [item["context"] for item in rule["parameters"]["required_status_checks"]]
+        self.assertEqual(contexts, ["overlay-check", "pr-title", "forge-check", "sop-lock"])
 
     def test_missing_fields_use_defaults(self) -> None:
         config = validate_config({"schema": "forge-config/v1"})

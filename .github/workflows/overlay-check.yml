@@ -106,7 +106,7 @@ jobs:
             --sha "${{ github.event.pull_request.head.sha }}" \
             --pr "${{ github.event.pull_request.number }}" \
             --write-report ops-reports/ \
-            --wait 60 \
+            --wait 0 \
             --poll 10
 
       - name: Upload review-bots report

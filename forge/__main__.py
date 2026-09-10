@@ -50,7 +50,12 @@ def _parser() -> argparse.ArgumentParser:
     check_p.add_argument(
         "--title",
         default=None,
-        help="PR title to lint (same as pr-title). Default: env PR_TITLE. Skip if omitted.",
+        help="PR title to lint (same as pr-title). Default: env PR_TITLE. Skip if omitted (CI still lints PR_TITLE).",
+    )
+    check_p.add_argument(
+        "--body",
+        default=None,
+        help="PR body to lint when docs/pr-brief.md exists. Default: env PR_BODY. Skip if omitted (CI still lints PR_BODY).",
     )
 
     submit_p = sub.add_parser(
@@ -221,9 +226,11 @@ def main(
         )
     if args.command == "check":
         title = args.title if args.title is not None else env_dict.get("PR_TITLE")
+        body = args.body if args.body is not None else env_dict.get("PR_BODY")
         return run_check(
             Path(args.root),
             title=title,
+            body=body,
             stdout=out,
             stderr=err,
             environ=env_dict,

@@ -41,7 +41,7 @@ The product repo commits **only**:
 - `invariants.yaml` (optional)
 - a thin workflow that `uses:` [`.github/workflows/overlay.yml`](../../.github/workflows/overlay.yml) from the **tool** repo — pin a **tag or commit SHA**, not floating `main`
 
-That is the whole adoption surface. Do **not** copy `overlay/` into the product tree so that CI sees `local=true`. When `overlay/__init__.py` is absent, the reusable workflow checkouts `LibertychaserUS/AIOps` into `_aiops` and sets `PYTHONPATH`. **That checkout is the correct reuse path.**
+That is the whole adoption surface. Do **not** copy `overlay/` into the product tree so that CI sees `local=true`. When `overlay/__init__.py` is absent, the reusable workflow checkouts `tool_repository` (default `LibertychaserUS/AIOps`) into `_aiops` and sets `PYTHONPATH`. **That checkout is the correct reuse path.**
 
 Local CLI: checkout the tool repo or fork **beside** the product. Set `PYTHONPATH`. Do not `git add` the tool tree.
 
@@ -55,7 +55,7 @@ PYTHONPATH=../AIOps python3 -m overlay validate --root .
 PYTHONPATH=../AIOps python3 -m overlay cover --root .
 ```
 
-If you forked the workshop, `uses:` **your fork** at a pin. A fork that diverges from upstream should point the workflow's tool checkout at that fork (the default in this workshop checkouts `LibertychaserUS/AIOps`). Never pin floating `main`.
+If you forked the workshop, `uses:` **your fork** at a pin and pass `tool_repository` / `tool_ref` to that fork. The default tool checkout is `LibertychaserUS/AIOps`. Never pin floating `main`. Never checkout LearningGuidePortal.
 
 ### Humans / agents — write
 
@@ -138,7 +138,7 @@ validate / select are local YAML. `run` is local subprocess in the caller checko
 
 | 现象 | 处理 |
 |---|---|
-| 想把 `overlay/` 拷进产品仓好过 CI | 停。让 `local=false`，reusable workflow 会 checkout `LibertychaserUS/AIOps`。 |
+| 想把 `overlay/` 拷进产品仓好过 CI | 停。让 `local=false`，reusable workflow 会 checkout `tool_repository`（默认本工作本）。 |
 | validate 找不到 `overlay` 模块 | 本地设 `PYTHONPATH` 指向工作本或 fork；不要 `git add overlay/`。 |
 | validate 退出 2 | 契约红。读打印的路径。不是业务功能红。 |
 | blocked 把 check 染红 | bug。blocked 必须丢弃。 |

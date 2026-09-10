@@ -188,6 +188,26 @@ class DecideUnitTests(unittest.TestCase):
         self.assertTrue(forge.run)
         self.assertEqual(overlay.reason, "undecided-run-all")
 
+    def test_unknown_check_skips(self) -> None:
+        config = load_ci_config(ROOT)
+        decision = decide(
+            config, "mystery-check", title="feat(overlay/dev): x", changed=None
+        )
+        self.assertFalse(decision.run)
+        self.assertEqual(decision.reason, "unknown-check-skip")
+
+    def test_thin_yaml_without_products_skips_unknown_product_check(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "forge.yaml").write_text(
+                "schema: forge-config/v1\nprotect:\n  - main\n",
+                encoding="utf-8",
+            )
+            config = load_ci_config(root)
+            decision = decide(config, "overlay-check", title=None, changed=["src/a.py"])
+            self.assertFalse(decision.run)
+            self.assertEqual(decision.reason, "unknown-check-skip")
+
 
 if __name__ == "__main__":
     unittest.main()

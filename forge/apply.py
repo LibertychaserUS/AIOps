@@ -342,7 +342,31 @@ def build_payload(config: ForgeConfig, template: dict[str, Any] | None = None) -
             params.setdefault("require_last_push_approval", False)
     if not found_pr:
         raise ForgeError(EXIT_CONFIG, "ruleset template is missing pull_request")
-    types = {rule.get("type") for rule in rules if isinstance(rule, dict)}
+    if config.required_checks:
+        check_rule = {
+            "type": "required_status_checks",
+            "parameters": {
+                "strict_required_status_checks_policy": False,
+                "required_status_checks": [
+                    {"context": name} for name in config.required_checks
+                ],
+            },
+        }
+        replaced = False
+        for index, rule in enumerate(rules):
+            if isinstance(rule, dict) and rule.get("type") == "required_status_checks":
+                rules[index] = check_rule
+                replaced = True
+                break
+        if not replaced:
+            rules.append(check_rule)
+    else:
+        payload["rules"] = [
+            rule
+            for rule in rules
+            if not (isinstance(rule, dict) and rule.get("type") == "required_status_checks")
+        ]
+    types = {rule.get("type") for rule in payload["rules"] if isinstance(rule, dict)}
     if "deletion" not in types or "non_fast_forward" not in types:
         raise ForgeError(EXIT_CONFIG, "ruleset template is missing deletion/non_fast_forward")
     return payload

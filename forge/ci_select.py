@@ -211,8 +211,8 @@ def decide(
             )
     return Decision(
         check=check,
-        run=True,
-        reason="unknown-check-run",
+        run=False,
+        reason="unknown-check-skip",
         source="default",
         products=products,
         common=config.common,

@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import TextIO
 
 from forge import EXIT_OK
+from forge.brief import brief_spec_exists, lint_pr_body
 from forge.title import run_pr_title
 
 EXIT_CHECK = 2
@@ -143,6 +144,7 @@ def run_check(
     root: Path,
     *,
     title: str | None = None,
+    body: str | None = None,
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
     environ: Mapping[str, str] | None = None,
@@ -152,13 +154,18 @@ def run_check(
     schema_runner: SchemaFn | None = None,
     unittest_runner: UnittestFn | None = None,
 ) -> int:
-    """Run the local pre-submit checklist. Exit 0 / 2. Never writes GitHub."""
+    """Run the local pre-submit checklist. Exit 0 / 2. Never writes GitHub.
+
+    Title/body steps skip when omitted. That is not the same object as CI
+    `pr-title`, which reads the GitHub PR title and body.
+    """
     out = sys.stdout if stdout is None else stdout
     err = sys.stderr if stderr is None else stderr
     env: Mapping[str, str] = os.environ if environ is None else environ
     root = root.resolve()
     steps: list[Step] = []
     resolved_title = title if title is not None else env.get("PR_TITLE")
+    resolved_body = body if body is not None else env.get("PR_BODY")
 
     if overlay_yaml_exists(root):
         validate_fn = _default_overlay_validate if overlay_validate is None else overlay_validate
@@ -193,7 +200,19 @@ def run_check(
         else:
             steps.append(Step("pr-title", "ok", resolved_title))
     else:
-        steps.append(Step("pr-title", "skip", "no --title; submit must pass a title"))
+        steps.append(Step("pr-title", "skip", "no --title; CI lints PR_TITLE"))
+
+    if brief_spec_exists(root):
+        if resolved_body is not None:
+            code, message = lint_pr_body(resolved_body)
+            if code != EXIT_OK:
+                steps.append(Step("pr-body", "fail", message or f"exit {code}"))
+            else:
+                steps.append(Step("pr-body", "ok", "six ## headings"))
+        else:
+            steps.append(Step("pr-body", "skip", "no --body; CI lints PR_BODY"))
+    else:
+        steps.append(Step("pr-body", "skip", "no docs/pr-brief.md"))
 
     if schema_check_exists(root):
         schema_fn = _default_schema_runner if schema_runner is None else schema_runner
