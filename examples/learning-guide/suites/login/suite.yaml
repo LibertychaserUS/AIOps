@@ -1,0 +1,13 @@
+id: login
+title: Registration and Authentication
+status: blocked
+kind: functional
+subject: product
+source: inbox/login.md
+packages:
+  - modules/user-registration
+reviewed_by: fixture
+reviewed_at: 2026-09-10T00:00:00Z
+blocked_reason: Login is not ready to gate.
+armed_reason: null
+product_command: null

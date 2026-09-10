@@ -1,0 +1,22 @@
+# Per-consuming-repo Overlay config. Learning Guide is one adapter, not the product.
+# Push/select reads this. No LLM on this path.
+
+product:
+  repo: owner/name
+  default_ref: pin-me
+
+branches:
+  main:
+    run: [functional, regression]
+  test:
+    run: [functional, regression]
+  hotfix:
+    run: [functional]
+
+kinds:
+  concurrency: later
+  agent: later
+
+never_red_statuses:
+  - draft
+  - blocked

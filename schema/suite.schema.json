@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aiops.local/schema/suite.schema.json",
+  "title": "Overlay suite.yaml",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "title",
+    "status",
+    "kind",
+    "subject",
+    "source"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "title": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["draft", "blocked", "armed"] },
+    "kind": { "enum": ["functional", "regression"] },
+    "subject": { "enum": ["product", "agent"] },
+    "source": { "type": "string", "minLength": 1 },
+    "packages": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "reviewed_by": { "type": ["string", "null"] },
+    "reviewed_at": { "type": ["string", "null"] },
+    "blocked_reason": { "type": ["string", "null"] },
+    "armed_reason": { "type": ["string", "null"] },
+    "product_command": { "type": ["string", "null"] }
+  }
+}

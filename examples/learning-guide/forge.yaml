@@ -1,0 +1,13 @@
+schema: forge-config/v1
+protect:
+  - main
+agent_branch_prefixes:
+  - cursor/
+  - copilot/
+deny_paths:
+  - .github/workflows/ci.yml
+required_checks:
+  - Verify
+review:
+  min_approvals: 1
+  code_owners: false

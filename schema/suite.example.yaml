@@ -1,0 +1,21 @@
+# Contract example for suites/<id>/suite.yaml
+# Selector and CI validate this shape. Only three statuses.
+
+id: my-learning
+title: My Learning — overview and progress
+status: armed                 # draft | blocked | armed
+kind: functional              # functional | regression
+subject: product              # product | agent  (agent is later; selector drops it)
+source: inbox/my-learning.md
+packages:
+  - modules/my-learning
+  - "app/[locale]/account"
+reviewed_by: null             # required when status is blocked or armed
+reviewed_at: null             # ISO date when reviewed
+blocked_reason: null          # required when status is blocked
+armed_reason: null            # required when status is armed (why code is claimed testable)
+product_command: null         # later: product-repo npm script; unused in slice 1
+
+# Companion: suites/<id>/cases.md is the adopter test spec (REQ-n + functional / negative / edge).
+# Companion: suites/<id>/trace.yaml is optional (requirement id → case id).
+# Test spec traces the inbox slice; it does not mirror the product PRD chapter tree.
