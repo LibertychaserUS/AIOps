@@ -15,15 +15,17 @@ python -m forge check --root . --title "feat(overlay/dev): add cover triad and i
 python -m forge pr-title --title "feat(overlay/dev): add cover triad and invariants"
 ```
 
-退出 `0` 绿、`2` 红。CI 同名检查 **`pr-title`**（只跑 `pull_request`）。本工作本 `forge.yaml` `required_checks` 已列入 `overlay-check`、`pr-title`、`forge-check`、`sop-lock`；Ruleset 勾上之后，红则不能合。代推前 `python -m forge check` 红则不能提交；宿主未注入写权限也不能提交（含 `--dry-run`）。不要 live `forge apply`。不要用 husky/npm 挡 `git commit`。
+退出 `0` 绿、`2` 红。CI 同名检查 **`pr-title`**（只跑 `pull_request`）。本工作本 `forge.yaml` `required_checks` 已列入 `overlay-check`、`pr-title`、`forge-check`、`sop-lock`；Ruleset 勾上之后，红则不能合。代推前 `python -m forge check` 红则不能提交；缺 `FORGE_SUBMIT_TOKEN` 也不能提交（含 `--dry-run`）。不要 live `forge apply`。不要用 husky/npm 挡 `git commit`。
 
-本仓 PR #3 的 GitHub 标题必须改成下面这一行（Agents 的 GitHub write 会 404，需要人在 UI 改名）：
+本仓 PR #3 的 GitHub 标题已由人在 UI 定为（不要再改，除非完全不准）：
 
 ```text
-feat(ci/agent): split overlay and forge CI workflows
+feat(overlay/agent): adopt Overlay CI and Conventional Commit PR titles
 ```
 
-（若这单以 Forge submit 为主，也可用 `feat(forge/dev): add submit middleware and lock the Forge/Ops split`。不要另造第二种语法。）
+不要改成 `feat(ci/agent): split overlay and forge CI workflows`。那是「两个产品各搞一套对等 CI」的旧说法。
+
+标题 `product` 同时驱动 `python -m forge ci-select`（`forge.yaml` `ci.select.title`）：`overlay` → `overlay-check`；`forge` → `forge-check`；`ci` → 两个都跑；`docs` → 只跑通用。**通用检查 ≠ 产品门。** 不要另造第二种标题语法。
 
 ---
 
@@ -48,7 +50,7 @@ type(product/actor): subject
 | 槽 | 取值 | 写什么 |
 |---|---|---|
 | `type` | `build` \| `chore` \| `ci` \| `docs` \| `feat` \| `fix` \| `perf` \| `refactor` \| `revert` \| `style` \| `test` | Angular / commitlint conventional。小写 |
-| `product` | `forge` \| `overlay` \| `ci` \| `docs` | 主产品。混改写在「做了什么」，不要叠第二个产品 |
+| `product` | `forge` \| `overlay` \| `ci` \| `docs` | 主产品，也是产品门选择器。`overlay` / `forge` 各跑对应门；`ci` 两门都跑；`docs` 只跑通用。混改写在「做了什么」，不要叠第二个产品 |
 | `actor` | `dev` \| `admin` \| `agent` | 这单戴哪顶帽子。映射：开发端=`dev`，管理端=`admin`，agent=`agent` |
 | `!` | 可选 | Conventional Commits breaking，紧贴 `)` 与 `:` |
 | `subject` | 非空、不以空白开头 | 祈使、一事。不要散文标题 |
@@ -64,7 +66,7 @@ type(product/actor): subject
 
 混改：标题只标主产品。其余列在「做了什么」。不要写成 `feat(overlay+docs/dev):`。
 
-可选本地包装（不默认安装 git hook）：`forge/hooks/pr-title "feat(overlay/dev): …"`；提交前整门：`forge/hooks/pre-submit --title "…"`。代推锁是 `python -m forge check` 绿，且宿主已注入写权限（`gh auth login` / `GH_TOKEN` / extraheader）。合并锁是 GitHub 上的 required checks，不是本机 hook。
+可选本地包装（不默认安装 git hook）：`forge/hooks/pr-title "feat(overlay/dev): …"`；提交前整门：`forge/hooks/pre-submit --title "…"`。代推锁是 `python -m forge check` 绿，**并且** 持有 `FORGE_SUBMIT_TOKEN`。`gh auth` / `GH_TOKEN` / extraheader 都不够。合并锁是 GitHub 上的 required checks，不是本机 hook。
 
 ---
 
