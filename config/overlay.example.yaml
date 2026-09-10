@@ -1,0 +1,22 @@
+# Copy to config/overlay.yaml when implementing.
+# Push/select reads this. No LLM on this path.
+
+product:
+  repo: First-Light-TechHK/LearningGuidePortal
+  default_ref: pin-me
+
+branches:
+  main:
+    run: [functional, regression]
+  test:
+    run: [functional, regression]
+  hotfix:
+    run: [functional]
+
+kinds:
+  concurrency: later
+  agent: later
+
+never_red_statuses:
+  - draft
+  - blocked
