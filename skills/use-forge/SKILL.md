@@ -9,6 +9,8 @@ metadata:
 
 Forge is a standard part: Ruleset + policy + optional guard. It does not generate tests and must not edit Overlay `status`.
 
+**Who reviews and merges:** GitHub humans + Ruleset, not Overlay, not a portal. RBAC: [`docs/rbac.md`](../../docs/rbac.md). **管理端** (apply, required checks, CODEOWNERS, merge, Overlay arm/block): [`../manage-repo/SKILL.md`](../manage-repo/SKILL.md). **开发端** (open PR, fix armed-red, no live apply): [`../dev-pr/SKILL.md`](../dev-pr/SKILL.md). Agents: this SOP + [`forge/agent-policy.md`](../../forge/agent-policy.md) — no self-merge, no self-approve.
+
 ## Instructions
 
 Follow these steps. Stay imperative. Do not invent a second constitution.
@@ -49,12 +51,12 @@ CI reuse path: `uses: LibertychaserUS/AIOps/.github/workflows/forge-guard.yml@<t
    PYTHONPATH=../AIOps python3 -m forge apply --repo OWNER/NAME --path forge.yaml --dry-run
    ```
    Must print the payload and `copy these files`. Exit 0. No API write. "Copy these files" means paste policy / CODEOWNERS **text**, not `git add forge/`.
-4. **Apply only with an admin token** (`FORGE_GITHUB_TOKEN` or `GITHUB_TOKEN`, Administration: write). Never apply to `First-Light-TechHK/LearningGuidePortal` from this workshop. Never apply in Overlay CI. Humans run apply; agents do not live-apply.
+4. **Apply only with an admin token** (`FORGE_GITHUB_TOKEN` or `GITHUB_TOKEN`, Administration: write). Never apply to `First-Light-TechHK/LearningGuidePortal` from this workshop. Never apply in Overlay CI. Humans run apply; agents do not live-apply. That human is **管理端** (`$manage-repo`).
    ```text
    PYTHONPATH=../AIOps python3 -m forge apply --repo OWNER/NAME --path forge.yaml
    PYTHONPATH=../AIOps python3 -m forge status --repo OWNER/NAME
    ```
-5. **Humans and agents land the same way:** open a PR. No push to protected branches. No self-merge. No self-approve. Do not edit the adopter’s existing build workflow.
+5. **Humans and agents land the same way:** open a PR. No push to protected branches. No self-merge. No self-approve. Do not edit the adopter’s existing build workflow. Developers follow `$dev-pr`. Merge is a GitHub click after checks are green — `$manage-repo`, not Forge CI.
 6. **Do not touch Overlay gates.** Forge must not write `reviewed_by`, receipts, or `status: armed`. Agents must not arm.
 7. **Required checks** stay the adopter’s names (their build job, plus `overlay-check` only if they installed Overlay). Forge does not create those jobs.
 
@@ -67,6 +69,7 @@ Guard workflow is later. First slice is Ruleset + policy + CLI.
 - Do not change LearningGuidePortal Verify. Do not attach / run / gate intern-workspace Proctor. Do not edit Deepseek3.
 - Do not generate on push. Do not arm as an agent. Do not write receipts / `reviewed_by`.
 - CI only; no CD. Two products stay independent: Forge does not write Overlay `status`.
+- Do not build an admin Web or a second RBAC database. Review/merge stay on GitHub (`$manage-repo`).
 
 ## Examples
 
@@ -103,6 +106,7 @@ Dry-run is local JSON. Live apply is one GET + one POST or PUT. No model. No CD.
 | 退出码 2 | 缺 token。不要部分写入。 |
 | 退出码 3 | `forge.yaml` 非法。对照 example。 |
 | 退出码 4 | GitHub API 失败。看权限，不要改 Ruleset JSON 结构凑合。 |
-| 想直推 main 省事 | 停。开 PR。 |
-| 想让 Forge 把 suite 标 armed | 停。那是人审 Overlay。 |
+| 想直推 main 省事 | 停。开 PR。`$dev-pr`。 |
+| 想让 Forge 把 suite 标 armed | 停。那是人审 Overlay。`$manage-repo`。 |
+| 谁来 merge | GitHub 上的人 + Ruleset。见 [`docs/rbac.md`](../../docs/rbac.md)。 |
 | 想对 LearningGuidePortal live apply | 停。fixture，不是试验场。 |

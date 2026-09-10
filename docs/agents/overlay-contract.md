@@ -59,5 +59,5 @@ items:
 | 不知道用什么 id | 先抄接入方文档已有编号。没有就铸 `FN-…`。 |
 | 想改成 `LOGIN-01` 以求规范 | 不要，除非文档本来就用它。改号等于断两棵树。 |
 | fixture 里看到 `ML-FR-004` | 编译结果。内核例子用 `FN-login-retry`。 |
-| 想写 `reviewed_by` 或 `armed` | 停。人审才写。 |
+| 想写 `reviewed_by` 或 `armed` | 停。人审才写。管理端：[`../../skills/manage-repo/SKILL.md`](../../skills/manage-repo/SKILL.md)。 |
 | 抓不到全局 corner | 先读全部 inbox/suites，写 `invariants.yaml`。见 [`../../skills/design-cases/SKILL.md`](../../skills/design-cases/SKILL.md)。 |

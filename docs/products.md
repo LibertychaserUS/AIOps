@@ -9,7 +9,7 @@
 
 两件产品独立版本、独立接入、独立失败。Forge 不懂用例；Overlay 不管谁该 merge。接入方可以只装一件。
 
-完整详细设计：[`design.md`](design.md)。使用 skill（Codex `SKILL.md`）：[`sop.md`](sop.md)、[`../skills/use-forge/SKILL.md`](../skills/use-forge/SKILL.md)、[`../skills/use-overlay/SKILL.md`](../skills/use-overlay/SKILL.md)、[`../skills/design-cases/SKILL.md`](../skills/design-cases/SKILL.md)。Inbox：[`inbox.md`](inbox.md)。测试规格：[`test-spec.md`](test-spec.md)。编译契约：[`agents/overlay-contract.md`](agents/overlay-contract.md)。IEEE 剖面：[`agents/ieee-test-system.md`](agents/ieee-test-system.md)。过程稿：[`architecture.md`](architecture.md)。约束：[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md)。
+完整详细设计：[`design.md`](design.md)。使用 skill（Codex `SKILL.md`）：[`sop.md`](sop.md)、[`../skills/use-forge/SKILL.md`](../skills/use-forge/SKILL.md)、[`../skills/use-overlay/SKILL.md`](../skills/use-overlay/SKILL.md)、[`../skills/design-cases/SKILL.md`](../skills/design-cases/SKILL.md)、管理端 [`../skills/manage-repo/SKILL.md`](../skills/manage-repo/SKILL.md)、开发端 [`../skills/dev-pr/SKILL.md`](../skills/dev-pr/SKILL.md)。Review / merge / RBAC：[`rbac.md`](rbac.md)。Inbox：[`inbox.md`](inbox.md)。测试规格：[`test-spec.md`](test-spec.md)。编译契约：[`agents/overlay-contract.md`](agents/overlay-contract.md)。IEEE 剖面：[`agents/ieee-test-system.md`](agents/ieee-test-system.md)。过程稿：[`architecture.md`](architecture.md)。约束：[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md)。
 
 ---
 
@@ -41,6 +41,7 @@ Fork 若已分叉、SHA 不在上游：`uses:` 指向该 fork 的 pin；fork 里
 - 不做 CD。不打接入方生产域名。不改接入方已有构建 workflow（Learning Guide 的 Verify 是这一条的第一例）。
 - 不 attach 任何仓的 Proctor / intern 监考。不改 Deepseek3。不对 `LearningGuidePortal` live apply。
 - Agent 只开 PR，不直推保护分支，不自 merge，不写 Overlay 的 `reviewed_by` / 回执，不 `armed`。CI 不自动 armed。token 只在人点的 `generate`，不在 push。
+- PR review / merge：**GitHub 上的人 + Ruleset**。没有管理端 Web，没有第二套权限库。见 [`rbac.md`](rbac.md)。
 
 ---
 
@@ -58,7 +59,7 @@ Fork 若已分叉、SHA 不在上游：`uses:` 指向该 fork 的 pin；fork 里
 |---|---|---|
 | `forge/ruleset.protected-default.json` | 保护 `main`（及接入方列出的分支）：禁 force push、禁直推、必须 PR | 分支名写在产品仓 `forge.yaml` |
 | `forge/CODEOWNERS.example` | 路径 → 必须审的人 | 按需把**文本**贴进产品仓 `.github/CODEOWNERS`，不拷 `forge/` |
-| `forge/agent-policy.md` | 写进接入方 `AGENTS.md` / Copilot instructions：只开 PR、不碰 secrets、不改构建门 | 贴文本，不 vendor 包 |
+| `forge/agent-policy.md` | 写进接入方 `AGENTS.md` / Copilot instructions：只开 PR、不自 merge、不改构建门、不 arm | 贴文本，不 vendor 包 |
 | `.github/workflows/forge-guard.yml` | reusable：校验 PR 来自允许的前缀、没有改保护 workflow | 产品仓一条薄 `uses:`（pin tag/SHA） |
 | `python -m forge apply --repo owner/name` | 用 GitHub API 安装 Ruleset（幂等） | 本机 `PYTHONPATH` 指向工具仓；token 权限 |
 

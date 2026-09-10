@@ -11,6 +11,8 @@ Overlay is a standard part. Freeze the contract, not a product’s numbers. Agen
 
 **Test and CI are one chain.** `suites/<id>/` is the test spec. `product_command` is what CI runs after `select` keeps only `armed`. There is no second test job beside Overlay.
 
+**Who reviews and merges code:** GitHub humans + Ruleset ([`docs/rbac.md`](../../docs/rbac.md)). Overlay only decides which suites run. **管理端** arms/blocks and writes `reviewed_by`: [`../manage-repo/SKILL.md`](../manage-repo/SKILL.md). **开发端** writes inbox/suites as draft and fixes armed-red: [`../dev-pr/SKILL.md`](../dev-pr/SKILL.md). Agents never arm.
+
 ## Instructions
 
 ### Reuse — keep the tool out of the product commit repo
@@ -47,7 +49,7 @@ If you forked the workshop, `uses:` **your fork** at a pin. A fork that diverges
 
 ### Humans / agents — write
 
-1. **One slice = one inbox.** `inbox/<id>.md` (front matter + short Markdown). Same `id` as `suites/<id>/` after compile. Do not vendor a whole PRD.
+1. **One slice = one inbox.** `inbox/<id>.md` (front matter + short Markdown). Same `id` as `suites/<id>/` after compile. Do not vendor a whole PRD. Developers land this through a PR (`$dev-pr`).
 2. **Read the adopter docs**, then compile. `function_id` is whatever stable, unique, non-whitespace string the docs already use. Do not invent a second numbering system for unit / e2e / k6. The same id is what CI receipts point at when a command fails. Do not couple the kernel to one product's routes, domains, or numbering.
 3. **Design cases against the whole overlay root**, not one inbox. Method: [`../design-cases/SKILL.md`](../design-cases/SKILL.md) (linked notes: [`docs/agents/case-design.md`](../../docs/agents/case-design.md)). `armed` needs Functional / Negative / Edge. Global corners go in `invariants.yaml` and must be cited in some `cases.md`. Coupled leaves get `span: interaction` + `relates` — no `CROSS-01` series, no pairwise explosion.
 4. **Validate and print cover** (no model). Use `PYTHONPATH` to the tool checkout when you are not inside this workshop:
@@ -56,7 +58,7 @@ If you forked the workshop, `uses:` **your fork** at a pin. A fork that diverges
    PYTHONPATH=../AIOps python3 -m overlay cover --root .
    ```
 5. **`generate` is not on this path.** Do not run it on push. When it exists: human or `workflow_dispatch` only; output `status: draft`; never write `reviewed_by` or `armed`. Until then, hand-write `suites/<id>/`. Token only on explicit generate.
-6. **Humans arm or block.** Edit `suite.yaml` only. `blocked` = reviewed, not ready to gate. `armed` = reviewed and claimed testable. Agents must not arm. Models must not write `reviewed_by` or receipts. CI must not auto-arm. An `armed` suite that should gate CI needs a `product_command`. Missing command is skip, not red.
+6. **Humans arm or block** (`$manage-repo`). Edit `suite.yaml` only. `blocked` = reviewed, not ready to gate. `armed` = reviewed and claimed testable. Agents must not arm. Models must not write `reviewed_by` or receipts. CI must not auto-arm. `overlay review --i-am` still refuses writes this slice — 管理端手改 yaml. An `armed` suite that should gate CI needs a `product_command`. Missing command is skip, not red.
 
 ### CI — same gate as the tests
 
@@ -80,7 +82,8 @@ If you forked the workshop, `uses:` **your fork** at a pin. A fork that diverges
 - Do not put `status` / `reviewed_by` on inbox.
 - Do not generate on push. Do not arm as an agent. CI does not auto-arm.
 - Do not keep a second unit-test workflow that bypasses Overlay select. If a test should gate, it is an armed `product_command`.
-- Two products stay independent: Overlay does not install Rulesets; Forge does not arm suites.
+- Two products stay independent: Overlay does not install Rulesets; Forge does not arm suites. Overlay does not decide who may merge.
+- Do not build an admin Web or a second RBAC database. See [`docs/rbac.md`](../../docs/rbac.md).
 
 ## Examples
 
@@ -134,7 +137,8 @@ validate / select are local YAML. `run` is local subprocess in the caller checko
 | 想在 inbox 写 Playwright | 停。inbox 是输入；用例在 `cases.md`；CI 跑的是 `product_command`。 |
 | 不知道 function_id | 抄接入方文档已有编号；没有就铸。不要改成“更像 IEEE”的另一套号。 |
 | 想 push 时 generate | 停。人点或 dispatch。 |
-| 想自动 armed | 停。人改 `suite.yaml`。 |
+| 想自动 armed | 停。人改 `suite.yaml`（`$manage-repo`；`review` CLI 这一刀不写盘）。 |
+| 谁来 merge 这个 PR | GitHub 人 + Ruleset，不是 Overlay。`$manage-repo` / [`docs/rbac.md`](../../docs/rbac.md)。 |
 | 另开一个 unittest workflow | 停。把命令写进 armed suite。 |
 | 抓不到全局 corner | 先读全部 inbox/suites，把性质写成 invariant，再写叶子。不要两两穷尽。见 `$design-cases`。 |
 | armed 缺 Edge | 契约红。补技法。 |

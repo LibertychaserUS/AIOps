@@ -4,11 +4,15 @@
 
 格式：Codex / Agent Skills 的 `SKILL.md`（YAML `name` + `description`，`name` 等于目录名）。仓内路径 `skills/<name>/`；Codex 还会读 `.agents/skills/`（同一批 skill 的符号链接）。
 
-| 产品 | 人怎么做 | Agent 怎么做 |
+| 产品 / 角色 | 人怎么做 | Agent 怎么做 |
 |---|---|---|
 | **Forge** | [`skills/use-forge/SKILL.md`](../skills/use-forge/SKILL.md) | 同一文件 + [`../forge/agent-policy.md`](../forge/agent-policy.md) |
 | **Overlay** | [`skills/use-overlay/SKILL.md`](../skills/use-overlay/SKILL.md) | 同一文件 + [`agents/overlay-contract.md`](agents/overlay-contract.md) + [`../skills/design-cases/SKILL.md`](../skills/design-cases/SKILL.md) |
 | **用例设计** | [`skills/design-cases/SKILL.md`](../skills/design-cases/SKILL.md) | 同一文件（旧入口 [`agents/case-design.md`](agents/case-design.md)） |
+| **管理端**（Ruleset / merge / arm） | [`skills/manage-repo/SKILL.md`](../skills/manage-repo/SKILL.md) | 不扮演管理端：不 apply、不合、不写 `reviewed_by` |
+| **开发端**（开 PR / 修 armed 红） | [`skills/dev-pr/SKILL.md`](../skills/dev-pr/SKILL.md) | 同一文件 + [`../forge/agent-policy.md`](../forge/agent-policy.md)；只开草稿 PR |
+
+PR 的 review 和 merge：**GitHub 上的人 + Ruleset**，不是 Overlay，不是自建管理端。RBAC：[`rbac.md`](rbac.md)。CodeRabbit 只建议，不能当唯一 merge 门。
 
 Overlay 的测试规格（`suites/`）和 CI（`overlay-check`）是一条链：只跑 `armed` 的 `product_command`。不要再开一套旁路 unittest workflow。
 
@@ -31,5 +35,6 @@ CI：产品仓没有 `overlay/` 时，[`.github/workflows/overlay.yml`](../.gith
 禁止（skill 已写死）：
 
 - 对 `LearningGuidePortal` 做 live `forge apply`；不要从本工作本 checkout 该仓；不改 Verify
-- push 时 `generate`；agent 写 `reviewed_by` / 回执 / `armed`；CI 自动 armed
+- push 时 `generate`；agent 写 `reviewed_by` / 回执 / `armed`；CI 自动 armed；agent 自 merge / 自 Approve
+- 自建管理端 / 开发端门户，或第二套权限库（RBAC 见 [`rbac.md`](rbac.md)）
 - attach / 跑 / 门禁实习仓 Proctor；改 Deepseek3；打生产（`ilovelearningguide.com`）；做 CD

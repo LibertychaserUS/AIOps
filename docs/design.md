@@ -40,9 +40,11 @@ Learning Guide / `LearningGuidePortal` 是 **第一个接入方（fixture）**�
 | Agent（Copilot coding / Cursor cloud） | 只开草稿 PR | 可被派去 `generate`（人点）；不能写 `reviewed_by` / 不能 `armed` |
 | 接入方管理员 | `forge apply` | 写 `overlay.yaml`，挂 reusable workflow |
 
+PR 的 review 和 merge 由 **GitHub Ruleset + 有写权限的人** 管理，不是 Overlay，不是自建管理端。RBAC：[`rbac.md`](rbac.md)。管理端 skill：[`../skills/manage-repo/SKILL.md`](../skills/manage-repo/SKILL.md)。开发端 skill：[`../skills/dev-pr/SKILL.md`](../skills/dev-pr/SKILL.md)。
+
 ### 1.3 非目标（冻结）
 
-- SaaS、数据库、Web 工作台、自建协作编辑器。
+- SaaS、数据库、Web 工作台、自建协作编辑器、自建 RBAC / 管理端门户。
 - CD、部署、打接入方生产域名（LG：`ilovelearningguide.com`）。
 - 改接入方已有构建 workflow（LG：`.github/workflows/ci.yml` / Verify）。
 - attach / 运行 / 门禁任何仓的 Proctor；编辑 Deepseek3。
@@ -191,7 +193,8 @@ jobs:
 原文：[`../forge/agent-policy.md`](../forge/agent-policy.md)。实现不得削弱这几条：
 
 - 只开 PR，不推保护分支。
-- 不自 merge、不自 Approve。
+- 不自 merge、不自 Approve。Review / merge 是 GitHub 上的人 + Ruleset。
+- 不 live `forge apply`，不改 Ruleset。
 - 不改接入方构建 workflow。
 - 不写 Overlay `reviewed_by` / 回执，不把 `status` 改为 `armed`。
 - 不打生产 URL，不 deploy。
@@ -202,7 +205,7 @@ jobs:
 | 工具 | Forge 的态度 |
 |---|---|
 | GitHub PR / blame / GitLens | 留下，不重做 |
-| CodeRabbit | 留下；接入方可把它的 check 标 required |
+| CodeRabbit | 留下；可标 required，**不能**当唯一 merge 门 |
 | Copilot code review | 建议；**不能**当唯一 merge 门 |
 | Copilot coding agent / Cursor cloud | 允许写代码，必须过 Ruleset |
 | HackMD / 飞书 / Notion | 不是 Forge 的一部分 |
@@ -584,7 +587,12 @@ docs/agents/overlay-contract.md
 docs/agents/ieee-test-system.md
 schema/check.py          # 形状检查；不是产品 CLI
 docs/products.md
+docs/rbac.md             # GitHub-native review/merge；管理端 vs 开发端
 docs/2026-09-10-对话整理.md
+skills/use-forge/ SKILL.md
+skills/use-overlay/ SKILL.md
+skills/manage-repo/ SKILL.md
+skills/dev-pr/ SKILL.md
 ```
 
 发布：`forge-v1.x` 与 `overlay-v1.x` 分 tag。接入方 pin tag。
@@ -645,7 +653,7 @@ Forge
 
 - [ ] `apply` 幂等；dry-run 不写远端。
 - [ ] 保护分支禁直推、必须 PR；bypass 默认空。
-- [ ] agent-policy 含「不改构建门 / 不写 armed」。
+- [ ] agent-policy 含「不改构建门 / 不写 armed / 不自 merge」。
 - [ ] 不创建接入方业务 job，不改 Verify 文件内容。
 
 Overlay
