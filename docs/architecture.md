@@ -227,17 +227,20 @@ inbox md
 
 原则：工具先借再改；大部分能力 Actions 就能做；本仓极简，不和产品仓抢同一套构建。
 
-**语言决定：本仓用 CPython 3.12+，不用 TypeScript，也不用 Cython。**
+**语言决定：本仓用标准 CPython 3.12+（自带字节码编译器）。源码写 Python。C 只留给量过的热路径，第一刀不写。**
 
-- 不用 TS：overlay 是「读 yaml / 写 md / 调一次 LLM / 选 armed」，不是 Next 应用。硬跟产品仓同形只会多一套 `package-lock` 和 Node 工具链，换不来 Verify 兼容（Verify 我们本来就不改）。
-- 用 CPython：和要借的生成器同族；Actions `setup-python` 即可；`select` 是纯函数，标准库 + PyYAML 就能测。
-- 不用 Cython（`.pyx` → C 扩展）：这里没有数值热路径。编译轮、平台 wheel、调试符号全是闲活，和「极简、基本无摩擦」相反。若口头说的 Cython 其实是 CPython，按本节执行即可。
+CPython 能写 / 调 C：它自己就是 C 实现，官方 C API、`ctypes` / `cffi`、手写扩展模块都可以。这扇门开着。第一刀不走这扇门，不是因为「CPython 不能写 C」，是因为这层还没有 C 该加速的东西。
+
+- **标准编译器** = CPython 自带的 `compile()` / `.pyc` 字节码编译，不是另装一个「Python 编译器」，也不是 Cython。
+- 不用 TS：overlay 是「读 yaml / 写 md / 调一次 LLM / 选 armed」，不是 Next 应用。硬跟产品仓同形只会多一套 Node 工具链，换不来 Verify 兼容。
+- 性能：生成被模型与网络卡住；选择是扫几十个 `suite.yaml`。墙钟时间不在解释器循环上。先写纯 Python；真有剖面数据再加 C 扩展。
+- 不用 Cython 当主写法：和「用标准 CPython」重复，还多一套 `.pyx` 构建。以后若要 C，优先薄 C 模块 + CPython C API，而不是把仓库改成 Cython 工程。
 
 产品仓继续是 TypeScript / Node 22。后一刀 checkout 产品仓跑 `product_command` 时，用产品自己的 Node，不把 Playwright 重写成 Python。
 
 | 层 | 选用 | 理由 | 不用 |
 |---|---|---|---|
-| 语言 / 运行时 | **CPython 3.12+** | 生成/选择都是 IO 与文本；和参考生成器同族 | TypeScript/Node 做 overlay；Cython 编译扩展 |
+| 语言 / 运行时 | **CPython 3.12+**（标准解释器 + 自带字节码编译） | 生成/选择都是 IO 与文本；和参考生成器同族；需要时再接 C | TypeScript 做 overlay；Cython 当主语言；第一刀就写 C 扩展 |
 | 包管理 | **pip + `requirements.txt`（锁 `requirements.lock`）** | 第一刀依赖少 | npm、poetry/pdm 先不上 |
 | 契约 | **YAML + pydantic v2** | 人改 yaml；启动时校验；参考仓已这样用 | Zod、数据库、JSON 配置后台 |
 | 用例正文 | **Markdown** | 产品经理能审；GitHub 能看 | 第一刀就生成产品仓 `.spec.ts` 当门禁 |
@@ -262,7 +265,7 @@ inbox md
 | 可用性 | 用例是 md，审选用改一行 yaml；当天能产出一页 |
 | 大家少干闲活 | 开发只修 `armed` 红的 diff；不注册、不填工单、不编译扩展 |
 | token | 只 `generate` 花；push 零模型；inbox 用摘录不是整本 docx |
-| 开发速度 | 无服务、无库表、无 TS 工具链、无 Cython 构建；契约用示例 yaml 即可开工 |
+| 开发速度 | 无服务、无库表、无 TS 工具链、无第一刀 C/Cython 构建；契约用示例 yaml 即可开工 |
 
 ---
 
