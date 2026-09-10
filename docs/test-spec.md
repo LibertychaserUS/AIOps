@@ -1,6 +1,6 @@
 # 测试体系规格
 
-实现对照以本文 + [`design.md`](design.md) §4 为准。Inbox 合同见 [`inbox.md`](inbox.md)。Agent skill：[`agents/ieee-test-system.md`](agents/ieee-test-system.md)。读文档怎么编进契约：[`agents/overlay-contract.md`](agents/overlay-contract.md)。
+实现对照以本文 + [`design.md`](design.md) §4 为准。Inbox 合同见 [`inbox.md`](inbox.md)。Agent skill：[`agents/ieee-test-system.md`](agents/ieee-test-system.md)。读文档怎么编进契约：[`agents/overlay-contract.md`](agents/overlay-contract.md)。用例设计与覆盖：[`../skills/design-cases/SKILL.md`](../skills/design-cases/SKILL.md)（旧入口 [`agents/case-design.md`](agents/case-design.md)）。
 
 Overlay 是**标准件**：冻契约（字段、状态、对齐方式），不冻某产品的编号、PRD 树、IEEE 文件名。人/agent 读接入方文档，编成契约形状。
 
@@ -119,7 +119,7 @@ schema **不得**把 `REQ-n`、`ML-FR-004`、`PAY-01`、`LOGIN-01` 或 `^[A-Z]{2
 | PRD 版本号锁死 | 用 `source.ref` pin，不搞双版本书。 |
 | PRD 验收标准原文当用例 | 用例要有步骤和期望。 |
 | 全 PRD 覆盖义务 | 未切进 inbox = 不管。 |
-| 产品仓已有测试文件树 | 第二刀最多调 `product_command`。 |
+| 产品仓已有测试文件树 | `product_command` 调用；本工作本的测试就是 Overlay CI。 |
 
 「PRD 更新了，测试规格自动长成新章节」第一刀不做。
 
@@ -161,10 +161,11 @@ Functional / Negative / Edge
 
 1. `function_id` 只来自**同一篇** inbox 的 In scope（或 User cases 行首）。
 2. 标题是一句话功能，不是 PRD 章名。
-3. 每个 test item 至少一类技法（缺一类第一刀不契约红）。
+3. `armed` 的每个 `function_id` 必须三种技法齐（Functional / Negative / Edge）。`draft` / `blocked` 可以薄，`cover` 只提示。
 4. In scope 有几行带 id，generate 就抽几条。
 5. `kind: user-case`：场景行首同样带 `function_id`。
 6. `kind: figma-ref`：第一刀只出对照说明；若有 In scope，行首仍要 id。
+7. 全局边角写成 `invariants.yaml` + 用例点名；交互用 `trace.yaml` 的 `span` / `relates`。方法：[`../skills/design-cases/SKILL.md`](../skills/design-cases/SKILL.md)。
 
 可选 `trace.yaml`（[`schema/trace.schema.json`](../schema/trace.schema.json)）：
 
@@ -185,9 +186,19 @@ items:
 
 ## 8. 覆盖（测试体系自己的完成定义）
 
-「覆盖了」只表示：这篇 inbox 的 In scope 每条都有对应 `function_id` 节；人审过 `suite.yaml`；若 `armed` 则声称这些功能可测。
+「覆盖了」是三层，不是一层：
 
-不表示：PRD 每一章都有用例；产品 Verify 已实现步骤；覆盖率百分比；支付/登录写进 PRD 就必须 `armed`。
+| 层 | 完成定义 | 谁检查 |
+|---|---|---|
+| 叶子 | 已切进 inbox 的每条 `function_id` 有一节；`armed` 则 Functional / Negative / Edge 齐 | `validate` / `cover` |
+| 不变量 | `invariants.yaml` 里每条 id 在某篇 `cases.md` 被点名；列出的 `function_ids` 都存在 | 有该文件才查 |
+| 交互 | 已耦合的叶子有一条 `span: interaction`（或正文点到兄弟 id） | `cover` 提示；不穷尽两两 |
+
+不表示：PRD 每一章都有用例；产品 Verify 已实现步骤；行覆盖率；叶子笛卡尔积；支付/登录写进 PRD 就必须 `armed`。
+
+要求对**全局理解**的 corner 不住在单条 In scope 里。它们是跨叶子的性质（状态机、跨产品禁令、同一资源的组合）。写法：先读完整棵 overlay root，再声明 invariant / interaction。不要为此再开一套 `CROSS-01` 主键。
+
+`python -m overlay cover --root .` 打印矩阵。CI 的 `validate` 已含 `armed` 技法与 invariant 点名。
 
 ---
 
@@ -199,7 +210,7 @@ items:
 
 ## 10. Overlay / Forge 自己的测试规格
 
-本仓 `self-test` 对照 [`design.md`](design.md)，不对照任何产品 PRD。fixture 只证明元规格能装到一个像真的接入方上。
+本仓 `overlay-check` 对照 [`design.md`](design.md)，不对照任何产品 PRD。fixture 只证明元规格能装到一个像真的接入方上。
 
 ---
 
@@ -210,9 +221,11 @@ items:
 3. 不得把 `status: armed` 写进用例正文当门。
 4. **不**因为 In scope 没有 id、或 id 不像 FR 号 / `LOGIN-01` 而红。有 id 则须无空白。
 5. `cases.md` 的 `function_id` 标题必须能在同一篇 inbox 的 In scope（或 User cases 行首）找到；Out of scope 不得当标题。
-6. 若有 `trace.yaml`：符合 schema；`suite` 等于目录名；`function_id` 能在 `cases.md` 找到；`level` ∈ `unit`\|`integration`\|`smoke`\|`k6`\|`e2e`；`type` ∈ `functional`\|`negative`\|`edge`。
-7. 不因为「产品仓还有没切的 PRD」而红。
-8. 不因为产品仓历史文件还叫 `E2E-B1` / `LOAD-001` 而红；本仓 fixture 不得再发明这种平行号族。
+6. 若有 `trace.yaml`：符合 schema；`suite` 等于目录名；`function_id` 能在 `cases.md` 找到；`level` ∈ `unit`\|`integration`\|`smoke`\|`k6`\|`e2e`；`type` ∈ `functional`\|`negative`\|`edge`；若有 `relates`，那些 id 必须是本 overlay root 里某片叶子。
+7. `armed` 缺技法 → 红。`draft` / `blocked` 缺技法不红。
+8. 若有 `invariants.yaml`：符合 schema；每条 `function_ids` 都能在某篇 `cases.md` 找到；每条 `id` 必须作为 token 出现在某篇 `cases.md`。
+9. 不因为「产品仓还有没切的 PRD」而红。
+10. 不因为产品仓历史文件还叫 `E2E-B1` / `LOAD-001` 而红；本仓 fixture 不得再发明这种平行号族。
 
 契约红（退出码 2）≠ 业务功能红。
 
@@ -226,6 +239,7 @@ items:
 - 按产品仓七份 PRD 各生一本测试规格。
 - 把 PRD 验收标准原文当 `cases.md` 主体。
 - 用覆盖率 agent 证明「跟随了 PRD」。
+- 为全局 corner 再开 `CROSS-01` / `E2E-B1` 主键，或对所有叶子两两穷尽。
 - 测试规格驱动改产品 Verify。
 - Overlay 元规格里出现某产品的路由或域名（只许 fixture）。
 - 为 unit / e2e / k6 各做一套主键（`E2E-B1` vs `UT-007` vs `LOAD-001`）。

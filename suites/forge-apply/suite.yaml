@@ -1,0 +1,15 @@
+id: forge-apply
+title: Forge dry-run on this workshop
+status: blocked
+kind: functional
+subject: product
+source: inbox/forge-apply.md
+packages:
+  - forge
+reviewed_by: workshop
+reviewed_at: 2026-09-10T00:00:00Z
+blocked_reason: >-
+  Overlay cover/validate demo only. Forge unit tests and apply --dry-run run on
+  the forge-check product gate when forge.yaml selects it. Not Overlay select/run.
+armed_reason: null
+product_command: null

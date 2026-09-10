@@ -1,0 +1,4 @@
+interface:
+  display_name: "Design Cases"
+  short_description: "Overlay triad, invariants, interactions"
+  default_prompt: "Use $design-cases to write Overlay cases.md and invariants.yaml with leaf triad cover, not PRD-wide or pairwise explosion."

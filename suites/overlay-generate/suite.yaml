@@ -1,0 +1,13 @@
+id: overlay-generate
+title: Overlay generate (not shipped)
+status: blocked
+kind: functional
+subject: product
+source: inbox/overlay-generate.md
+packages:
+  - overlay
+reviewed_by: workshop
+reviewed_at: 2026-09-10T00:00:00Z
+blocked_reason: generate is slice 2; must not spend tokens on push.
+armed_reason: null
+product_command: null

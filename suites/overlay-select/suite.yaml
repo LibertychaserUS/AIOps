@@ -1,0 +1,13 @@
+id: overlay-select
+title: Overlay select preview on this workshop
+status: armed
+kind: functional
+subject: product
+source: inbox/overlay-select.md
+packages:
+  - overlay
+reviewed_by: workshop
+reviewed_at: 2026-09-10T00:00:00Z
+blocked_reason: null
+armed_reason: Overlay validate, cover, and Overlay unittests ship; overlay-check executes this Overlay command only.
+product_command: python3 schema/check.py && python3 -m overlay cover --root . && python3 -m unittest discover -s tests/overlay -t . -q

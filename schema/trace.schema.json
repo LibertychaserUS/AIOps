@@ -41,6 +41,19 @@
           "level": {
             "enum": ["unit", "integration", "smoke", "k6", "e2e"],
             "description": "Optional facet. Not a second id series."
+          },
+          "span": {
+            "enum": ["local", "interaction", "system"],
+            "description": "local = one leaf; interaction = two+ leaves; system = an invariant. Not a second id."
+          },
+          "relates": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^\\S+$"
+            },
+            "description": "Other function_id values this case also exercises. Same id grammar; not a CROSS-01 series."
           }
         }
       }

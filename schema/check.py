@@ -40,7 +40,12 @@ def _fail(msg: str) -> None:
 
 
 def check_schemas() -> None:
-    for name in ("inbox.schema.json", "suite.schema.json", "trace.schema.json"):
+    for name in (
+        "inbox.schema.json",
+        "suite.schema.json",
+        "trace.schema.json",
+        "invariants.schema.json",
+    ):
         path = ROOT / name
         if not path.is_file():
             _fail(f"missing {path.name}")
@@ -67,6 +72,8 @@ def check_trace_contract() -> None:
         _fail("function_id pattern must not require a product numbering series")
     if "level" not in props:
         _fail("trace.schema.json must allow optional level")
+    if "relates" not in props or "span" not in props:
+        _fail("trace.schema.json must allow optional relates and span")
     if set(props["level"].get("enum", [])) != {"unit", "integration", "smoke", "k6", "e2e"}:
         _fail("level enum must be unit|integration|smoke|k6|e2e")
     required = schema["properties"]["items"]["items"].get("required", [])
@@ -101,6 +108,13 @@ def check_kernel_examples() -> None:
         _fail("inbox.example.md source.repo should be owner/name")
     if "FN-first-path" not in inbox_ex:
         _fail("inbox.example.md In scope should carry an adopter-minted id")
+
+    inv_ex = (ROOT / "invariants.example.yaml").read_text(encoding="utf-8")
+    if "INV-one-charge" not in inv_ex or "FN-login-retry" not in inv_ex:
+        _fail("invariants.example.yaml must stay generic (INV-one-charge / FN-login-retry)")
+    for banned in ("ML-FR-", "ilovelearningguide", "LearningGuide", "LOGIN-01"):
+        if banned in inv_ex:
+            _fail(f"invariants.example.yaml must not contain {banned!r}")
 
 
 def check_trace_example_ids() -> None:

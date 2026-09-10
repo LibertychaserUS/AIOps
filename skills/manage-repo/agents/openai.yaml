@@ -1,0 +1,4 @@
+interface:
+  display_name: "Manage Repo"
+  short_description: "Admin Ruleset, merge, Overlay arm/block"
+  default_prompt: "Use $manage-repo as 管理端: GitHub Ruleset, required checks, CODEOWNERS, merge when green (do not merge if pr-title is red), Overlay arm/block by hand. Admin PR title type(product/admin): subject. No portal. Do not vendor the tool. Do not invent branch prefixes."

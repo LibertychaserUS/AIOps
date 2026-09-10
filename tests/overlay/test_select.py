@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from overlay.select import Selection, SuiteDoc, assert_selection
-from tests.overlay.support import GENERIC_SUITE, LG, copy_lg, run_overlay, write_generic_root
+from tests.overlay.support import GENERIC_SUITE, LG, REPO, copy_lg, run_overlay, write_generic_root
 
 
 class SelectTests(unittest.TestCase):
@@ -55,6 +55,13 @@ class SelectTests(unittest.TestCase):
             )
             result = run_overlay("select", "--branch", "main", "--root", str(root))
             self.assertEqual(result.returncode, 2)
+
+    def test_workshop_main_does_not_select_forge_apply(self) -> None:
+        result = run_overlay("select", "--branch", "main", "--root", str(REPO))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        selected = [line for line in result.stdout.splitlines() if line.strip()]
+        self.assertEqual(selected, ["overlay-select"])
+        self.assertNotIn("forge-apply", selected)
 
     def test_assert_selected_blocked_is_exit_4(self) -> None:
         fake = SuiteDoc(

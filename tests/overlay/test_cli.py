@@ -11,6 +11,8 @@ class CliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("validate", result.stdout)
         self.assertIn("select", result.stdout)
+        self.assertIn("run", result.stdout)
+        self.assertIn("cover", result.stdout)
 
     def test_validate_help(self) -> None:
         result = run_overlay("validate", "--help")

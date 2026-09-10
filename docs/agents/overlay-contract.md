@@ -17,6 +17,7 @@ Overlay 是标准件。你冻的是契约，不是接入方怎么给章节、用
 5. **IEEE 只取剖面。** identification、levels、trace。不要交二十份 Word。
 6. **`generate` 只编译。** 读 inbox，吐出契约合法文件，`status` 必须是 `draft`。禁止写死 FR 表。
 7. **不要越权。** 不写 `reviewed_by` / 回执，不 `armed`，不改接入方构建 workflow。
+8. **用例怎么设计。** 先读完整棵 overlay root，再写当前 suite。`armed` 三种技法齐。全局 corner 进 `invariants.yaml` 并在 `cases.md` 点名。有耦合才写 `span: interaction` + `relates`。方法：[`../../skills/design-cases/SKILL.md`](../../skills/design-cases/SKILL.md)（旧入口 [`case-design.md`](case-design.md)）。
 
 `function_id` 契约：非空；仓内作为叶子身份唯一；稳定；无空白。
 
@@ -58,4 +59,5 @@ items:
 | 不知道用什么 id | 先抄接入方文档已有编号。没有就铸 `FN-…`。 |
 | 想改成 `LOGIN-01` 以求规范 | 不要，除非文档本来就用它。改号等于断两棵树。 |
 | fixture 里看到 `ML-FR-004` | 编译结果。内核例子用 `FN-login-retry`。 |
-| 想写 `reviewed_by` 或 `armed` | 停。人审才写。 |
+| 想写 `reviewed_by` 或 `armed` | 停。人审才写。管理端：[`../../skills/manage-repo/SKILL.md`](../../skills/manage-repo/SKILL.md)。 |
+| 抓不到全局 corner | 先读全部 inbox/suites，写 `invariants.yaml`。见 [`../../skills/design-cases/SKILL.md`](../../skills/design-cases/SKILL.md)。 |

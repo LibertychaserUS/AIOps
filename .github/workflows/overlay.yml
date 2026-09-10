@@ -1,6 +1,9 @@
-# Reusable Overlay preview. Slice 1: validate + select only.
-# enable_run defaults false. No product checkout. No generate. No tokens on push.
-# Do not workflow_call a product ci.yml / Verify.
+# Reusable Overlay CI: validate + select, and optionally run Overlay armed product_command.
+# Forge tests do not belong here — workshop Forge CI is forge-check.yml.
+# Always checkout the caller (product). If overlay/ is absent (correct adopter
+# shape), checkout LibertychaserUS/AIOps into _aiops — do not vendor overlay/
+# into the product repo. No foreign product clone (never LearningGuidePortal).
+# No generate. No tokens on push. Do not workflow_call a product ci.yml / Verify.
 
 name: overlay
 
@@ -8,7 +11,7 @@ on:
   workflow_call:
     inputs:
       enable_run:
-        description: "Slice 2 only. Checkout product and run product_command."
+        description: "Run selected armed product_command in the caller checkout."
         type: boolean
         default: false
       root:
@@ -19,6 +22,10 @@ on:
         description: "Branch for select. Empty uses pull_request base_ref or ref_name."
         type: string
         default: ""
+      receipt_prefix:
+        description: "Artifact name prefix (must be unique when this workflow is called twice)."
+        type: string
+        default: overlay
 
 permissions:
   contents: read
@@ -35,6 +42,7 @@ jobs:
       - name: Detect Overlay package
         id: pkg
         run: |
+          # local=true only in this workshop. Adopters must not copy overlay/ in.
           if [ -f overlay/__init__.py ]; then
             echo "local=true" >> "$GITHUB_OUTPUT"
           else
@@ -81,6 +89,7 @@ jobs:
       - name: Detect Overlay package
         id: pkg
         run: |
+          # local=true only in this workshop. Adopters must not copy overlay/ in.
           if [ -f overlay/__init__.py ]; then
             echo "local=true" >> "$GITHUB_OUTPUT"
           else
@@ -128,7 +137,7 @@ jobs:
       - name: Upload receipt
         uses: actions/upload-artifact@v4
         with:
-          name: overlay-receipt
+          name: ${{ inputs.receipt_prefix }}-select
           path: receipts/
           if-no-files-found: error
 
@@ -137,8 +146,67 @@ jobs:
     needs: select
     runs-on: ubuntu-latest
     steps:
-      - name: enable_run is slice 2
+      - name: Checkout caller
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Detect Overlay package
+        id: pkg
         run: |
-          echo "enable_run is reserved for slice 2 (product checkout + product_command)."
-          echo "This workflow must not checkout a product repo in slice 1."
-          exit 1
+          # local=true only in this workshop. Adopters must not copy overlay/ in.
+          if [ -f overlay/__init__.py ]; then
+            echo "local=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "local=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout Overlay product
+        if: steps.pkg.outputs.local == 'false'
+        uses: actions/checkout@v4
+        with:
+          repository: LibertychaserUS/AIOps
+          ref: ${{ github.workflow_sha }}
+          path: _aiops
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Overlay
+        run: |
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          elif [ -f _aiops/requirements.txt ]; then
+            pip install -r _aiops/requirements.txt
+          fi
+          if [ -d _aiops/overlay ]; then
+            echo "PYTHONPATH=${GITHUB_WORKSPACE}/_aiops" >> "$GITHUB_ENV"
+          fi
+
+      - name: Resolve branch
+        id: br
+        run: |
+          B="${{ inputs.branch }}"
+          if [ -z "$B" ]; then B="${{ github.base_ref }}"; fi
+          if [ -z "$B" ]; then B="${{ github.ref_name }}"; fi
+          echo "name=$B" >> "$GITHUB_OUTPUT"
+
+      - name: overlay run
+        run: |
+          mkdir -p receipts-run
+          python -m overlay run \
+            --branch "${{ steps.br.outputs.name }}" \
+            --root "${{ inputs.root }}" \
+            --workdir "${{ github.workspace }}" \
+            --write-receipt receipts-run/
+
+      - name: Upload run receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.receipt_prefix }}-run
+          path: receipts-run/
+          if-no-files-found: error

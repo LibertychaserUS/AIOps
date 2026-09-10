@@ -1,0 +1,15 @@
+#!/bin/sh
+# Optional local wrapper. Same lock as CI: python -m forge pr-title.
+# Do not install this as a required commit-msg hook on this workshop —
+# agents must be able to commit. Merge lock is the GitHub Actions check
+# `pr-title`, not husky / lefthook / pre-commit.
+set -eu
+if [ "${1-}" = "-h" ] || [ "${1-}" = "--help" ]; then
+  echo "usage: forge/hooks/pr-title \"feat(overlay/dev): subject\"" >&2
+  echo "   or: PR_TITLE='feat(overlay/dev): subject' forge/hooks/pr-title" >&2
+  exit 0
+fi
+if [ "${#}" -gt 0 ]; then
+  exec python3 -m forge pr-title --title "$1"
+fi
+exec python3 -m forge pr-title

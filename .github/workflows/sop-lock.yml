@@ -1,0 +1,36 @@
+# Common, repo-wide SOP lock. Always runs. Not a product gate.
+# Same function as local `python -m forge sop-lock`.
+# Overlay tests stay on overlay-check. Forge tests stay on forge-check.
+# Check name remains sop-lock (stable for Ruleset required_checks).
+# PR title stays on the pr-title job (pull_request only).
+# No generate. No model. No husky/npm. No GitHub write.
+
+name: sop-lock
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  sop-lock:
+    name: sop-lock
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: sop-lock
+        run: python -m forge sop-lock --root .

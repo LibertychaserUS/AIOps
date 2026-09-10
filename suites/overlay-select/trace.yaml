@@ -1,0 +1,20 @@
+schema: overlay-trace/v1
+suite: overlay-select
+items:
+  - function_id: FN-overlay-select
+    case_id: FN-overlay-select/functional
+    type: functional
+    level: unit
+    span: local
+  - function_id: FN-overlay-select
+    case_id: FN-overlay-select/run
+    type: functional
+    level: integration
+    span: local
+  - function_id: FN-overlay-select
+    case_id: FN-overlay-select/negative
+    type: negative
+    level: integration
+    span: interaction
+    relates:
+      - FN-overlay-generate

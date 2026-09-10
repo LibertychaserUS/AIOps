@@ -1,0 +1,60 @@
+schema: overlay-trace/v1
+suite: forge-apply
+items:
+  - function_id: FN-forge-apply
+    case_id: FN-forge-apply/functional
+    type: functional
+    level: unit
+  - function_id: FN-forge-apply
+    case_id: FN-forge-apply/ci
+    type: functional
+    level: integration
+    span: local
+  - function_id: FN-forge-apply
+    case_id: FN-forge-apply/negative
+    type: negative
+    level: unit
+    span: system
+  - function_id: FN-forge-submit
+    case_id: FN-forge-submit/functional
+    type: functional
+    level: unit
+  - function_id: FN-forge-submit
+    case_id: FN-forge-submit/negative
+    type: negative
+    level: unit
+  - function_id: FN-forge-submit
+    case_id: FN-forge-submit/edge
+    type: edge
+    level: unit
+  - function_id: FN-forge-check
+    case_id: FN-forge-check/functional
+    type: functional
+    level: unit
+  - function_id: FN-forge-check
+    case_id: FN-forge-check/negative
+    type: negative
+    level: unit
+    span: interaction
+    relates:
+      - FN-forge-submit
+  - function_id: FN-forge-check
+    case_id: FN-forge-check/edge
+    type: edge
+    level: unit
+  - function_id: FN-forge-sop-lock
+    case_id: FN-forge-sop-lock/functional
+    type: functional
+    level: unit
+    span: interaction
+    relates:
+      - FN-forge-apply
+  - function_id: FN-forge-sop-lock
+    case_id: FN-forge-sop-lock/negative
+    type: negative
+    level: unit
+    span: system
+  - function_id: FN-forge-sop-lock
+    case_id: FN-forge-sop-lock/edge
+    type: edge
+    level: unit

@@ -110,6 +110,16 @@ GENERIC_CASES = """\
 - Title: Retry
 - Steps: Fail then retry
 - Expected: One charge
+
+### Negative
+- Title: Double submit
+- Steps: Click retry twice
+- Expected: Still one charge
+
+### Edge
+- Title: Already completed receipt
+- Steps: Retry a finished receipt
+- Expected: No second charge
 """
 
 

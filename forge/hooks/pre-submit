@@ -1,0 +1,14 @@
+#!/bin/sh
+# Optional local wrapper. Same lock as `python -m forge check`.
+# Do not install this as a required pre-push / pre-commit hook on this
+# workshop — other agents must be able to commit and push mid-work.
+# Opt-in only (your clone). 代推 lock is `python -m forge check` via
+# `forge submit`, not husky / lefthook / pre-commit.
+set -eu
+if [ "${1-}" = "-h" ] || [ "${1-}" = "--help" ]; then
+  echo "usage: forge/hooks/pre-submit [--title \"feat(overlay/dev): subject\"] [--root .]" >&2
+  echo "   or: PR_TITLE='feat(overlay/dev): subject' forge/hooks/pre-submit" >&2
+  echo "opt-in only; do not install as a global hook on this workshop." >&2
+  exit 0
+fi
+exec python3 -m forge check "$@"

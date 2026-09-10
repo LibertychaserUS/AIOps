@@ -1,0 +1,86 @@
+# Overlay product gate. Common title/SOP gates live on other workflows.
+# This workflow always starts (no on.paths). Selector skip is success so the
+# required check name `overlay-check` stays stable.
+# When selected: validate → select → run Overlay armed suites only.
+# Do not arm forge-apply. Forge tests live on forge-check.
+# No generate. No product Verify. branch is pinned to main so agent branches
+# still execute the armed Overlay tool tests.
+
+name: overlay-check
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  select:
+    name: select
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.sel.outputs.run }}
+      reason: ${{ steps.sel.outputs.reason }}
+    steps:
+      - name: Checkout caller
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Select overlay-check
+        id: sel
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: python -m forge ci-select --check overlay-check --root . --github-output
+
+  overlay:
+    needs: select
+    if: needs.select.outputs.run == 'true'
+    uses: ./.github/workflows/overlay.yml
+    with:
+      enable_run: true
+      root: "."
+      branch: main
+      receipt_prefix: workshop
+
+  fixture:
+    needs: select
+    if: needs.select.outputs.run == 'true'
+    uses: ./.github/workflows/overlay.yml
+    with:
+      enable_run: true
+      root: examples/learning-guide
+      branch: main
+      receipt_prefix: lg-fixture
+
+  overlay-check:
+    name: overlay-check
+    needs: [select, overlay, fixture]
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate
+        run: |
+          if [ "${{ needs.select.result }}" != "success" ]; then
+            echo "selector failed"
+            exit 1
+          fi
+          if [ "${{ needs.select.outputs.run }}" != "true" ]; then
+            echo "selector skipped overlay-check (${{ needs.select.outputs.reason }})"
+            exit 0
+          fi
+          if [ "${{ needs.overlay.result }}" != "success" ] || [ "${{ needs.fixture.result }}" != "success" ]; then
+            echo "overlay product gate failed"
+            exit 1
+          fi
+          echo "overlay-check passed"

@@ -18,6 +18,9 @@ Compiled fixture. These Learning Guide ids are not Overlay kernel law.
 - Title: Purchased with no opened Learning Point does not invent a card
 - Steps: Complete purchase; do not open a Learning Point
 - Expected: Entitlement exists; course list stays empty (`LEARN-02` lock, same leaf)
+- Title: Card and unique-LP progress stay aligned
+- Steps: Open one Learning Point (ML-FR-007); return to overview
+- Expected: The matching course card (ML-FR-004) shows the same integer progress
 
 ## ML-FR-007 Unique Learning Point progress
 
