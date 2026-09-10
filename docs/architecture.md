@@ -225,25 +225,33 @@ inbox md
 
 ## 5. 技术栈选型
 
-原则：工具先借再改；大部分能力 Actions 就能做；和产品仓同形，减少摩擦。
+原则：工具先借再改；大部分能力 Actions 就能做；本仓极简，不和产品仓抢同一套构建。
+
+**语言决定：本仓用 CPython 3.12+，不用 TypeScript，也不用 Cython。**
+
+- 不用 TS：overlay 是「读 yaml / 写 md / 调一次 LLM / 选 armed」，不是 Next 应用。硬跟产品仓同形只会多一套 `package-lock` 和 Node 工具链，换不来 Verify 兼容（Verify 我们本来就不改）。
+- 用 CPython：和要借的生成器同族；Actions `setup-python` 即可；`select` 是纯函数，标准库 + PyYAML 就能测。
+- 不用 Cython（`.pyx` → C 扩展）：这里没有数值热路径。编译轮、平台 wheel、调试符号全是闲活，和「极简、基本无摩擦」相反。若口头说的 Cython 其实是 CPython，按本节执行即可。
+
+产品仓继续是 TypeScript / Node 22。后一刀 checkout 产品仓跑 `product_command` 时，用产品自己的 Node，不把 Playwright 重写成 Python。
 
 | 层 | 选用 | 理由 | 不用 |
 |---|---|---|---|
-| 语言 / 运行时 | **TypeScript + Node 22** | 产品 Verify 同形；一人一栈；Actions `setup-node` 即可 | 第一刀上 Python（参考仓是 Python，只借提示词） |
-| 包管理 | **npm** | 与产品仓一致 | pnpm/yarn 双锁文件 |
-| 契约 | **YAML + Zod** | 人改 yaml；启动时校验；非法直接红 | 数据库、JSON 配置后台 |
-| 用例正文 | **Markdown** | 产品经理能审；GitHub 能看 | 第一刀就生成 `.spec.ts` 当门禁 |
-| CLI | **tsx + 普通 bin** | `generate` / `select` / `review` 三个命令 | Streamlit、Next 工作台 |
+| 语言 / 运行时 | **CPython 3.12+** | 生成/选择都是 IO 与文本；和参考生成器同族 | TypeScript/Node 做 overlay；Cython 编译扩展 |
+| 包管理 | **pip + `requirements.txt`（锁 `requirements.lock`）** | 第一刀依赖少 | npm、poetry/pdm 先不上 |
+| 契约 | **YAML + pydantic v2** | 人改 yaml；启动时校验；参考仓已这样用 | Zod、数据库、JSON 配置后台 |
+| 用例正文 | **Markdown** | 产品经理能审；GitHub 能看 | 第一刀就生成产品仓 `.spec.ts` 当门禁 |
+| CLI | **`python -m aiops`**（`generate` / `select` / `review`） | 三个命令，无服务 | Streamlit、Next 工作台、tsx |
 | LLM | **OpenAI 兼容 HTTP**（`OPENAI_BASE_URL` + key） | 产品已用 OpenRouter；可换供应商；temperature=0 | 绑死 Deepseek3；强制本机 Ollama；每次 push 调用 |
-| CI | **本仓 GitHub Actions** | 选择器是纯函数，无密钥也能预演 | 改产品 `ci.yml`；Harness 管本 overlay（产品也不用） |
-| 文档抽取 | 第一刀 **人手摘录 / 粘贴 md**；后可对 pin 仓用已有 `mammoth` | 七份 PRD 是大 docx，不进本仓 | 第一刀就上 Figma API + 视觉模型 |
-| 执行（后一刀） | 产品已有 **node:test + Playwright** | 不新发明 runner | Midscene、Shortest、Keploy、cover-agent |
+| CI | **本仓 GitHub Actions + `setup-python`** | 选择器是纯函数，无密钥也能预演 | 改产品 `ci.yml`；本仓再装 Node（除非后一刀跑产品命令） |
+| 文档抽取 | 第一刀 **人手摘录 / 粘贴 md** | 七份 PRD 是大 docx，不进本仓 | 第一刀就上 Figma API + 视觉模型；不必为摘录上 Cython |
+| 执行（后一刀） | 产品已有 **node:test + Playwright**（本仓只负责选出要跑的命令） | 不新发明 runner | Midscene、Shortest、Keploy、cover-agent |
 
 ### 参考项目怎么借
 
 | 项目 | 借 | 不借 |
 |---|---|---|
-| [ai-testcase-generation-engine](https://github.com/rohitpkumar/ai-testcase-generation-engine) | 五步里的「抽需求 → 三类用例 → 对需求条」提示词骨架；`temperature=0` | CSV 导出、pandas、整仓 Python |
+| [ai-testcase-generation-engine](https://github.com/rohitpkumar/ai-testcase-generation-engine) | 「抽需求 → 三类用例 → 对需求条」提示词骨架；`temperature=0`；pydantic 结构 | CSV/pandas 主路径、整站照搬 |
 | [figma-playwright-gen-ai](https://github.com/meeviefranc/figma-playwright-gen-ai) | `cases.md` 的标题 / 步骤 / 期望格式 | Streamlit、Ollama、第一刀 Figma API、直接出 TS 脚本 |
 | cover-agent / ai-test-generator / midscene / shortest / keploy | — | 第一刀全部不用 |
 
@@ -252,9 +260,9 @@ inbox md
 | 维度 | 做法 |
 |---|---|
 | 可用性 | 用例是 md，审选用改一行 yaml；当天能产出一页 |
-| 大家少干闲活 | 开发只修 `armed` 红的 diff；不注册、不填工单 |
+| 大家少干闲活 | 开发只修 `armed` 红的 diff；不注册、不填工单、不编译扩展 |
 | token | 只 `generate` 花；push 零模型；inbox 用摘录不是整本 docx |
-| 开发速度 | 无服务、无库表、无第二语言；契约用示例 yaml 即可开工 |
+| 开发速度 | 无服务、无库表、无 TS 工具链、无 Cython 构建；契约用示例 yaml 即可开工 |
 
 ---
 
@@ -268,9 +276,9 @@ prompts/extract.md          # 借来的骨架，我们改
 prompts/generate-cases.md
 schema/suite.schema.json    # 契约（示例见 schema/suite.example.yaml）
 config/overlay.yaml
-scripts/generate.ts
-scripts/select.ts           # 纯函数：branch → armed ids
-scripts/review.ts           # 只帮改字段，不自动通过
+src/aiops/generate.py
+src/aiops/select.py         # 纯函数：branch → armed ids
+src/aiops/review.py         # 只帮改字段，不自动通过
 .github/workflows/overlay.yml
 docs/2026-09-10-对话整理.md
 docs/architecture.md        # 本文件
