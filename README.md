@@ -13,7 +13,7 @@ Overlay is a standard part: it freezes **contract fields**, not a product’s nu
 
 This workshop uses Overlay on itself: `overlay.yaml`, `inbox/`, `suites/`. **通用检查 ≠ 产品门.** Common workflows `pr-title` and `sop-lock` always run. Product workflows `overlay-check` (validate + select + run Overlay armed) and `forge-check` (unit + apply --dry-run) start, then skip-with-success when `forge.yaml` `ci` says skip. Learning Guide remains an Overlay-only fixture under `examples/learning-guide/`.
 
-Status: Forge first slice is `python -m forge apply --dry-run` (no live apply), `python -m forge check` (提交前本地门；红则不 push), and `python -m forge submit --dry-run` (开发侧代推；check 绿且宿主已注入写权限；无凭证含 dry-run 也红；CI 不代推; never merges). Overlay is `validate` / `select` / `run` / `cover` + receipt. Overlay test and Overlay CI are the same gate. Forge tests do not ride Overlay run. Case cover = leaf triad + declared invariants, not PRD-wide or line coverage. No `generate` yet.
+Status: Forge first slice is `python -m forge apply --dry-run` (no live apply), `python -m forge check` (提交前本地门；红则不 push), and `python -m forge submit --dry-run` (开发侧代推；check 绿且持有非空 `FORGE_SUBMIT_TOKEN`；无凭证含 dry-run 也红；CI 不代推; never merges). Overlay is `validate` / `select` / `run` / `cover` + receipt. Overlay test and Overlay CI are the same gate. Forge tests do not ride Overlay run. Case cover = leaf triad + declared invariants, not PRD-wide or line coverage. No `generate` yet.
 
 - **完整详细设计：** [`docs/design.md`](docs/design.md)
 - Inbox 输入面：[`docs/inbox.md`](docs/inbox.md)

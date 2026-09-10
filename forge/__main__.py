@@ -75,7 +75,7 @@ def _parser() -> argparse.ArgumentParser:
         dest="dry_run",
         help=(
             "print intended remote branch + PR title/body headings; no push. "
-            "Fail-closed if no host-injected GitHub write credential or if check is red."
+            "Still requires FORGE_SUBMIT_TOKEN (fail-closed if missing). Red if check is red."
         ),
     )
 
@@ -202,30 +202,20 @@ def main(
             environ=env_dict,
         )
     if args.command == "submit":
-        kwargs = {
-            "repo": args.repo,
-            "title": args.title,
-            "dry_run": args.dry_run,
-            "path": args.path,
-            "head": args.head,
-            "stdout": out,
-            "stderr": err,
-            "environ": env_dict,
-        }
-        import inspect as _inspect
-        params = _inspect.signature(run_submit).parameters
-        if "urlopen" in params:
-            kwargs["urlopen"] = opener
-            kwargs["base_url"] = api
-        if "check_fn" in params:
-            kwargs["check_fn"] = check_fn
-        if "credential_probe" in params:
-            kwargs["credential_probe"] = credential_probe
-        if "pusher" in params:
-            kwargs["pusher"] = pusher
-        if "pr_create" in params:
-            kwargs["pr_create"] = pr_create
-        return run_submit(**kwargs)
+        return run_submit(
+            repo=args.repo,
+            title=args.title,
+            dry_run=args.dry_run,
+            path=args.path,
+            head=args.head,
+            urlopen=opener,
+            base_url=api,
+            stdout=out,
+            stderr=err,
+            environ=env_dict,
+            check_fn=check_fn,
+            pusher=pusher,
+        )
     if args.command in {"pr-title", "title"}:
         title = args.title
         body = args.body

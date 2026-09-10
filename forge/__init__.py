@@ -16,6 +16,9 @@ EXIT_AUTH = 2
 EXIT_CONFIG = 3
 EXIT_API = 4
 
+# Dev/agent 代推 only. Not Ops apply. Not CI workflow GITHUB_TOKEN.
+SUBMIT_TOKEN_ENV = "FORGE_SUBMIT_TOKEN"
+
 # Apply must never target the Learning Guide product repo (fixture, not a test sink).
 FORBIDDEN_REPOS = frozenset(
     {

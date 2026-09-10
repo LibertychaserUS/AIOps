@@ -15,12 +15,12 @@ Forge is a standard part: 开发侧 `check`（提交前本地门）+ `submit`（
 
 原则：[`docs/sop-lock.md`](../../docs/sop-lock.md)。skill 里能机器判的标准，程序不绿不能合。只锁可机器判定的子集，不 NLP 扫散文。
 
-- **代推锁（提交前）：** `python -m forge check` 必须绿 **并且** 宿主已注入写权限（PAT / fine-grained / GitHub App token）。缺密钥或 check 红：`submit`（含 `--dry-run`）退出 2，不 push、不开 PR。不回落 `GITHUB_TOKEN`、`FORGE_GITHUB_TOKEN`、本机 `gh auth`。Ops merge 用另一套权限，不是这把提交密钥。Overlay「token 只在 generate」说的是**模型密钥**，不是这把 GitHub 凭据。`submit`（含 `--dry-run`）必须有 宿主注入的写权限；缺则退出 2。Live 用真 PAT；CI dry-run 用假值、不 push。
+- **代推锁（提交前）：** `python -m forge check` 必须绿 **并且** 持有非空 `FORGE_SUBMIT_TOKEN`（PAT / fine-grained / GitHub App token）。缺密钥或 check 红：`submit`（含 `--dry-run`）退出 2，不 push、不开 PR。不回落 `GITHUB_TOKEN`、`FORGE_GITHUB_TOKEN`、本机 `gh auth`。Ops merge 用另一套权限，不是这把提交密钥。Overlay「token 只在 generate」说的是**模型密钥**，不是这把 GitHub 凭据。`submit`（含 `--dry-run`）必须有 `FORGE_SUBMIT_TOKEN`；缺则退出 2。Live 用真 PAT；CI dry-run 用假值、不 push。
 - LearningGuidePortal apply/submit 拒绝、dry-run 不写 API：`python -m forge apply --dry-run` + Forge 单测 → CI **`forge-check`**（合入锁）。overlay / pr-title / sop-lock / forge-check workflow **不得**调用 `forge submit`。
 - PR 标题：`python -m forge pr-title` → CI **`pr-title`**（合入锁）
 - 仓级 SOP（若已装）：`python -m forge sop-lock` → **`sop-lock`**（**通用**合入锁，永远跑；不是 forge-check 的一层）
-- 本工作本 Forge **产品门**：**`forge-check`**（unit + apply --dry-run；`forge.yaml` `ci` 选跑或跳过成功）。`submit` 必须持有 宿主注入的写权限（`gh auth login` / `GH_TOKEN` / extraheader）。
-- GitHub required checks 锁合入，不锁提交。本地 `forge check` + 宿主注入的写权限（`gh auth login` / `GH_TOKEN` / extraheader） 锁代推。**通用检查 ≠ 产品门。** 不绿不能提交。不绿不能合。人审：谁合、要不要 live apply、别的仓有没有 vendor 工具。
+- 本工作本 Forge **产品门**：**`forge-check`**（unit + apply --dry-run；`forge.yaml` `ci` 选跑或跳过成功）。`submit` 必须持有 `FORGE_SUBMIT_TOKEN`。`gh auth` / `GH_TOKEN` / extraheader 都不够。
+- GitHub required checks 锁合入，不锁提交。本地 `forge check` + `FORGE_SUBMIT_TOKEN` 锁代推。**通用检查 ≠ 产品门。** 不绿不能提交。不绿不能合。人审：谁合、要不要 live apply、别的仓有没有 vendor 工具。
 
 ## Instructions
 
@@ -67,7 +67,7 @@ CI reuse path: `uses: LibertychaserUS/AIOps/.github/workflows/forge-guard.yml@<t
    PYTHONPATH=../AIOps python3 -m forge apply --repo OWNER/NAME --path forge.yaml
    PYTHONPATH=../AIOps python3 -m forge status --repo OWNER/NAME
    ```
-5. **Humans and agents land the same way:** first `python -m forge check --root . --title T`（必须绿），then hold 宿主注入的写权限, then `python -m forge submit --repo OWNER/NAME [--title T] [--dry-run]`. `submit` 先跑 check；红则拒绝。缺 宿主注入的写权限 也拒绝，**包括 `--dry-run`（fail closed）**。人用 `gh auth login`，代理用宿主注入，不回落 CI `GITHUB_TOKEN`，不用 Ops `FORGE_GITHUB_TOKEN` 冒充代推。Check 绿且密钥在时，dry-run 打印计划 + `credential: <source>`，不 push。永不打印 token。永不 merge / approve / arm / apply Ruleset。No push to protected branches. Developers follow `$dev-pr`. Merge is a GitHub click after checks are green — `$manage-repo`，另一套写权限，不是这把提交密钥。Aligns with [`gh pr create`](https://cli.github.com/manual/gh_pr_create) **consuming host-injected git/gh credential**, not “just git + gh”. GitHub required checks lock **merge**; local check + 宿主注入的写权限 lock **submit**.
+5. **Humans and agents land the same way:** first `python -m forge check --root . --title T`（必须绿），then hold `FORGE_SUBMIT_TOKEN`, then `python -m forge submit --repo OWNER/NAME [--title T] [--dry-run]`. `submit` 先跑 check；红则拒绝。缺 `FORGE_SUBMIT_TOKEN` 也拒绝，**包括 `--dry-run`（fail closed）**。必须设置 `FORGE_SUBMIT_TOKEN`，不回落 CI `GITHUB_TOKEN`，不用 Ops `FORGE_GITHUB_TOKEN` 冒充代推。Check 绿且密钥在时，dry-run 打印计划 + `would require FORGE_SUBMIT_TOKEN`，不 push。永不打印 token。永不 merge / approve / arm / apply Ruleset。No push to protected branches. Developers follow `$dev-pr`. Merge is a GitHub click after checks are green — `$manage-repo`，另一套写权限，不是这把提交密钥。Aligns with [`gh pr create`](https://cli.github.com/manual/gh_pr_create) **consuming `FORGE_SUBMIT_TOKEN`**, not “just git + gh”. GitHub required checks lock **merge**; local check + `FORGE_SUBMIT_TOKEN` lock **submit**.
 6. **Do not touch Overlay gates.** Forge must not write `reviewed_by`, receipts, or `status: armed`. Agents must not arm.
 7. **Required checks** stay the adopter’s names (their build job, plus `overlay-check` only if they installed Overlay, plus `pr-title` if they installed the title workflow, plus `forge-check` if they installed Forge CI, plus `sop-lock` if they installed the SOP workflow). This workshop lists `overlay-check`, `pr-title`, `forge-check`, and `sop-lock`. Workflows stay separate; merge law can require both products. Title lock: `python -m forge pr-title` — [`../../docs/pr-brief.md`](../../docs/pr-brief.md). SOP lock: `python -m forge sop-lock` — [`../../docs/sop-lock.md`](../../docs/sop-lock.md).
 
@@ -81,7 +81,7 @@ Guard workflow is later. First slice is Ruleset + policy + CLI.
 - Do not generate on push. Do not arm as an agent. Do not write receipts / `reviewed_by`.
 - CI only; no CD. Two products stay independent: Forge does not write Overlay `status`.
 - Do not build an admin Web or a second RBAC database. Review/merge stay on GitHub (`$manage-repo`).
-- Do not invent a Forge-owned submit token. Consume the host-injected login. CI `GITHUB_TOKEN` is 合入锁, not 代推.
+- Do not skip `FORGE_SUBMIT_TOKEN`. Ambient `gh auth` is not enough. CI `GITHUB_TOKEN` is 合入锁, not 代推.
 
 ## Examples
 
@@ -89,7 +89,7 @@ Guard workflow is later. First slice is Ruleset + policy + CLI.
 # This workshop (it IS the tool repo — local forge/ is correct here only)
 python3 -m forge apply --repo LibertychaserUS/AIOps --path forge.yaml --dry-run
 python3 -m forge check --root . --title "feat(forge/dev): add submit"
-# submit requires 宿主注入的写权限 even on --dry-run
+# submit requires `FORGE_SUBMIT_TOKEN` even on --dry-run
 python3 -m forge submit --repo LibertychaserUS/AIOps --title "feat(forge/dev): add submit" --dry-run
 
 # Another product (tool stays next door)
@@ -113,19 +113,19 @@ Illegal: `apply --repo First-Light-TechHK/LearningGuidePortal`. Illegal: apply o
 
 ## Performance Notes
 
-Dry-run apply is local JSON. Live apply is one GET + one POST or PUT. No model. No CD. Overlay 模型 token 只在人点的 `generate`，不在 push。Forge 代推是另一把钥匙：宿主注入的写权限，缺则红（含 dry-run）。
+Dry-run apply is local JSON. Live apply is one GET + one POST or PUT. No model. No CD. Overlay 模型 token 只在人点的 `generate`，不在 push。Forge 代推是另一把钥匙：`FORGE_SUBMIT_TOKEN`，缺则红（含 dry-run）。
 
 ## Troubleshooting
 
 | 现象 | 处理 |
 |---|---|
 | 想把 `forge/` 拷进产品仓好 import | 停。工具留在本工作本或 fork；产品仓只留 `forge.yaml` + 薄 workflow。本地用 `PYTHONPATH`。 |
-| 退出码 2 | 缺 宿主注入的写权限，或本机 `forge check` 红。不要部分写入。不要用 `GITHUB_TOKEN` / `gh auth` 凑。 |
+| 退出码 2 | 缺 `FORGE_SUBMIT_TOKEN`，或本机 `forge check` 红。不要部分写入。不要用 `GITHUB_TOKEN` / `gh auth` 凑。 |
 | 退出码 3 | `forge.yaml` 非法。对照 example。 |
 | 退出码 4 | GitHub API 失败。看权限，不要改 Ruleset JSON 结构凑合。 |
 | 想直推 main 省事 | 停。先 `python -m forge check`，再 `forge submit`。`$dev-pr`。 |
 | `forge check` 红了还想 submit | 停。不 push、不开 PR。 |
-| 缺 宿主注入的写权限 还想 dry-run submit | 停。fail closed。先持有提交密钥。 |
+| 缺 `FORGE_SUBMIT_TOKEN` 还想 dry-run submit | 停。fail closed。先持有提交密钥。 |
 | 想让 Forge 把 suite 标 armed | 停。那是人审 Overlay。`$manage-repo`。 |
 | 谁来 merge | GitHub 上的人 + Ruleset。见 [`docs/rbac.md`](../../docs/rbac.md)。 |
 | 想对 LearningGuidePortal live apply | 停。fixture，不是试验场。 |

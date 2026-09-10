@@ -314,6 +314,8 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
             issues.append(Issue("docs/sop-lock.md", "must list human-only (cannot machine-lock) rows"))
         if "forge check" not in text:
             issues.append(Issue("docs/sop-lock.md", "must document python -m forge check as 代推锁"))
+        if "FORGE_SUBMIT_TOKEN" not in text:
+            issues.append(Issue("docs/sop-lock.md", "must name FORGE_SUBMIT_TOKEN as the 代推 secret"))
         if "forge-check" not in text:
             issues.append(Issue("docs/sop-lock.md", "must list forge-check as a product gate"))
         if "通用" not in text or "产品门" not in text:
@@ -416,9 +418,9 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
         text = skill.read_text(encoding="utf-8")
         if "python -m forge check" not in text:
             issues.append(Issue(rel, "must require python -m forge check before submit (代推锁)"))
-        if "FORGE_SUBMIT_TOKEN" not in text and "宿主" not in text:
+        if "FORGE_SUBMIT_TOKEN" not in text:
             issues.append(
-                Issue(rel, "must name FORGE_SUBMIT_TOKEN or a host-injected 宿主 credential")
+                Issue(rel, "must name FORGE_SUBMIT_TOKEN for agent 代推")
             )
         if "通用" not in text or "产品门" not in text:
             issues.append(Issue(rel, "must state 通用检查 ≠ 产品门"))
@@ -444,6 +446,39 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
     return issues
 
 
+
+_SUBMIT_DOC_NEEDLES = (
+    "FORGE_SUBMIT_TOKEN",
+    "Forge 不保管",
+    "gh auth login",
+    "GH_TOKEN",
+    "extraheader",
+    "OPENAI_API_KEY",
+    "GITHUB_TOKEN",
+)
+
+
+def check_submit_custody_docs(root: Path) -> list[Issue]:
+    path = root / "docs" / "submit-credential.md"
+    if not path.is_file():
+        return [
+            Issue(
+                "docs/submit-credential.md",
+                "missing docs/submit-credential.md: 代推锁要求点名 FORGE_SUBMIT_TOKEN",
+            )
+        ]
+    text = path.read_text(encoding="utf-8")
+    missing = [n for n in _SUBMIT_DOC_NEEDLES if n not in text]
+    if missing:
+        return [
+            Issue(
+                "docs/submit-credential.md",
+                "docs/submit-credential.md missing custody needles: " + ", ".join(missing),
+            )
+        ]
+    return []
+
+
 def check_submit_source(root: Path) -> list[Issue]:
     submit = root / "forge" / "submit.py"
     if not submit.is_file():
@@ -453,9 +488,9 @@ def check_submit_source(root: Path) -> list[Issue]:
     rel = _rel(root, submit)
     if "run_check" not in text:
         issues.append(Issue(rel, "submit must refuse when forge check is red"))
-    if "FORGE_SUBMIT_TOKEN" not in text and "probe_write_credential" not in text:
+    if "FORGE_SUBMIT_TOKEN" not in text:
         issues.append(
-            Issue(rel, "submit must require FORGE_SUBMIT_TOKEN or probe a host-injected credential")
+            Issue(rel, "submit must require FORGE_SUBMIT_TOKEN (no silent gh / GITHUB_TOKEN fallback)")
         )
     if re.search(r"""\.get\(\s*['\"]GITHUB_TOKEN['\"]""", text):
         issues.append(Issue(rel, "submit must not read GITHUB_TOKEN"))
@@ -463,6 +498,23 @@ def check_submit_source(root: Path) -> list[Issue]:
         issues.append(Issue(rel, "submit must not read FORGE_GITHUB_TOKEN (Ops apply)"))
     if "resolve_token(" in text:
         issues.append(Issue(rel, "submit must not call apply.resolve_token"))
+    cred = root / "forge" / "credential.py"
+    if cred.is_file():
+        cred_text = cred.read_text(encoding="utf-8")
+        if "FORGE_SUBMIT_TOKEN" not in cred_text:
+            issues.append(
+                Issue(
+                    _rel(root, cred),
+                    "credential.py must treat FORGE_SUBMIT_TOKEN as the only write credential",
+                )
+            )
+        if 'source="gh-login"' in cred_text or "source='gh-login'" in cred_text:
+            issues.append(
+                Issue(
+                    _rel(root, cred),
+                    "credential.py must not treat ambient gh auth as a valid submit credential",
+                )
+            )
     return issues
 
 
@@ -474,6 +526,8 @@ def collect_issues(root: Path) -> list[Issue]:
     issues.extend(check_husky(root))
     issues.extend(check_skills(root))
     issues.extend(check_submit_source(root))
+    if is_workshop_root(root):
+        issues.extend(check_submit_custody_docs(root))
     issues.extend(check_workshop_docs_and_checks(root))
     issues.sort(key=lambda item: (item.path, item.message))
     return issues

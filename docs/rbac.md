@@ -21,12 +21,12 @@ PR 的 **review 和 merge 由 GitHub 上的人 + Repository Ruleset 管**，不�
 
 | 侧 | 谁 | 做什么 | 不做什么 |
 |---|---|---|---|
-| **开发侧** | 人 / agent + `python -m forge check` + `python -m forge submit` | 提交前本地检查绿，且宿主已注入 GitHub 写权限，再代推当前功能分支，开/更新 **draft** PR，标题过 `pr-title` | 不直推 protect；check 红不 push；无宿主凭证不 push（含 `--dry-run`）；不自合；不 `forge apply` |
+| **开发侧** | 人 / agent + `python -m forge check` + `python -m forge submit` | 提交前本地检查绿，且持有 `FORGE_SUBMIT_TOKEN`，再代推当前功能分支，开/更新 **draft** PR，标题过 `pr-title` | 不直推 protect；check 红不 push；缺 `FORGE_SUBMIT_TOKEN`不 push（含 `--dry-run`）；不自合；不 `forge apply` |
 | **Ops 侧** | 管理端 + Ruleset required checks | 勾 check、等人 Approve，绿了在 GitHub 点 merge | 不替开发 push；Forge **不合入** |
 
 对齐已有工具，不另造协议：
 
-- 开发侧代推：`python -m forge submit` 对齐 [GitHub CLI `gh pr create`](https://cli.github.com/manual/gh_pr_create)。Forge **不保管**密钥：人用 `gh auth login`，云代理用宿主注入的 `GH_TOKEN` / extraheader。同类参考 [Graphite `gt submit`](https://graphite.com/docs/create-submit-prs)，只借「推分支 + 开/更新 PR」，不借 stack，不借 merge-when-ready。
+- 开发侧代推：`python -m forge submit` 对齐 [GitHub CLI `gh pr create`](https://cli.github.com/manual/gh_pr_create)。Forge **不保管**密钥：必须持有 `FORGE_SUBMIT_TOKEN`。`gh auth` / `GH_TOKEN` / extraheader 都不够。同类参考 [Graphite `gt submit`](https://graphite.com/docs/create-submit-prs)，只借「推分支 + 开/更新 PR」，不借 stack，不借 merge-when-ready。
 - Ops 侧合入门：[GitHub Ruleset — Require status checks to pass](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#require-status-checks-to-pass-before-merging)。人点 merge。
 
 ---

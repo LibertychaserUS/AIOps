@@ -61,7 +61,7 @@ PR 的 review 和 merge 由 **GitHub Ruleset + 有写权限的人** 管理，不
 |---|---|
 | 可用 | 当天能审一页用例；`forge apply` 当天能挡住直推 |
 | 少闲活 | 开发不注册、不填工单；审选用改一行 yaml |
-| token | Overlay 模型密钥只在 `overlay generate`；push 零模型。Forge 代推消费宿主注入的 GitHub 写权限（`gh auth login` / `GH_TOKEN` / extraheader），不保管。两把钥匙不要混。 |
+| token | Overlay 模型密钥只在 `overlay generate`；push 零模型。Forge 代推必须持有 `FORGE_SUBMIT_TOKEN`。`gh auth` / `GH_TOKEN` / extraheader / CI `GITHUB_TOKEN` 都不够。两把钥匙不要混。 |
 | 速度 | 无服务、无 TS 工具链、无第一刀 C 扩展 |
 
 ---
@@ -174,13 +174,13 @@ python -m forge revoke --repo OWNER/NAME --name forge-protected-default
 4. 本工作本有 `tests/forge/test_title.py`：跑快单测子集。
 5. 打印清单。任一红退出 2。无模型。
 
-`submit`（开发侧代推；对齐 [`gh pr create`](https://cli.github.com/manual/gh_pr_create)；Forge **不保管**密钥，只消费宿主注入的写权限）：
+`submit`（开发侧代推；对齐 [`gh pr create`](https://cli.github.com/manual/gh_pr_create) 的「推分支 + 开 draft PR」；**必须**持有命名密钥 `FORGE_SUBMIT_TOKEN`）：
 
 1. 读当前分支与 `forge.yaml` `protect`。protect 或 `First-Light-TechHK/LearningGuidePortal`：拒绝。
-2. 探测宿主是否已注入 GitHub 写权限（`gh auth status` / `GH_TOKEN` / git extraheader）。只报来源名，不打印密钥。没有 → 退出码 2，**即使 `--dry-run` 也红**。CI（`GITHUB_ACTIONS`）一律视为没有代推凭证。
-3. 再跑本地 `forge check`（含标题）。红则拒绝：不 push、不开 PR，退出 2。check 不读密钥。
-4. `--dry-run` 且凭证在且 check 绿：打印将推的远程分支、PR 标题、正文六节、`credential:` 来源；不 push、不调 `gh pr create`；退出 0。
-5. 非 dry-run：`git push` 当前功能分支，再 `gh pr create` / `gh pr edit` 开 **draft** PR。永不 merge，永不 approve，永不 arm，永不 apply Ruleset。
+2. 先跑本地 `forge check`（含标题）。红则拒绝：不 push、不开 PR，退出 2。check 不读密钥。
+3. 再要求 `FORGE_SUBMIT_TOKEN`。缺或空 → 退出码 2，打印 `would require FORGE_SUBMIT_TOKEN` / `missing FORGE_SUBMIT_TOKEN`，**即使 `--dry-run` 也红**。不回落 `GITHUB_TOKEN`、`FORGE_GITHUB_TOKEN`、`gh auth`、`GH_TOKEN`、git extraheader。
+4. `--dry-run` 且密钥在且 check 绿：打印将推的远程分支、PR 标题、正文六节、`would require FORGE_SUBMIT_TOKEN`；不 push；退出 0。永不打印 token 值。
+5. 非 dry-run：`git push` 当前功能分支，再开/更新 **draft** PR。永不 merge，永不 approve，永不 arm，永不 apply Ruleset。
 6. Overlay / pr-title / sop-lock / forge-check workflow **不得**调用 `forge submit`。CI 的 `GITHUB_TOKEN` 是合入锁，不是代推。
 
 `apply` 认证仍是 `FORGE_GITHUB_TOKEN` 或 `GITHUB_TOKEN`（Administration: write）。那是 Ops 装 Ruleset 的钥匙，不是代推密钥。
@@ -204,7 +204,7 @@ product →  overlay-check | forge-check   start, then skip-success via forge.ya
 4. 不修改任何 workflow YAML。
 5. 成功打印 Ruleset id 与保护分支。失败非 0。
 
-`apply` 认证：`FORGE_GITHUB_TOKEN` 或 `GITHUB_TOKEN`。需要 `Administration: write`（Rulesets）。缺 token：退出码 `2`，不部分写入。不要把这把钥匙和代推用的宿主注入写权限混用。
+`apply` 认证：`FORGE_GITHUB_TOKEN` 或 `GITHUB_TOKEN`。需要 `Administration: write`（Rulesets）。缺 token：退出码 `2`，不部分写入。不要把这把钥匙和代推用的`FORGE_SUBMIT_TOKEN`混用。
 
 `status`：只读，列出是否已装、保护哪些分支。
 
@@ -269,7 +269,7 @@ jobs:
 ### 3.9 测试（Forge 自己的，不测接入方业务）
 
 - `apply` 对假 API：无 Ruleset 则 POST，有则 PUT，第二次无 POST。
-- `submit --dry-run` 先探测宿主写权限，再跑 `forge check`；缺凭证或 check 红退出 2。绿了才打印 head / title / 正文六节 / credential 来源，不 push。protect 与 LearningGuidePortal 拒绝。
+- `submit --dry-run` 先跑 `forge check`，再要求 `FORGE_SUBMIT_TOKEN`；缺密钥或 check 红退出 2。绿了才打印 head / title / 正文六节 / `would require FORGE_SUBMIT_TOKEN`，不 push。protect 与 LearningGuidePortal 拒绝。
 - `submit` 对假 Pulls API：POST draft；第二次 PATCH；永不打 `/merge`；不打印 token。`GITHUB_TOKEN` 单独不够。check 红则不 POST。
 - 默认 JSON 保护 `main`，含 PR 规则，bypass 为空。
 - `forge.yaml` 缺字段用默认；非法枚举失败。
@@ -641,7 +641,7 @@ docs/agents/ieee-test-system.md
 schema/check.py          # 形状检查；不是产品 CLI
 docs/products.md
 docs/rbac.md
-docs/submit-credential.md  # 代推密钥：Forge 不保管，只消费宿主注入             # GitHub-native review/merge；管理端 vs 开发端
+docs/submit-credential.md  # 代推密钥：Forge 不保管，要求 `FORGE_SUBMIT_TOKEN`             # GitHub-native review/merge；管理端 vs 开发端
 docs/pr-brief.md          # PR 解说规格（标题分工 + 六节正文）
 .github/PULL_REQUEST_TEMPLATE.md
 docs/2026-09-10-对话整理.md
@@ -658,7 +658,7 @@ skills/dev-pr/ SKILL.md
 ## 8. 安全
 
 - 不提交 `.env`、token、真实支付数据。永不打印 token，不写入回执 / 痕迹 / PR 正文。
-- 开发侧代推：Forge **不保管**密钥，只消费宿主注入（`gh auth login` / `GH_TOKEN` / extraheader）。见 [`submit-credential.md`](submit-credential.md)。
+- 开发侧代推：Forge **不保管**密钥，要求 `FORGE_SUBMIT_TOKEN`（`gh auth login` / `GH_TOKEN` / extraheader）。见 [`submit-credential.md`](submit-credential.md)。
 - Ops apply token（`FORGE_GITHUB_TOKEN`）只在管理员本机或受保护的 `workflow_dispatch`。不 live-apply Rulesets from agents。
 - Overlay generate 的密钥：仓库 Secret；日志禁止打印 inbox 全文和模型原文（截断 + 打码）。与 Forge GitHub 凭据不是一把。
 - Overlay run 禁止生产 host、禁止生产 Stripe/SES。

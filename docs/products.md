@@ -53,7 +53,7 @@ Fork 若已分叉、SHA 不在上游：`uses:` 指向该 fork 的 pin；fork 里
 
 人多了、再加会写代码的 agent，GitHub 上会直推 `main`、互踩、无人审就合。Forge 分两侧，不自建协作网站，也不做 Graphite 克隆 / 自动合入机器人：
 
-- **开发侧**：先 `python -m forge check` 绿，且宿主已注入 GitHub 写权限（代推锁），再 `python -m forge submit` 代推当前功能分支，开/更新 draft PR（对齐 [`gh pr create`](https://cli.github.com/manual/gh_pr_create)）。Forge 不保管密钥。check 红或无凭证（含 `--dry-run`）不 push。Ops merge 是另一套权限。
+- **开发侧**：先 `python -m forge check` 绿，且持有 `FORGE_SUBMIT_TOKEN`（代推锁），再 `python -m forge submit` 代推当前功能分支，开/更新 draft PR（对齐 [`gh pr create`](https://cli.github.com/manual/gh_pr_create)）。Forge 不保管密钥。check 红或无凭证（含 `--dry-run`）不 push。Ops merge 是另一套权限。
 - **Ops 侧**：Ruleset required checks（合入锁）+ 人点 merge（对齐 [GitHub Ruleset required checks](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#require-status-checks-to-pass-before-merging)）。
 
 完整分工：[`rbac.md`](rbac.md)、[`design.md`](design.md) §3。
@@ -70,7 +70,7 @@ Fork 若已分叉、SHA 不在上游：`uses:` 指向该 fork 的 pin；fork 里
 | `.github/workflows/forge-guard.yml` | reusable：校验 PR 来自允许的前缀、没有改保护 workflow | 产品仓一条薄 `uses:`（pin tag/SHA） |
 | `python -m forge apply --repo owner/name` | Ops：用 GitHub API 安装 Ruleset（幂等）。不合入 | 本机 `PYTHONPATH` 指向工具仓；admin token |
 | `python -m forge check` | 开发侧提交前本地门 | 红则不 push；`submit` 先跑 |
-| `python -m forge submit --repo owner/name` | 开发侧代推：check 绿且宿主已注入写权限后 push 功能分支 + `gh pr create` | 标题过 `pr-title`；无凭证含 `--dry-run` 也红；CI `GITHUB_TOKEN` 不是代推 |
+| `python -m forge submit --repo owner/name` | 开发侧代推：check 绿且持有非空 `FORGE_SUBMIT_TOKEN`后 push 功能分支 + `gh pr create` | 标题过 `pr-title`；无凭证含 `--dry-run` 也红；CI `GITHUB_TOKEN` 不是代推 |
 
 评审：继续用接入方已有的 **CodeRabbit**（或同等 PR review）。Forge 不重做 diff 审。Copilot review 只当建议，不当 merge 门。
 

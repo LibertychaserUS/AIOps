@@ -6,7 +6,7 @@
 
 | 锁 | 命令 | 挡住什么 |
 |---|---|---|
-| **代推锁（提交前）** | `python -m forge check` 绿，且宿主已注入 GitHub 写权限（`submit` 先探测再跑 check） | 不绿或无宿主凭证则 **不 push、不开 PR**（含 `--dry-run`） |
+| **代推锁（提交前）** | `python -m forge check` 绿，且持有 `FORGE_SUBMIT_TOKEN`（`submit` 先探测再跑 check） | 不绿或缺 `FORGE_SUBMIT_TOKEN`则 **不 push、不开 PR**（含 `--dry-run`） |
 | **合入锁** | GitHub required checks / Ruleset | 不绿则 **不能合** |
 
 GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge check` 才是开发侧代推门。
@@ -30,7 +30,7 @@ GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge
 
 | 何时 | 程序 | 红了怎样 |
 |---|---|---|
-| **代推**（push + 开 PR） | `python -m forge check` 绿，且宿主已注入写权限 | `forge submit` 拒绝，不 push、不开 PR |
+| **代推**（push + 开 PR） | `python -m forge check` 绿，且持有非空 `FORGE_SUBMIT_TOKEN` | `forge submit` 拒绝，不 push、不开 PR |
 | **合入**（merge） | GitHub required checks：通用 `pr-title` + `sop-lock`（永远跑）；产品 `overlay-check` + `forge-check`（选跑或 skip 成功） | Ruleset 挡 merge |
 
 ---
@@ -57,7 +57,7 @@ GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge
 | PR 标题 `type(product/actor): subject` | `python -m forge pr-title` → **`pr-title`** | 祈使句好不好读 | `[开发][Overlay]` 红 |
 | PR 正文六个 `##` 原样且按序 | 同上（`docs/pr-brief.md` 存在才锁） | 各节内容是否说清 | 不 NLP 验「不做什么」名单 |
 | 代推前本地门必须绿 | `python -m forge check`（代推锁；`submit` 调用） | 人是否绕过 CLI 直 push | GitHub required checks 只锁合入；可选 `forge/hooks/pre-submit`，不装 husky |
-| Live / dry-run `submit` 必须有宿主注入的写权限 | `python -m forge submit` + `sop-lock` 扫源码 | 人是否直 `git push` | 人：`gh auth login`；代理：`GH_TOKEN` / extraheader。CI `GITHUB_TOKEN` 不是代推。不发明第二把提交环境变量 |
+| Live / dry-run `submit` 必须有`FORGE_SUBMIT_TOKEN` | `python -m forge submit` + `sop-lock` 扫源码 | 人是否直 `git push` | 人：`gh auth login`；代理：`GH_TOKEN` / extraheader。CI `GITHUB_TOKEN` 不是代推。必须点名 `FORGE_SUBMIT_TOKEN` |
 | LearningGuidePortal live `forge apply` 拒绝 | `python -m forge apply` + Forge 单测 → **`forge-check`**（产品门） | 人是否打别的仓 | |
 | Forge 不写 Overlay `status` / `reviewed_by` | Forge 单测 → **`forge-check`**（产品门） | — | |
 | 产品门按 `forge.yaml` `ci` 选跑或跳过 | `python -m forge ci-select` | 标题 product 写错 | 通用层不跳过 |
