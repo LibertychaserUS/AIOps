@@ -221,8 +221,8 @@ def check_skills(root: Path) -> list[Issue]:
             continue
         if "sop-lock.md" not in text and "不绿不能合" not in text:
             issues.append(Issue(rel, "Lock section must point at docs/sop-lock.md or 不绿不能合"))
-        if not any(name in text for name in ("overlay-check", "sop-lock", "pr-title")):
-            issues.append(Issue(rel, "Lock section must name overlay-check, sop-lock, or pr-title"))
+        if not any(name in text for name in ("overlay-check", "sop-lock", "pr-title", "forge check")):
+            issues.append(Issue(rel, "Lock section must name overlay-check, sop-lock, pr-title, or forge check"))
     return issues
 
 
@@ -239,6 +239,8 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
             issues.append(Issue("docs/sop-lock.md", "must state the 不绿不能合 / 机器判定 principle"))
         if "human-only" not in text and "仅人审" not in text:
             issues.append(Issue("docs/sop-lock.md", "must list human-only (cannot machine-lock) rows"))
+        if "forge check" not in text:
+            issues.append(Issue("docs/sop-lock.md", "must document python -m forge check as 代推锁"))
     forge_yaml = root / "forge.yaml"
     if not forge_yaml.is_file():
         issues.append(Issue("forge.yaml", "missing workshop forge.yaml"))
@@ -272,6 +274,17 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
             issues.append(
                 Issue(_rel(root, sop_wf), "must be the sop-lock check running python -m forge sop-lock")
             )
+    for name in ("dev-pr", "use-forge"):
+        skill = root / "skills" / name / "SKILL.md"
+        rel = _rel(root, skill)
+        if not skill.is_file():
+            issues.append(Issue(rel, "missing skill"))
+            continue
+        text = skill.read_text(encoding="utf-8")
+        if "python -m forge check" not in text:
+            issues.append(Issue(rel, "must require python -m forge check before submit (代推锁)"))
+        if "FORGE_SUBMIT_TOKEN" not in text:
+            issues.append(Issue(rel, "must name FORGE_SUBMIT_TOKEN for agent submit"))
     overlay_check = root / ".github" / "workflows" / "overlay-check.yml"
     if overlay_check.is_file():
         data = _load_workflow(overlay_check)
@@ -279,6 +292,38 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
             for script in _collect_runs(data):
                 if GENERATE_RUN_RE.search(script):
                     issues.append(Issue(_rel(root, overlay_check), "overlay-check must not run generate"))
+    manage = root / "skills" / "manage-repo" / "SKILL.md"
+    if manage.is_file():
+        text = manage.read_text(encoding="utf-8")
+        if "合入" not in text or "代推" not in text:
+            issues.append(
+                Issue(_rel(root, manage), "must distinguish CI 合入锁 from local 代推锁")
+            )
+        missing = [name for name in WORKSHOP_REQUIRED_CHECKS if name not in text]
+        if missing:
+            issues.append(
+                Issue(_rel(root, manage), "must name required checks " + ", ".join(missing))
+            )
+    return issues
+
+
+def check_submit_source(root: Path) -> list[Issue]:
+    submit = root / "forge" / "submit.py"
+    if not submit.is_file():
+        return []
+    issues: list[Issue] = []
+    text = submit.read_text(encoding="utf-8")
+    rel = _rel(root, submit)
+    if "run_check" not in text:
+        issues.append(Issue(rel, "submit must refuse when forge check is red"))
+    if "FORGE_SUBMIT_TOKEN" not in text:
+        issues.append(Issue(rel, "submit must require FORGE_SUBMIT_TOKEN"))
+    if re.search(r"""\.get\(\s*['\"]GITHUB_TOKEN['\"]""", text):
+        issues.append(Issue(rel, "submit must not read GITHUB_TOKEN"))
+    if re.search(r"""\.get\(\s*['\"]FORGE_GITHUB_TOKEN['\"]""", text):
+        issues.append(Issue(rel, "submit must not read FORGE_GITHUB_TOKEN (Ops apply)"))
+    if "resolve_token(" in text:
+        issues.append(Issue(rel, "submit must not call apply.resolve_token"))
     return issues
 
 
@@ -289,6 +334,7 @@ def collect_issues(root: Path) -> list[Issue]:
     issues.extend(check_kernel(root))
     issues.extend(check_husky(root))
     issues.extend(check_skills(root))
+    issues.extend(check_submit_source(root))
     issues.extend(check_workshop_docs_and_checks(root))
     issues.sort(key=lambda item: (item.path, item.message))
     return issues

@@ -5,7 +5,7 @@ PR 的 **review 和 merge 由 GitHub 上的人 + Repository Ruleset 管**，不�
 控制面只有这一套：
 
 - GitHub org **teams**（谁是 admin / maintainer / writer）
-- Repository **Ruleset**（禁直推、必须 PR、批准数、required checks）。本工作本声明的 check 名：`overlay-check`、`pr-title`（见 `forge.yaml`）。`pr-title` 红则不合。
+- Repository **Ruleset**（禁直推、必须 PR、批准数、required checks）。本工作本声明的 check 名：`overlay-check`、`pr-title`、`sop-lock`（见 `forge.yaml`）。任一红则不合。代推锁是本地 `python -m forge check`，红则不提交。
 - **CODEOWNERS**（哪条路径必须谁审）
 - Overlay `suite.yaml` 的人审字段（`reviewed_by`、`armed` / `blocked`）
 
@@ -21,7 +21,7 @@ PR 的 **review 和 merge 由 GitHub 上的人 + Repository Ruleset 管**，不�
 
 | 侧 | 谁 | 做什么 | 不做什么 |
 |---|---|---|---|
-| **开发侧** | 人 / agent + `python -m forge submit` | 代推当前功能分支，开/更新 **draft** PR，标题过 `pr-title` | 不直推 protect；不自合；不 `forge apply` |
+| **开发侧** | 人 / agent + `python -m forge check` + `python -m forge submit` | 提交前本地检查绿，再代推当前功能分支，开/更新 **draft** PR，标题过 `pr-title` | 不直推 protect；check 红不 push；不自合；不 `forge apply` |
 | **Ops 侧** | 管理端 + Ruleset required checks | 勾 check、等人 Approve，绿了在 GitHub 点 merge | 不替开发 push；Forge **不合入** |
 
 对齐已有工具，不另造协议：

@@ -1,4 +1,4 @@
-"""python -m forge apply|status|submit|pr-title|sop-lock"""
+"""python -m forge apply|status|submit|check|pr-title|sop-lock"""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from typing import Any, TextIO
 from forge import EXIT_CONFIG, EXIT_OK
 from forge.apply import DEFAULT_API, default_urlopen, run_apply
 from forge.brief import brief_spec_exists, lint_pr_body
-from forge.sop_lock import run_sop_lock
+from forge.check import run_check
 from forge.status import run_status
 from forge.submit import run_submit
 from forge.title import run_pr_title
@@ -23,7 +23,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m forge",
         description=(
-            "Forge: 开发侧 submit (代推 draft PR); Ops apply/status (Ruleset); pr-title lint. "
+            "Forge: 开发侧 check + submit (代推 draft PR); Ops apply/status (Ruleset); pr-title lint. "
             "Does not merge. Does not write CODEOWNERS, AGENTS.md, or workflows."
         ),
     )
@@ -42,9 +42,20 @@ def _parser() -> argparse.ArgumentParser:
     status_p = sub.add_parser("status", help="read-only: is the ruleset installed?")
     status_p.add_argument("--repo", required=True, help="OWNER/NAME")
 
+    check_p = sub.add_parser(
+        "check",
+        help="local pre-submit gate. Exit 0/2. No GitHub write. submit refuses if this is red.",
+    )
+    check_p.add_argument("--root", default=".", help="repo root (default: .)")
+    check_p.add_argument(
+        "--title",
+        default=None,
+        help="PR title to lint (same as pr-title). Default: env PR_TITLE. Skip if omitted.",
+    )
+
     submit_p = sub.add_parser(
         "submit",
-        help="开发侧代推: push the feature branch and open/update a draft PR. Never merges.",
+        help="开发侧代推: run forge check, then push the feature branch and open/update a draft PR. Never merges.",
     )
     submit_p.add_argument("--repo", required=True, help="OWNER/NAME")
     submit_p.add_argument(
@@ -54,10 +65,18 @@ def _parser() -> argparse.ArgumentParser:
     )
     submit_p.add_argument("--path", default=None, help="forge.yaml (optional; defaults protect=main)")
     submit_p.add_argument(
+        "--head",
+        default=None,
+        help="Feature branch to submit. Default: current HEAD, else GITHUB_HEAD_REF.",
+    )
+    submit_p.add_argument(
         "--dry-run",
         action="store_true",
         dest="dry_run",
-        help="print intended remote branch + PR title/body headings; no push; exit 0",
+        help=(
+            "print intended remote branch + PR title/body headings; no push. "
+            "Still requires FORGE_SUBMIT_TOKEN (fail closed if missing)."
+        ),
     )
 
     title_p = sub.add_parser(
@@ -141,12 +160,22 @@ def main(
             stderr=err,
             environ=env_dict,
         )
+    if args.command == "check":
+        title = args.title if args.title is not None else env_dict.get("PR_TITLE")
+        return run_check(
+            Path(args.root),
+            title=title,
+            stdout=out,
+            stderr=err,
+            environ=env_dict,
+        )
     if args.command == "submit":
         return run_submit(
             repo=args.repo,
             title=args.title,
             dry_run=args.dry_run,
             path=args.path,
+            head=args.head,
             urlopen=opener,
             base_url=api,
             stdout=out,
@@ -191,6 +220,8 @@ def main(
                 return brief_code
         return EXIT_OK
     if args.command == "sop-lock":
+        from forge.sop_lock import run_sop_lock
+
         return run_sop_lock(Path(args.root), stdout=out, stderr=err)
     parser.print_help(err)
     return EXIT_CONFIG

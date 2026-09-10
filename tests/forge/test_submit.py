@@ -6,9 +6,10 @@ import io
 import unittest
 from pathlib import Path
 
-from forge import EXIT_AUTH, EXIT_CONFIG, EXIT_OK
+from forge import EXIT_AUTH, EXIT_CONFIG, EXIT_OK, SUBMIT_TOKEN_ENV
 from forge.__main__ import main
-from forge.submit import BODY_HEADINGS, run_submit
+from forge.check import EXIT_CHECK
+from forge.submit import BODY_HEADINGS, MISSING_SUBMIT_TOKEN, REQUIRE_SUBMIT_TOKEN, run_submit
 from forge.title import EXAMPLE, lint_title
 
 from tests.forge.fake_github import FakeGitHub
@@ -27,12 +28,21 @@ class FakePush:
         self.calls.append((remote, ref))
 
 
+def _ok_check(*_args, **_kwargs):
+    return EXIT_OK
+
+
+def _red_check(*_args, **_kwargs):
+    return EXIT_CHECK
+
+
 def _submit(**kwargs):
     fake = kwargs.pop("fake", FakeGitHub())
     pusher = kwargs.pop("pusher", FakePush())
     stdout = kwargs.pop("stdout", io.StringIO())
     stderr = kwargs.pop("stderr", io.StringIO())
-    env = kwargs.pop("environ", {"FORGE_GITHUB_TOKEN": "test-token"})
+    env = kwargs.pop("environ", {SUBMIT_TOKEN_ENV: "test-token"})
+    kwargs.setdefault("check_fn", _ok_check)
     code = run_submit(
         repo=kwargs.pop("repo", REPO),
         title=kwargs.pop("title", TITLE),
@@ -49,10 +59,12 @@ def _submit(**kwargs):
 
 
 class DryRunTests(unittest.TestCase):
-    def test_dry_run_prints_plan_and_does_not_push(self) -> None:
+    def test_dry_run_without_token_is_red(self) -> None:
         code, out, err, fake, pusher = _submit(dry_run=True, environ={})
-        self.assertEqual(code, EXIT_OK, err)
+        self.assertEqual(code, EXIT_AUTH)
         self.assertIn("dry-run", out)
+        self.assertIn(REQUIRE_SUBMIT_TOKEN, out)
+        self.assertIn(MISSING_SUBMIT_TOKEN, err)
         self.assertIn(f"head: {HEAD}", out)
         self.assertIn("base: main", out)
         self.assertIn(f"title: {TITLE}", out)
@@ -61,7 +73,20 @@ class DryRunTests(unittest.TestCase):
         self.assertEqual(fake.calls, [])
         self.assertEqual(pusher.calls, [])
 
-    def test_cli_dry_run(self) -> None:
+    def test_dry_run_with_submit_token_prints_plan_and_does_not_push(self) -> None:
+        code, out, err, fake, pusher = _submit(dry_run=True)
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn("dry-run", out)
+        self.assertIn(REQUIRE_SUBMIT_TOKEN, out)
+        self.assertIn(f"head: {HEAD}", out)
+        self.assertIn("base: main", out)
+        self.assertIn(f"title: {TITLE}", out)
+        for heading in BODY_HEADINGS:
+            self.assertIn(heading, out)
+        self.assertEqual(fake.calls, [])
+        self.assertEqual(pusher.calls, [])
+
+    def test_cli_dry_run_without_token_is_red(self) -> None:
         fake = FakeGitHub()
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -73,9 +98,29 @@ class DryRunTests(unittest.TestCase):
             stderr=stderr,
             base_url=FAKE_API,
         )
+        self.assertEqual(code, EXIT_AUTH, stdout.getvalue())
+        self.assertIn(REQUIRE_SUBMIT_TOKEN, stdout.getvalue())
+        self.assertIn(MISSING_SUBMIT_TOKEN, stderr.getvalue())
+        self.assertEqual(fake.writes(), [])
+
+    def test_cli_dry_run_with_submit_token(self) -> None:
+        fake = FakeGitHub()
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        code = main(
+            ["submit", "--repo", REPO, "--title", TITLE, "--dry-run"],
+            urlopen=fake.urlopen,
+            environ={SUBMIT_TOKEN_ENV: "forge-submit-ci-dry-run"},
+            stdout=stdout,
+            stderr=stderr,
+            base_url=FAKE_API,
+        )
         # CLI dry-run uses real git HEAD (this workshop branch), which is not protect.
         self.assertEqual(code, EXIT_OK, stderr.getvalue())
         self.assertIn("dry-run", stdout.getvalue())
+        self.assertIn(REQUIRE_SUBMIT_TOKEN, stdout.getvalue())
+        self.assertNotIn("forge-submit-ci-dry-run", stdout.getvalue())
+        self.assertNotIn("forge-submit-ci-dry-run", stderr.getvalue())
         self.assertEqual(fake.writes(), [])
 
     def test_title_must_pass_pr_title(self) -> None:
@@ -88,6 +133,18 @@ class DryRunTests(unittest.TestCase):
         self.assertEqual(lint_code, EXIT_OK)
         lint_code, _, _ = lint_title(EXAMPLE)
         self.assertEqual(lint_code, EXIT_OK)
+
+    def test_red_check_blocks_dry_run(self) -> None:
+        code, _out, err, fake, pusher = _submit(
+            dry_run=True,
+            check_fn=_red_check,
+            environ={},
+        )
+        self.assertEqual(code, EXIT_CHECK)
+        self.assertIn("refusing", err)
+        self.assertIn("check is red", err)
+        self.assertEqual(fake.calls, [])
+        self.assertEqual(pusher.calls, [])
 
 
 class RefuseTests(unittest.TestCase):
@@ -110,16 +167,48 @@ class RefuseTests(unittest.TestCase):
         self.assertEqual(pusher.calls, [])
 
     def test_missing_token_exits_2_without_push(self) -> None:
-        code, _out, err, fake, pusher = _submit(environ={})
+        code, out, err, fake, pusher = _submit(environ={})
         self.assertEqual(code, EXIT_AUTH)
-        self.assertIn("missing", err)
+        self.assertIn(MISSING_SUBMIT_TOKEN, err)
+        self.assertNotIn("GITHUB_TOKEN", err)
+        self.assertEqual(fake.calls, [])
+        self.assertEqual(pusher.calls, [])
+
+    def test_github_token_alone_is_not_enough(self) -> None:
+        code, _out, err, fake, pusher = _submit(
+            environ={"GITHUB_TOKEN": "ci-token", "FORGE_GITHUB_TOKEN": "ops-token"}
+        )
+        self.assertEqual(code, EXIT_AUTH)
+        self.assertIn(MISSING_SUBMIT_TOKEN, err)
+        self.assertEqual(fake.calls, [])
+        self.assertEqual(pusher.calls, [])
+
+    def test_empty_submit_token_is_not_enough(self) -> None:
+        code, _out, err, fake, pusher = _submit(environ={SUBMIT_TOKEN_ENV: "   "})
+        self.assertEqual(code, EXIT_AUTH)
+        self.assertIn(MISSING_SUBMIT_TOKEN, err)
+        self.assertEqual(fake.calls, [])
+        self.assertEqual(pusher.calls, [])
+
+    def test_red_check_blocks_live_push(self) -> None:
+        leak = "secret-token-do-not-leak-9f3a"
+        code, out, err, fake, pusher = _submit(
+            check_fn=_red_check,
+            environ={SUBMIT_TOKEN_ENV: leak},
+        )
+        self.assertEqual(code, EXIT_CHECK)
+        self.assertIn("refusing", err)
+        self.assertIn("check is red", err)
+        self.assertNotIn(leak, out)
+        self.assertNotIn(leak, err)
         self.assertEqual(fake.calls, [])
         self.assertEqual(pusher.calls, [])
 
 
 class LiveFakeApiTests(unittest.TestCase):
     def test_opens_draft_pr_and_never_merges(self) -> None:
-        code, out, err, fake, pusher = _submit()
+        leak = "secret-token-do-not-leak-9f3a"
+        code, out, err, fake, pusher = _submit(environ={SUBMIT_TOKEN_ENV: leak})
         self.assertEqual(code, EXIT_OK, err)
         self.assertEqual(pusher.calls, [("origin", HEAD)])
         self.assertEqual(fake.methods().count("POST"), 1)
@@ -128,6 +217,9 @@ class LiveFakeApiTests(unittest.TestCase):
         self.assertTrue(fake.pulls[0]["draft"])
         self.assertEqual(fake.pulls[0]["title"], TITLE)
         self.assertEqual(fake.pulls[0]["head"]["ref"], HEAD)
+        self.assertNotIn(leak, out)
+        self.assertNotIn(leak, err)
+        self.assertNotIn(leak, fake.pulls[0]["body"] or "")
         self.assertFalse(any("/merge" in path for _method, path, _body in fake.calls))
         self.assertEqual([c for c in fake.calls if c[0] in {"POST", "PUT"} and "rulesets" in c[1]], [])
 
@@ -151,6 +243,7 @@ class WorkshopCiTests(unittest.TestCase):
         command = (root / "suites" / "forge-apply" / "suite.yaml").read_text(encoding="utf-8")
         self.assertIn("forge submit", command)
         self.assertIn("--dry-run", command)
+        self.assertIn("FORGE_SUBMIT_TOKEN=", command)
         overlay = (root / ".github" / "workflows" / "overlay-check.yml").read_text(encoding="utf-8")
         self.assertNotIn("forge submit", overlay)
         self.assertNotIn("python -m forge submit", overlay)

@@ -13,5 +13,5 @@ armed_reason: apply --dry-run and fake-API tests ship; overlay-check executes th
 product_command: >-
   python3 -m unittest discover -s tests/forge -t . -q
   && python3 -m forge apply --repo LibertychaserUS/AIOps --path forge.yaml --dry-run
-  && python3 -m forge submit --repo LibertychaserUS/AIOps --title "feat(forge/dev): add submit middleware" --dry-run
+  && FORGE_SUBMIT_TOKEN=forge-submit-ci-dry-run python3 -m forge submit --repo LibertychaserUS/AIOps --title "feat(forge/dev): add submit middleware" --head cursor/feature --dry-run
   && python3 -m forge sop-lock --root .

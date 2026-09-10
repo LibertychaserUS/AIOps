@@ -1,6 +1,15 @@
 # SOP 程序锁
 
-原则（一句）：**skill 写明的、能机器判定的标准，必须有对应程序检查；该检查不绿则不能合（GitHub required check / Ruleset）。**
+原则（一句）：**skill 写明的、能机器判定的标准，必须有对应程序检查。**
+
+两道锁，不要混：
+
+| 锁 | 命令 | 挡住什么 |
+|---|---|---|
+| **代推锁（提交前）** | `python -m forge check`（`submit` 先跑） | 不绿则 **不 push、不开 PR** |
+| **合入锁** | GitHub required checks / Ruleset | 不绿则 **不能合** |
+
+GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge check` 才是开发侧代推门。
 
 不声称用 NLP 锁住全部散文。只锁**可判定子集**。每个 skill 的 `## Lock` 指向程序。存货如下。
 
@@ -12,7 +21,14 @@
 | **`pr-title`** | `python -m forge pr-title`（Conventional Commits `type(product/actor): subject` + 正文六节） | 仅 `pull_request` |
 | **`sop-lock`** | `python -m forge sop-lock` | push / pull_request |
 
-不要 live `forge apply`。不要 husky / npm 挡 `git commit`。不要另开旁路 unittest workflow 绕过 Overlay select。`sop-lock` 锁 SOP 文件与 workflow，不代替 `overlay-check`。
+不要 live `forge apply`。不要 husky / npm 挡 `git commit`。不要另开旁路 unittest workflow 绕过 Overlay select。`sop-lock` 锁 SOP 文件与 workflow，不代替 `overlay-check`。不要把 GitHub check 当成提交前检查。
+
+两道锁：
+
+| 何时 | 程序 | 红了怎样 |
+|---|---|---|
+| **代推**（push + 开 PR） | `python -m forge check`（`overlay validate` / `cover`、`pr-title`、`schema/check.py`、快单测、`sop-lock`） | `forge submit` 拒绝，不 push、不开 PR |
+| **合入**（merge） | GitHub required checks：`overlay-check`、`pr-title`、`sop-lock` | Ruleset 挡 merge |
 
 ---
 
@@ -37,6 +53,8 @@
 | 每个 `skills/*/SKILL.md` 有 `## Lock` 并指向程序 | `sop-lock` | Lock 段落写得清不清 | |
 | PR 标题 `type(product/actor): subject` | `python -m forge pr-title` → **`pr-title`** | 祈使句好不好读 | `[开发][Overlay]` 红 |
 | PR 正文六个 `##` 原样且按序 | 同上（`docs/pr-brief.md` 存在才锁） | 各节内容是否说清 | 不 NLP 验「不做什么」名单 |
+| 代推前本地门必须绿 | `python -m forge check`（代推锁；`submit` 调用） | 人是否绕过 CLI 直 push | GitHub required checks 只锁合入；可选 `forge/hooks/pre-submit`，不装 husky |
+| Live / dry-run `submit` 必须有 `FORGE_SUBMIT_TOKEN` | `python -m forge submit` + `sop-lock` 扫源码 | 人是否直 `git push` | 不回落 `GITHUB_TOKEN`；CI dry-run 用假值 |
 | LearningGuidePortal live `forge apply` 拒绝 | `python -m forge apply` + Forge 单测 → **`overlay-check`** | 人是否打别的仓 | |
 | Forge 不写 Overlay `status` / `reviewed_by` | Forge 单测 → **`overlay-check`** | — | |
 | 不装 husky / npm 当合入锁 | `sop-lock` | 开发本机自愿 hook | |
@@ -56,7 +74,10 @@
 
 ```text
 python3 -m forge sop-lock --root .
+python3 -m forge check --root . --title "feat(overlay/dev): add cover triad and invariants"
 python3 -m forge pr-title --title "feat(overlay/dev): add cover triad and invariants"
 python3 -m overlay validate --root .
 python3 -m overlay cover --root .
 ```
+
+`forge check` 在有 `overlay.yaml` 时跑 validate + cover；有标题时跑 `pr-title`；工具仓有 `schema/` 时跑 `schema/check.py`；本工作本有 `tests/` 时跑快单测子集；并跑 `sop-lock`。退出 2 则 `submit` 拒绝。可选：`forge/hooks/pre-submit`（opt-in，不默认安装）。

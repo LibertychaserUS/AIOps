@@ -51,8 +51,8 @@ Fork 若已分叉、SHA 不在上游：`uses:` 指向该 fork 的 pin；fork 里
 
 人多了、再加会写代码的 agent，GitHub 上会直推 `main`、互踩、无人审就合。Forge 分两侧，不自建协作网站，也不做 Graphite 克隆 / 自动合入机器人：
 
-- **开发侧**：`python -m forge submit` 代推当前功能分支，开/更新 draft PR（对齐 [`gh pr create`](https://cli.github.com/manual/gh_pr_create)）。
-- **Ops 侧**：Ruleset required checks + 人点 merge（对齐 [GitHub Ruleset required checks](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#require-status-checks-to-pass-before-merging)）。
+- **开发侧**：先 `python -m forge check`（代推锁），再 `python -m forge submit` 代推当前功能分支，开/更新 draft PR（对齐 [`gh pr create`](https://cli.github.com/manual/gh_pr_create)）。红则不 push。
+- **Ops 侧**：Ruleset required checks（合入锁）+ 人点 merge（对齐 [GitHub Ruleset required checks](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#require-status-checks-to-pass-before-merging)）。
 
 完整分工：[`rbac.md`](rbac.md)、[`design.md`](design.md) §3。
 
@@ -67,7 +67,8 @@ Fork 若已分叉、SHA 不在上游：`uses:` 指向该 fork 的 pin；fork 里
 | `forge/agent-policy.md` | 写进接入方 `AGENTS.md` / Copilot instructions：只开 PR、不自 merge、不改构建门、不 arm | 贴文本，不 vendor 包 |
 | `.github/workflows/forge-guard.yml` | reusable：校验 PR 来自允许的前缀、没有改保护 workflow | 产品仓一条薄 `uses:`（pin tag/SHA） |
 | `python -m forge apply --repo owner/name` | Ops：用 GitHub API 安装 Ruleset（幂等）。不合入 | 本机 `PYTHONPATH` 指向工具仓；admin token |
-| `python -m forge submit --repo owner/name` | 开发侧代推：push 功能分支 + 开/更新 draft PR | 标题过 `pr-title`；`--dry-run` 不 push |
+| `python -m forge check` | 开发侧提交前本地门 | 红则不 push；`submit` 先跑 |
+| `python -m forge submit --repo owner/name` | 开发侧代推：check 绿后 push 功能分支 + 开/更新 draft PR | 标题过 `pr-title`；`--dry-run` 不 push |
 
 评审：继续用接入方已有的 **CodeRabbit**（或同等 PR review）。Forge 不重做 diff 审。Copilot review 只当建议，不当 merge 门。
 

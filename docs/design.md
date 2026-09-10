@@ -158,19 +158,29 @@ Merge Queue：第一刀不装。人多了由接入方在同一 Ruleset 上打开
 ```text
 python -m forge apply  --repo OWNER/NAME [--path forge.yaml] [--dry-run]
 python -m forge status --repo OWNER/NAME
+python -m forge check  --root . [--title T]
 python -m forge submit --repo OWNER/NAME [--title T] [--dry-run]
 python -m forge pr-title --title "feat(overlay/dev): subject"
 python -m forge revoke --repo OWNER/NAME --name forge-protected-default
 ```
 
+`check`（开发侧提交前本地门，不写 GitHub）：
+
+1. 有 `overlay.yaml`：`overlay validate` + `overlay cover`。
+2. 提供了 `--title` / `PR_TITLE`：`forge pr-title`（submit 必须过标题）。
+3. 根上有 `schema/check.py`（工具仓）：跑它。接入方产品根没有 `schema/` 则跳过。
+4. 本工作本有 `tests/forge/test_title.py`：跑快单测子集。
+5. 打印清单。任一红退出 2。无模型。
+
 `submit`（开发侧代推，对齐 [`gh pr create`](https://cli.github.com/manual/gh_pr_create)）：
 
 1. 读当前分支与 `forge.yaml` `protect`。
-2. `--dry-run`：打印将推的远程分支、PR 标题、正文六节标题；不 push、不调 GitHub；退出 0。
-3. 若 head 是 protect，或 repo 是 LearningGuidePortal：拒绝。
-4. 标题必须过 `forge pr-title`（[`pr-brief.md`](pr-brief.md)）。
-5. 非 dry-run 且有 token：`git push` 当前功能分支，再 POST/PATCH **draft** PR。永不 merge，永不 apply Ruleset。
-6. 本工作本 CI 只跑 dry-run，不 live-submit。
+2. 先跑 `forge check`（含标题）。红则拒绝：不 push、不开 PR，退出 2。`--dry-run` 同样先 check。
+3. `--dry-run` 且 check 绿：打印将推的远程分支、PR 标题、正文六节标题；不 push、不调 GitHub；退出 0。
+4. 若 head 是 protect，或 repo 是 LearningGuidePortal：拒绝。
+5. 标题必须过 `forge pr-title`（[`pr-brief.md`](pr-brief.md)）。
+6. 非 dry-run 且有 token：`git push` 当前功能分支，再 POST/PATCH **draft** PR。永不 merge，永不 apply Ruleset。
+7. 本工作本 CI 只跑 dry-run，不 live-submit。GitHub required checks 锁合入，不锁这一步。
 
 `pr-title`：纯函数锁 GitHub **PR 标题**（Conventional Commits + 必填 scope `product/actor`）。退出 `0`/`2`。不写 GitHub。规格：[`pr-brief.md`](pr-brief.md)。Actions 检查名 `pr-title`，只跑 `pull_request`。
 
@@ -239,7 +249,7 @@ jobs:
 | 码 | 含义 |
 |---|---|
 | 0 | 成功 |
-| 2 | 缺 token / 权限不足 |
+| 2 | 缺 token / 权限不足；**本地 `forge check` 红（不 push、不开 PR）** |
 | 3 | `forge.yaml` 非法；protect 上 submit；标题过不了 `pr-title`；LearningGuidePortal |
 | 4 | GitHub API 失败（网络或 4xx/5xx） |
 | 5 | dry-run 完成（可选；或仍用 0 + 打印）——实现选 0 + `--dry-run` 字样 |
@@ -247,8 +257,8 @@ jobs:
 ### 3.9 测试（Forge 自己的，不测接入方业务）
 
 - `apply` 对假 API：无 Ruleset 则 POST，有则 PUT，第二次无 POST。
-- `submit --dry-run` 打印 head / title / 正文六节，不 push。protect 与 LearningGuidePortal 拒绝。
-- `submit` 对假 Pulls API：POST draft；第二次 PATCH；永不打 `/merge`。
+- `submit --dry-run` 先跑 `forge check`；绿了才打印 head / title / 正文六节，不 push。protect 与 LearningGuidePortal 拒绝。check 红则退出 2、不 push。
+- `submit` 对假 Pulls API：POST draft；第二次 PATCH；永不打 `/merge`。check 红则不 POST。
 - 默认 JSON 保护 `main`，含 PR 规则，bypass 为空。
 - `forge.yaml` 缺字段用默认；非法枚举失败。
 - Guard：改 `deny_paths` 的 diff fixture 必须红；只改 `README` 必须绿。
@@ -579,7 +589,8 @@ CPython 能调 C。第一刀不写 C：生成卡模型和网络，select 扫几�
 
 ```text
 forge/
-  __init__.py / apply.py / status.py / submit.py / title.py
+  __init__.py / apply.py / status.py / submit.py / title.py / check.py
+  hooks/pre-submit          # opt-in 包装；不默认安装 git hook
   ruleset.protected-default.json
   agent-policy.md
   CODEOWNERS.example

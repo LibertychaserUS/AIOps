@@ -5,6 +5,10 @@ https://cli.github.com/manual/gh_pr_create
 
 Does not clone Graphite (no stacks, no merge-when-ready). Never merges.
 Never applies a Ruleset. Ops (manage-repo + required checks) merges.
+
+Requires env FORGE_SUBMIT_TOKEN (PAT / fine-grained / GitHub App token).
+No GITHUB_TOKEN fallback, no FORGE_GITHUB_TOKEN fallback, no gh auth.
+Missing or empty secret exits 2 even on --dry-run. Never print the token.
 """
 
 from __future__ import annotations
@@ -16,7 +20,8 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, TextIO
 
-from forge import EXIT_AUTH, EXIT_CONFIG, EXIT_OK
+from forge import EXIT_AUTH, EXIT_CONFIG, EXIT_OK, SUBMIT_TOKEN_ENV
+from forge.check import EXIT_CHECK, run_check
 from forge.apply import (
     DEFAULT_API,
     DEFAULT_PROTECT,
@@ -27,9 +32,12 @@ from forge.apply import (
     load_config,
     normalize_branch,
     parse_repo,
-    resolve_token,
 )
 from forge.title import EXAMPLE, GRAMMAR, lint_title
+
+# Named secret for local/agent 代推. Do not read GITHUB_TOKEN or FORGE_GITHUB_TOKEN.
+MISSING_SUBMIT_TOKEN = f"missing {SUBMIT_TOKEN_ENV}"
+REQUIRE_SUBMIT_TOKEN = f"would require {SUBMIT_TOKEN_ENV}"
 
 # Same six headings as docs/pr-brief.md / .github/PULL_REQUEST_TEMPLATE.md
 BODY_HEADINGS = (
@@ -79,14 +87,21 @@ def resolve_head(
     *,
     cwd: Path | str | None = None,
     git_runner: GitRunner | None = None,
+    environ: Mapping[str, str] | os._Environ[str] | None = None,
 ) -> str:
     if head and head.strip():
         return normalize_branch(head)
     runner = default_git_runner if git_runner is None else git_runner
     raw = runner(["rev-parse", "--abbrev-ref", "HEAD"], cwd=cwd)
-    if not raw or raw == "HEAD":
-        raise ForgeError(EXIT_CONFIG, "refusing detached HEAD; pass a feature branch")
-    return normalize_branch(raw)
+    if raw and raw != "HEAD":
+        return normalize_branch(raw)
+    # PR merge checkouts are detached; Actions still names the source branch.
+    env = {} if environ is None else environ
+    for key in ("GITHUB_HEAD_REF", "GITHUB_REF_NAME"):
+        candidate = str(env.get(key) or "").strip()
+        if candidate and candidate != "HEAD":
+            return normalize_branch(candidate)
+    raise ForgeError(EXIT_CONFIG, "refusing detached HEAD; pass a feature branch")
 
 
 def resolve_commit_subject(
@@ -120,6 +135,22 @@ def assert_head_not_protect(head: str, protect: Sequence[str]) -> None:
     locked = {normalize_branch(item) for item in protect}
     if head in locked:
         raise ForgeError(EXIT_CONFIG, f"refusing to submit protect branch {head!r}")
+
+
+def resolve_submit_token(
+    environ: Mapping[str, str] | os._Environ[str] | None = None,
+    explicit: str | None = None,
+) -> str | None:
+    """Require FORGE_SUBMIT_TOKEN. No GITHUB_TOKEN / FORGE_GITHUB_TOKEN / gh auth."""
+    if explicit is not None:
+        value = explicit.strip()
+        return value or None
+    env = os.environ if environ is None else environ
+    raw = env.get(SUBMIT_TOKEN_ENV)
+    if raw is None:
+        return None
+    value = str(raw).strip()
+    return value or None
 
 
 def pr_body() -> str:
@@ -208,6 +239,8 @@ def run_submit(
     cwd: Path | str | None = None,
     git_runner: GitRunner | None = None,
     pusher: Pusher | None = None,
+    check_fn: Any | None = None,
+    check_root: Path | str | None = None,
 ) -> int:
     out = sys.stdout if stdout is None else stdout
     err = sys.stderr if stderr is None else stderr
@@ -216,7 +249,9 @@ def run_submit(
         assert_apply_allowed(owner, name)
         config_path = None if path is None else Path(path)
         config = load_config(config_path)
-        resolved_head = resolve_head(head, cwd=cwd, git_runner=git_runner)
+        resolved_head = resolve_head(
+            head, cwd=cwd, git_runner=git_runner, environ=environ
+        )
         assert_head_not_protect(resolved_head, config.protect)
         resolved_base = (
             normalize_branch(base)
@@ -230,6 +265,18 @@ def run_submit(
         code, message, _parts = lint_title(resolved_title)
         if code != EXIT_OK:
             raise ForgeError(EXIT_CONFIG, message)
+        checker = run_check if check_fn is None else check_fn
+        root = Path(".") if check_root is None and cwd is None else Path(check_root or cwd)
+        check_code = checker(
+            root,
+            title=resolved_title,
+            stdout=out,
+            stderr=err,
+            environ=environ,
+        )
+        if check_code != EXIT_OK:
+            print("forge submit: refusing (local check is red); no push, no PR", file=err)
+            return EXIT_CHECK
         _print_plan(
             stdout=out,
             repo=f"{owner}/{name}",
@@ -238,12 +285,16 @@ def run_submit(
             title=resolved_title,
             dry_run=dry_run,
         )
+        print(REQUIRE_SUBMIT_TOKEN, file=out)
+        if token is not None:
+            resolved_token = token.strip() or None
+        else:
+            resolved_token = resolve_submit_token(environ)
+        if not resolved_token:
+            print(MISSING_SUBMIT_TOKEN, file=err)
+            return EXIT_AUTH
         if dry_run:
             return EXIT_OK
-        resolved_token = token if token is not None else resolve_token(environ)
-        if not resolved_token:
-            print("missing FORGE_GITHUB_TOKEN or GITHUB_TOKEN", file=err)
-            return EXIT_AUTH
         push = pusher
         if push is None:
 

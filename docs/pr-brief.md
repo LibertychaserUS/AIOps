@@ -11,10 +11,11 @@ GitHub PR 是解说面。DevOps 和其他 agent 读**标题 + 正文**就知道�
 本地锁（程序，无模型、不写 GitHub）：
 
 ```text
+python -m forge check --root . --title "feat(overlay/dev): add cover triad and invariants"
 python -m forge pr-title --title "feat(overlay/dev): add cover triad and invariants"
 ```
 
-退出 `0` 绿、`2` 红。CI 同名检查 **`pr-title`**（只跑 `pull_request`）。本工作本 `forge.yaml` `required_checks` 已列入该名；Ruleset 勾上之后，红则不能合。不要 live `forge apply`。不要用 husky/npm 挡 `git commit`。
+退出 `0` 绿、`2` 红。CI 同名检查 **`pr-title`**（只跑 `pull_request`）。本工作本 `forge.yaml` `required_checks` 已列入 `overlay-check`、`pr-title`、`sop-lock`；Ruleset 勾上之后，红则不能合。代推前 `python -m forge check` 红则不能提交。不要 live `forge apply`。不要用 husky/npm 挡 `git commit`。
 
 ---
 
@@ -55,7 +56,7 @@ type(product/actor): subject
 
 混改：标题只标主产品。其余列在「做了什么」。不要写成 `feat(overlay+docs/dev):`。
 
-可选本地包装（不默认安装 git hook）：`forge/hooks/pr-title "feat(overlay/dev): …"`。合并锁是 GitHub 上的 `pr-title` check，不是本机 hook。
+可选本地包装（不默认安装 git hook）：`forge/hooks/pr-title "feat(overlay/dev): …"`；提交前整门：`forge/hooks/pre-submit --title "…"`。代推锁是 `python -m forge check`。合并锁是 GitHub 上的 `pr-title` check，不是本机 hook。
 
 ---
 
@@ -99,11 +100,13 @@ type(product/actor): subject
 可复制的命令，以及会入选的 **armed** suite id。本工作本常用：
 
 ```text
+python3 -m forge check --root . --title "feat(overlay/dev): add cover triad and invariants"
 python3 -m overlay validate --root .
 python3 -m overlay cover --root .
 python3 -m overlay select --branch main --root .
 python3 -m overlay run --branch main --root . --workdir . --write-receipt receipts-run/
 python3 -m forge apply --path forge.yaml --dry-run
+python3 -m forge sop-lock --root .
 python3 -m forge submit --repo OWNER/NAME --title "feat(forge/dev): add submit middleware" --dry-run
 python3 -m forge pr-title --title "feat(overlay/dev): add cover triad and invariants"
 ```

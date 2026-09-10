@@ -32,7 +32,7 @@ actor:   dev|admin|agent   （开发=dev，管理=admin）
 
 ## 动了哪些门
 
-<!-- overlay-check | pr-title | Forge Ruleset | none。不要为未知分支新建 workflow；改 overlay.yaml branches。 -->
+<!-- overlay-check | pr-title | sop-lock | Forge Ruleset | none。不要为未知分支新建 workflow；改 overlay.yaml branches。 -->
 
 -
 
@@ -41,6 +41,8 @@ actor:   dev|admin|agent   （开发=dev，管理=admin）
 <!-- 命令 + 哪些 armed suite 应入选 / 哪些 draft|blocked 应丢弃。 -->
 
 ```text
+python3 -m forge check --root . --title "feat(overlay/dev): …"
+python3 -m forge sop-lock --root .
 python3 -m forge pr-title --title "feat(overlay/dev): …"
 ```
 
@@ -52,7 +54,7 @@ python3 -m forge pr-title --title "feat(overlay/dev): …"
 
 ## 分工
 
-<!-- 谁审、谁可合。人，不是标题 actor。对照 docs/rbac.md。Agent 不自审、不自合。pr-title 红则不合。 -->
+<!-- 谁审、谁可合。人，不是标题 actor。对照 docs/rbac.md。Agent 不自审、不自合。overlay-check / pr-title / sop-lock 红则不合。 -->
 
 - 审：
 - 合：

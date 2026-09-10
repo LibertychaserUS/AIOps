@@ -31,3 +31,9 @@ items:
     function_ids:
       - FN-forge-sop-lock
     span: system
+  - id: INV-local-check-before-submit
+    text: forge submit refuses when local forge check is red; no push, no PR
+    function_ids:
+      - FN-forge-check
+      - FN-forge-submit
+    span: interaction
