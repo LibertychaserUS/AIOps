@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://aiops.local/schema/trace.schema.json",
   "title": "Overlay suites/<id>/trace.yaml",
-  "description": "Optional machine trace from function_id × level to a case. Grammar is product-agnostic (LOGIN-01 and CHK-02 both match). Do not use REQ-n.",
+  "description": "Optional machine trace from an adopter-minted leaf id to a case. function_id is a free string (unique as a leaf identity in the repo), not a required FR/REQ/IEEE code.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema", "suite", "items"],
@@ -20,25 +20,27 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["function_id", "level", "case_id", "type"],
+        "required": ["function_id", "case_id", "type"],
         "properties": {
           "function_id": {
             "type": "string",
-            "pattern": "^[A-Z]{2,8}(-[A-Z]{1,6})?-[0-9]{2,3}$",
-            "description": "Same id as the PRD function leaf. Level is a facet, not a second numbering system."
-          },
-          "level": {
-            "enum": ["unit", "integration", "smoke", "k6", "e2e"],
-            "description": "IEEE test level facet of the same function_id."
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^\\S+$",
+            "description": "Adopter-minted leaf id. Non-empty, stable, no whitespace. Unique in the repo as one leaf; reuse the same string across levels. Not a required FR/REQ/LOGIN-01 pattern."
           },
           "case_id": {
             "type": "string",
             "minLength": 1,
-            "description": "Optional instance: <function_id>/<level>/<seq>."
+            "description": "Adopter-minted case key. Need not follow a product numbering series."
           },
           "type": {
             "enum": ["functional", "negative", "edge"],
-            "description": "IEEE test technique, not a competing id."
+            "description": "Test technique, not a competing id."
+          },
+          "level": {
+            "enum": ["unit", "integration", "smoke", "k6", "e2e"],
+            "description": "Optional facet. Not a second id series."
           }
         }
       }

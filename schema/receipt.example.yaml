@@ -10,10 +10,10 @@ at: 2026-09-10T00:00:00Z
 
 events:
   - type: selected
-    suite: my-learning
+    suite: checkout-retry
     status: armed
     kind: functional
-    function_id: LOGIN-01
+    function_id: FN-login-retry
     level: unit
   - type: dropped
     suite: payment
@@ -26,7 +26,7 @@ events:
 
 evidence:
   - type: human-review
-    suite: my-learning
+    suite: checkout-retry
     reviewed_by: required-on-disk-in-suite.yaml
   - type: contract
     rule: missing reviewed_by on blocked|armed is overlay-red

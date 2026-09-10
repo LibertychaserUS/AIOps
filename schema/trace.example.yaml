@@ -1,18 +1,17 @@
 # Optional companion to suites/<id>/cases.md.
-# Kernel example — grammar-legal generic ids, not a product catalog.
+# Traces an adopter-minted function_id to a case. Kernel example — not a catalog.
 
 schema: overlay-trace/v1
 suite: checkout-retry
 items:
-  - function_id: LOGIN-01
+  - function_id: FN-login-retry
+    case_id: FN-login-retry/functional
+    type: functional
     level: unit
-    case_id: LOGIN-01/unit/01
+  - function_id: FN-login-retry
+    case_id: FN-login-retry/functional
     type: functional
-  - function_id: LOGIN-01
     level: e2e
-    case_id: LOGIN-01/e2e/01
-    type: functional
-  - function_id: CHK-02
-    level: integration
-    case_id: CHK-02/integration/01
+  - function_id: FN-checkout-idempotent
+    case_id: FN-checkout-idempotent/negative
     type: negative

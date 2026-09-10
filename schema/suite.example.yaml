@@ -1,22 +1,19 @@
 # Contract example for suites/<id>/suite.yaml
-# Selector and CI validate this shape. Only three statuses.
 # Kernel example uses generic ids — not a product catalog or route tree.
 
 id: checkout-retry
 title: Checkout retry without double charge
-status: draft                 # draft | blocked | armed
-kind: functional              # functional | regression
-subject: product              # product | agent  (agent is later; selector drops it)
+status: draft
+kind: functional
+subject: product
 source: inbox/checkout-retry.md
 packages:
   - src/checkout
-reviewed_by: null             # required when status is blocked or armed
-reviewed_at: null             # ISO date when reviewed
-blocked_reason: null          # required when status is blocked
-armed_reason: null            # required when status is armed (why code is claimed testable)
-product_command: null         # later: product-repo script; unused in slice 1
+reviewed_by: null
+reviewed_at: null
+blocked_reason: null
+armed_reason: null
+product_command: null
 
-# Companion: suites/<id>/cases.md headings start with function_id
-# (e.g. LOGIN-01) plus functional / negative / edge techniques.
-# Companion: suites/<id>/trace.yaml is optional (function_id × level → case).
-# Test spec aligns two trees on that id; it does not mirror a PRD chapter tree.
+# cases.md headings start with an adopter-minted function_id (e.g. FN-login-retry).
+# Optional trace.yaml maps function_id to a case. Two trees align on that id.

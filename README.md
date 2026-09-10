@@ -15,7 +15,7 @@ Status: design written; no installer or generator yet.
 
 - **完整详细设计：** [`docs/design.md`](docs/design.md)
 - Inbox 输入面：[`docs/inbox.md`](docs/inbox.md)
-- 测试体系规格（两棵树 + 同一 `function_id`）：[`docs/test-spec.md`](docs/test-spec.md)
+- 测试体系规格（两棵树 + 接入方自选 `function_id`）：[`docs/test-spec.md`](docs/test-spec.md)
 - Agent skill（IEEE 子集）：[`docs/agents/ieee-test-system.md`](docs/agents/ieee-test-system.md)
 - Agent：读文档编成契约 [`docs/agents/overlay-contract.md`](docs/agents/overlay-contract.md)；IEEE 剖面 [`docs/agents/ieee-test-system.md`](docs/agents/ieee-test-system.md)
 - 产品怎么接到别的仓：[`docs/products.md`](docs/products.md)

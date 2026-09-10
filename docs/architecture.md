@@ -226,7 +226,7 @@ inbox ──────────► draft
 
 ### 4.4 核心对象
 
-**Inbox 条目**（`inbox/<id>.md`）— 完整合同见 [`inbox.md`](inbox.md)。一篇 inbox 对应一个 suite；`readiness` 只是提示，不写 `status`。In scope 行首必须是稳定 `function_id`（与 PRD 功能同一编号）。产品文档树与测试树形状不同，对齐靠这个 id，见 [`test-spec.md`](test-spec.md)。
+**Inbox 条目**（`inbox/<id>.md`）— 完整合同见 [`inbox.md`](inbox.md)。一篇 inbox 对应一个 suite；`readiness` 只是提示，不写 `status`。In scope **可以**带接入方自选的 `function_id`。产品文档树与测试树形状不同，对齐靠这个 id，见 [`test-spec.md`](test-spec.md)。
 
 **Suite**（`suites/<id>/`）
 

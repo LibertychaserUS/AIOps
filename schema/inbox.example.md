@@ -17,7 +17,7 @@ What this inbox is asking Overlay to turn into cases.
 
 # In scope
 
-- LOGIN-01 First user-visible path.
+- FN-first-path First user-visible path.
 
 # Out of scope
 
@@ -29,5 +29,5 @@ What this inbox is asking Overlay to turn into cases.
 
 # Notes
 
-Pinned `source.ref`. In scope lines start with a stable `function_id`.
+Pinned `source.ref`. An In scope line may carry an adopter-minted id.
 Do not put `status` or `reviewed_by` here.

@@ -6,7 +6,7 @@
 
 本文是实现的单一对照。摘要见 [`products.md`](products.md)。Inbox 见 [`inbox.md`](inbox.md)。测试规格见 [`test-spec.md`](test-spec.md)。Agent 编译契约：[`agents/overlay-contract.md`](agents/overlay-contract.md)。IEEE 剖面：[`agents/ieee-test-system.md`](agents/ieee-test-system.md)。对话过程稿见 [`architecture.md`](architecture.md)。
 
-Overlay 冻字段、状态、以及产品无关的 `function_id` 语法。不冻某产品的 PRD 目录、路由或 FR 清单。两棵树用同一个 `function_id` 对齐。
+Overlay 冻**字段与对齐方式**，不冻某产品的编号、PRD 树或 IEEE 文件名。接入方文档说了什么 id，人/agent 读完编进契约即可。两棵树用同一个接入方自选的 `function_id` 对齐。
 
 ---
 
@@ -309,7 +309,7 @@ inbox ────────────────► draft ─────�
 
 禁止出现在 inbox 上：`status`、`reviewed_by`、`armed`、`blocked`、`product_command`。  
 `figma-ref`：只许 URL，第一刀不当输入给视觉模型。  
-In scope **必须**在行首带 `function_id`（`^[A-Z]{2,8}(-[A-Z]{1,6})?-[0-9]{2,3}$`）。PRD 已有则抄，没有则 inbox 铸造且此后稳定。  
+In scope **可以**在行首带接入方自选的 `function_id`（非空、无空白）；不是必须，也不是某号段正则。文档已有则抄，没有则铸。  
 一对多第一刀不做：三篇切片 = 三篇 inbox，三个 suite。
 
 ### 4.5 Suite 契约
@@ -331,12 +331,12 @@ In scope **必须**在行首带 `function_id`（`^[A-Z]{2,8}(-[A-Z]{1,6})?-[0-9]
 | `armed_reason` | string\|null | `armed` 必填 |
 | `product_command` | string\|null | 后一刀；第一刀必须 null 或忽略 |
 
-`cases.md` 就是接入方**测试规格正文**（完整合同：[`docs/test-spec.md`](test-spec.md)；skill：[`docs/agents/ieee-test-system.md`](agents/ieee-test-system.md)）。产品文档树与测试树不是同一形状；用同一个 `function_id` 对齐。生成器必须吐这个骨架，人可改：
+`cases.md` 就是接入方**测试规格正文**（完整合同：[`docs/test-spec.md`](test-spec.md)；编译：[`docs/agents/overlay-contract.md`](agents/overlay-contract.md)；IEEE 剖面：[`docs/agents/ieee-test-system.md`](agents/ieee-test-system.md)）。产品文档树与测试树不是同一形状；用同一个接入方自选的 `function_id` 对齐。生成器必须吐这个骨架，人可改：
 
 ```markdown
 # <title>
 
-## LOGIN-01 <一句话功能>
+## FN-login-retry <一句话功能>
 
 ### Functional
 - 标题
@@ -350,9 +350,9 @@ In scope **必须**在行首带 `function_id`（`^[A-Z]{2,8}(-[A-Z]{1,6})?-[0-9]
 …
 ```
 
-`function_id` 语法：`^[A-Z]{2,8}(-[A-Z]{1,6})?-[0-9]{2,3}$`（`PAY-01` 与 `ML-FR-004` 都合法；内核例子用 `LOGIN-01`）。来自同一篇 inbox 的 In scope 行首。层次 `unit`\|`integration`\|`smoke`\|`k6`\|`e2e` 是同一 id 的面，可选实例 `<function_id>/<level>/<seq>`。不要 `REQ-n`、`E2E-B1`、`UT-007`。技法（functional / negative / edge）挂在该 id 下，落在 `type`。测试规格**追溯** PRD 切片，**不抄** PRD 章节树。不要另写 `spec.md` 或「测试规格说明书」。
+`function_id` 契约：非空、仓内作为叶子身份唯一、稳定、无空白。接入方选字符串——文档已有则抄，没有则铸（内核例子用 `FN-login-retry`）。schema **不**把 `REQ-n`、FR 号段正则或 `LOGIN-01` 写成法律。层次是同一 id 的面。技法落在 `type`。测试规格**追溯**文档切片，**不抄** PRD 章节树。
 
-`trace.yaml`（可选，schema：[`schema/trace.schema.json`](../schema/trace.schema.json)）：`{ function_id, level, case_id, type }`。第一刀有则校验，无则不红。`armed` 至少一条 `## <function_id>`；`blocked`/`draft` 允许正文很薄。回执事件应带 `function_id`，失败才能指回 PRD 叶子。
+`trace.yaml`（可选，schema：[`schema/trace.schema.json`](../schema/trace.schema.json)）：`{ function_id, case_id, type, level? }`。第一刀有则校验，无则不红。`level` 可缺。`armed` 至少一条 `## <function_id>`。回执事件应带 `function_id`，失败才能指回那片叶子。
 
 非法 yaml / 缺必填 / 第四种 status：`overlay validate` 非 0。这是 Overlay **契约红**，不是业务功能红。
 
@@ -645,8 +645,8 @@ Overlay
 - [ ] 无生产 URL；无 Proctor/Deepseek3 路径。
 - [ ] LG fixture：支付/登录 blocked 时预演绿。
 - [ ] 测试规格在 `suites/`；不另写按 PRD 章节镜像的规格书。
-- [ ] `cases.md` / `trace.yaml` / 回执用 `function_id`（产品无关语法），不用 `REQ-n`；level 不是第二套编号。
-- [ ] schema / 内核 / 设计例不写死某产品 FR 清单或 IEEE 文件名；语法本身是产品无关的。
+- [ ] `cases.md` / `trace.yaml` / 回执用接入方自选的 `function_id`；level 不是第二套编号。
+- [ ] schema / 内核 / 设计例不把 `REQ-n`、FR 号段正则、`LOGIN-01` 或 IEEE 文件名写成法律。
 - [ ] 内核 import 与设计例不出现 `LearningGuide` / `ilovelearningguide`（只许 examples/）。
 
 组合

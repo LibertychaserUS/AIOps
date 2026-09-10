@@ -78,7 +78,7 @@ Learning Guide：Ruleset 加在产品仓 + 本工作本；**不改** `.github/wo
 
 | 标准件 | 作用 | 接入方要改的 |
 |---|---|---|
-| `schema/` 契约 | 冻字段、状态机、产品无关的 `function_id` 语法。不冻某产品 PRD 树或路由 | 接入方抄或铸造符合语法的 id |
+| `schema/` 契约 | 冻字段与状态机，不冻产品编号 / PRD 树 / IEEE 文件名。叶子用接入方自选的 `function_id` | 接入方自己的 id 与目录形状 |
 | `python -m overlay generate` | 读 inbox，编成契约合法的 `suites/<id>/`，`status: draft`。无写死 FR 表 | 提示词可覆写 |
 | `python -m overlay select --branch` | 只输出该分支该跑的 `armed` | `overlay.yaml` 的 branches |
 | `python -m overlay receipt` | 程序写回执，模型不写 | 无 |
