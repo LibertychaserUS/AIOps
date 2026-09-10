@@ -202,4 +202,4 @@ examples/learning-guide/   # 第一个接入方 fixture，不是核心
   sop-lock.yml          # 通用；永远跑；不是第三件产品
 ```
 
-版本：`forge@v1`、`overlay@v1` 分开打 tag。接入方 pin tag 或 SHA，不 pin 本仓 `main`。
+版本：两个产品两个 tag，不要看成一个 Latest。[`overlay-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.0) 与 [`forge-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.0)。接入方 pin **对应产品的 tag 或 SHA**，不 pin 本仓 `main`。GitHub 每个仓只能有一个 Latest 徽章，所以 `/releases/latest` 会落到后发的那条；另一条仍在。起步：仓库根 [`README.md`](../README.md)。
