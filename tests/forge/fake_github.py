@@ -30,12 +30,14 @@ class FakeResponse:
 
 
 class FakeGitHub:
-    """Enough of GET/POST/PUT /repos/{owner}/{repo}/rulesets for Forge tests."""
+    """Enough of Rulesets + Pulls APIs for Forge tests. No merge."""
 
     def __init__(self) -> None:
         self.rulesets: list[dict] = []
+        self.pulls: list[dict] = []
         self.calls: list[tuple[str, str, dict | None]] = []
         self.next_id = 1
+        self.next_pr = 1
         self.fail_status: int | None = None
         self.fail_on: set[str] = set()
 
@@ -57,8 +59,23 @@ class FakeGitHub:
             raise HTTPError(req.full_url, self.fail_status, "synthetic", hdrs=None, fp=io.BytesIO(b'{"message":"synthetic"}'))
 
         parts = [p for p in path.split("/") if p]
-        # repos / owner / name / rulesets [ / id ]
-        if len(parts) < 4 or parts[0] != "repos" or parts[3] != "rulesets":
+        # repos / owner / name / resource [ / id [ / merge ] ]
+        if len(parts) < 4 or parts[0] != "repos":
+            raise HTTPError(req.full_url, 404, "not a repo route", hdrs=None, fp=io.BytesIO(b'{"message":"not found"}'))
+
+        if len(parts) >= 6 and parts[3] == "pulls" and parts[5] == "merge":
+            raise HTTPError(
+                req.full_url,
+                405,
+                "merge is not implemented",
+                hdrs=None,
+                fp=io.BytesIO(b'{"message":"forge never merges"}'),
+            )
+
+        if parts[3] == "pulls":
+            return self._handle_pulls(method, parts, parsed.query, body, req)
+
+        if parts[3] != "rulesets":
             raise HTTPError(req.full_url, 404, "not a ruleset route", hdrs=None, fp=io.BytesIO(b'{"message":"not found"}'))
 
         owner, repo = parts[1], parts[2]
@@ -90,6 +107,64 @@ class FakeGitHub:
             found["_repo"] = repo
             return FakeResponse(200, found)
         raise HTTPError(req.full_url, 405, "method not allowed", hdrs=None, fp=io.BytesIO(b'{"message":"method"}'))
+
+    def _handle_pulls(
+        self,
+        method: str,
+        parts: list[str],
+        query: str,
+        body: dict | None,
+        req: Request,
+    ) -> FakeResponse:
+        from urllib.parse import parse_qs
+
+        owner = parts[1]
+        number = int(parts[4]) if len(parts) > 4 else None
+        if method == "GET" and number is None:
+            qs = parse_qs(query)
+            head = (qs.get("head") or [None])[0]
+            want = head.split(":", 1)[-1] if head else None
+            found = []
+            for pull in self.pulls:
+                ref = (pull.get("head") or {}).get("ref") if isinstance(pull.get("head"), dict) else None
+                if want is None or ref == want:
+                    found.append(pull)
+            return FakeResponse(200, found)
+        if method == "GET" and number is not None:
+            found_one = self._pull_by_number(number)
+            if found_one is None:
+                raise HTTPError(req.full_url, 404, "not found", hdrs=None, fp=io.BytesIO(b'{"message":"not found"}'))
+            return FakeResponse(200, found_one)
+        if method == "POST" and number is None:
+            created = {
+                "number": self.next_pr,
+                "title": (body or {}).get("title"),
+                "body": (body or {}).get("body"),
+                "draft": bool((body or {}).get("draft", True)),
+                "head": {"ref": (body or {}).get("head"), "repo": {"full_name": f"{owner}/{parts[2]}"}},
+                "base": {"ref": (body or {}).get("base")},
+                "html_url": f"https://forge.test/{owner}/{parts[2]}/pull/{self.next_pr}",
+            }
+            self.next_pr += 1
+            self.pulls.append(created)
+            return FakeResponse(201, created)
+        if method == "PATCH" and number is not None:
+            found_one = self._pull_by_number(number)
+            if found_one is None:
+                raise HTTPError(req.full_url, 404, "not found", hdrs=None, fp=io.BytesIO(b'{"message":"not found"}'))
+            if body:
+                if "title" in body:
+                    found_one["title"] = body["title"]
+                if "body" in body:
+                    found_one["body"] = body["body"]
+            return FakeResponse(200, found_one)
+        raise HTTPError(req.full_url, 405, "method not allowed", hdrs=None, fp=io.BytesIO(b'{"message":"method"}'))
+
+    def _pull_by_number(self, number: int) -> dict | None:
+        for item in self.pulls:
+            if item.get("number") == number:
+                return item
+        return None
 
     def _by_id(self, ruleset_id: int) -> dict | None:
         for item in self.rulesets:

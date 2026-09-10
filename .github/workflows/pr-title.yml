@@ -32,4 +32,5 @@ jobs:
       - name: Lint PR title
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
-        run: python -m forge pr-title
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python -m forge pr-title --root .

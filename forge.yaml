@@ -9,6 +9,7 @@ deny_paths:
 required_checks:
   - overlay-check
   - pr-title
+  - sop-lock
 review:
   min_approvals: 1
   code_owners: false

@@ -9,9 +9,10 @@
 | **Forge** | [`skills/use-forge/SKILL.md`](../skills/use-forge/SKILL.md) | 同一文件 + [`../forge/agent-policy.md`](../forge/agent-policy.md) |
 | **Overlay** | [`skills/use-overlay/SKILL.md`](../skills/use-overlay/SKILL.md) | 同一文件 + [`agents/overlay-contract.md`](agents/overlay-contract.md) + [`../skills/design-cases/SKILL.md`](../skills/design-cases/SKILL.md) |
 | **用例设计** | [`skills/design-cases/SKILL.md`](../skills/design-cases/SKILL.md) | 同一文件（旧入口 [`agents/case-design.md`](agents/case-design.md)） |
-| **管理端**（Ruleset / merge / arm） | [`skills/manage-repo/SKILL.md`](../skills/manage-repo/SKILL.md) | 不扮演管理端：不 apply、不合、不写 `reviewed_by` |
-| **开发端**（开 PR / 修 armed 红） | [`skills/dev-pr/SKILL.md`](../skills/dev-pr/SKILL.md) | 同一文件 + [`../forge/agent-policy.md`](../forge/agent-policy.md)；只开草稿 PR |
+| **管理端**（Ruleset / merge / arm） | [`skills/manage-repo/SKILL.md`](../skills/manage-repo/SKILL.md) | 不扮演管理端：不 apply、不合、不写 `reviewed_by`、不替开发 push |
+| **开发端**（`forge submit` / 修 armed 红） | [`skills/dev-pr/SKILL.md`](../skills/dev-pr/SKILL.md) | 同一文件 + [`../forge/agent-policy.md`](../forge/agent-policy.md)；`submit` 开草稿 PR；不自合 |
 | **PR 名 / 解说规格** | [`pr-brief.md`](pr-brief.md) + `python -m forge pr-title` + [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md) | Conventional Commits `type(product/actor): subject`。检查名 `pr-title`。正文六节。不改分支 / workflow / skill 名 |
+| **程序锁** | [`sop-lock.md`](sop-lock.md) | skill 能机器判定的标准必须有检查；不绿不能合。检查名 **`overlay-check`**、**`pr-title`**、**`sop-lock`** |
 
 PR 的 review 和 merge：**GitHub 上的人 + Ruleset**，不是 Overlay，不是自建管理端。RBAC：[`rbac.md`](rbac.md)。CodeRabbit 只建议，不能当唯一 merge 门。开发写解说规格，管理拒收 `pr-title` 红或正文缺六节的 PR。标题 `actor` 不是分支名。Ruleset 勾上 `pr-title` 之后，红则不能合。
 

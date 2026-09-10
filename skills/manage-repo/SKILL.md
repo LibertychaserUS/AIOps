@@ -1,6 +1,6 @@
 ---
 name: manage-repo
-description: Act as 管理端 (repo admin / maintainer) on GitHub-native review and merge. This skill should be used when applying a Forge Ruleset, setting required checks, writing CODEOWNERS, merging a green+approved PR, rejecting a PR that fails pr-title or lacks the six headings (docs/pr-brief.md), or arming/blocking an Overlay suite (`reviewed_by`). Admin PRs use Conventional Commits type(product/admin). Do not use to open a feature PR or fix armed-red as a developer (use dev-pr). Do not invent branch, workflow, or skill prefixes. Product install SOP stays in use-forge and use-overlay.
+description: Act as 管理端 (repo admin / maintainer) on GitHub-native review and merge. Ops only: review required checks and merge when green. This skill should be used when applying a Forge Ruleset, setting required checks, writing CODEOWNERS, merging a green+approved PR, rejecting a PR that fails pr-title or lacks the six headings (docs/pr-brief.md), or arming/blocking an Overlay suite (`reviewed_by`). Do not push or forge submit for developers (use dev-pr). Do not invent branch, workflow, or skill prefixes. Product install SOP stays in use-forge and use-overlay.
 metadata:
   short-description: Admin Ruleset, merge, Overlay arm/block
 ---
@@ -30,7 +30,7 @@ Do not vendor `forge/`, `overlay/`, `schema/`, or `prompts/` into the adopter pr
 3. **Paste CODEOWNERS / team names.** Copy wording from [`forge/CODEOWNERS.example`](../../forge/CODEOWNERS.example) into the product `.github/CODEOWNERS`. Put people in **GitHub org teams**. Do not build a local ACL file that GitHub will not enforce.
 4. **Paste agent policy text** from [`forge/agent-policy.md`](../../forge/agent-policy.md) into the adopter `AGENTS.md`. Do not vendor `forge/`.
 5. **Refuse a PR** whose **title** fails `python -m forge pr-title` or whose body lacks any of the six 解说规格 headings ([`docs/pr-brief.md`](../../docs/pr-brief.md)). The title `actor` is the only 分工 label; do not ask authors to rename branches, workflows, or skills. Body **分工** is who reviews/merges ([`docs/rbac.md`](../../docs/rbac.md)), not the title actor.
-6. **Merge on GitHub** when required checks are green and the Ruleset approval count is met (default 1). You (or another human with write) click merge. **Do not merge if `pr-title` is red.** Do not let an agent merge. Do not self-approve an agent PR you prompted if you are the only reviewer and the Ruleset needs a second human — get another person. The title `actor` is not who may merge. If **you** open an admin/docs PR, title it `feat(forge/admin): …` or `docs(docs/admin): …` and run `python -m forge pr-title --title "…"`. Leave `cursor/…` / `copilot/` alone.
+6. **Merge on GitHub** when required checks are green and the Ruleset approval count is met (default 1). You (or another human with write) click merge. **Do not merge if `pr-title` is red.** Do not let an agent merge. Do not self-approve an agent PR you prompted if you are the only reviewer and the Ruleset needs a second human — get another person. **Do not `forge submit` or push a developer’s branch for them** — that is `$dev-pr`. The title `actor` is not who may merge. If **you** open an admin/docs PR, title it `feat(forge/admin): …` or `docs(docs/admin): …` and run `python -m forge pr-title --title "…"`. Leave `cursor/…` / `copilot/` alone.
 7. **Do not open a second constitution.** No SaaS admin, no OAuth app, no RBAC API. Bypass stays empty in the default Ruleset; if you add bypass, do it in the GitHub UI, not in Overlay.
 
 ### Overlay — humans arm or block
@@ -59,6 +59,7 @@ Do not vendor `forge/`, `overlay/`, `schema/`, or `prompts/` into the adopter pr
 - Do not let agents write `reviewed_by`, receipts, or `status: armed`.
 - Do not generate on push. Do not implement a portal.
 - Do not merge a PR that fails `pr-title` or lacks the six headings.
+- Do not `forge submit` or push on behalf of 开发端. Ops = checks + merge only.
 - Do not add mandatory husky / npm as the merge lock.
 
 ## Examples
@@ -85,6 +86,7 @@ Merge: GitHub PR page, after the brief is present, checks green (including `pr-t
 
 | 现象 | 处理 |
 |---|---|
+| 想替开发 push / `forge submit` | 停。开发侧自己 submit。Ops 只审检查 + merge。 |
 | 想做管理端网页管 merge | 停。GitHub Ruleset + 人点 merge。见 [`docs/rbac.md`](../../docs/rbac.md)。 |
 | `overlay review` 不改文件 | 这一刀拒绝写盘。手改 `suite.yaml`。 |
 | 想在 overlay-check 里 `forge apply` | 停。admin token 只在人本机或受保护的 dispatch。 |
@@ -99,4 +101,6 @@ Merge: GitHub PR page, after the brief is present, checks green (including `pr-t
 
 ## Lock（不绿不能合）
 
-`pr-title` 红则不合。Ruleset 勾上 `forge.yaml` `required_checks` 里的 `pr-title` 之后，红则不能合。见 [`docs/pr-brief.md`](../../docs/pr-brief.md)。
+原则：[`docs/sop-lock.md`](../../docs/sop-lock.md)。只锁可机器判定的子集。
+
+本工作本 Ruleset 必须勾：`overlay-check`、`pr-title`（`forge.yaml` `required_checks`）。红则不能合。CodeRabbit 不能当唯一门。Ops 不替开发 `forge submit`。人审：谁点 merge。不绿不能合。

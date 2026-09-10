@@ -88,6 +88,7 @@ type(product/actor): subject
 |---|---|
 | `overlay-check` | 本仓或接入方 Overlay job（validate + select + run） |
 | `pr-title` | PR 标题 Conventional Commits + `product/actor` 锁 |
+| `sop-lock` | 仓内 SOP（workflow / 内核 / skill Lock / required_checks） |
 | `Forge Ruleset` | 装了或改了保护分支 / required checks / CODEOWNERS |
 | `none` | 没动门 |
 
@@ -103,6 +104,7 @@ python3 -m overlay cover --root .
 python3 -m overlay select --branch main --root .
 python3 -m overlay run --branch main --root . --workdir . --write-receipt receipts-run/
 python3 -m forge apply --path forge.yaml --dry-run
+python3 -m forge submit --repo OWNER/NAME --title "feat(forge/dev): add submit middleware" --dry-run
 python3 -m forge pr-title --title "feat(overlay/dev): add cover triad and invariants"
 ```
 
@@ -110,7 +112,7 @@ python3 -m forge pr-title --title "feat(overlay/dev): add cover triad and invari
 
 ### 不做什么
 
-至少点名：不改 LearningGuidePortal Verify；不 attach / 跑 / 门禁 Proctor；不编辑 Deepseek3；push 上不 `generate`；不 live `forge apply`；不打生产；不 vendor 工具进产品仓；不自建门户。不要用 husky/npm 当本工作本的强制 commit 门。
+至少点名：不改 LearningGuidePortal Verify；不 attach / 跑 / 门禁 Proctor；不编辑 Deepseek3；push 上不 `generate`；不 live `forge apply`；不 live-submit 本工作本进 CI；不自合；不打生产；不 vendor 工具进产品仓；不自建门户。不要用 husky/npm 当本工作本的强制 commit 门。
 
 ### 分工
 

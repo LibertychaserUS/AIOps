@@ -1,0 +1,140 @@
+"""SOP lock: temp fixtures + this workshop. No GitHub write."""
+
+from __future__ import annotations
+
+import io
+import tempfile
+import unittest
+from pathlib import Path
+
+from forge import EXIT_OK
+from forge.__main__ import main
+from forge.sop_lock import EXIT_SOP, collect_issues, run_sop_lock
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def _write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+class WorkshopSopLockTests(unittest.TestCase):
+    def test_workshop_is_green(self) -> None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        code = run_sop_lock(ROOT, stdout=stdout, stderr=stderr)
+        self.assertEqual(code, EXIT_OK, stderr.getvalue())
+        self.assertIn("ok", stdout.getvalue())
+
+    def test_cli_sop_lock(self) -> None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        code = main(
+            ["sop-lock", "--root", str(ROOT)],
+            stdout=stdout,
+            stderr=stderr,
+            environ={},
+        )
+        self.assertEqual(code, EXIT_OK, stderr.getvalue())
+
+
+class WorkflowLockTests(unittest.TestCase):
+    def test_generate_on_push_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(
+                root / ".github" / "workflows" / "bad.yml",
+                "name: bad\non:\n  push:\njobs:\n  gen:\n    runs-on: ubuntu-latest\n"
+                "    steps:\n      - run: python -m overlay generate --inbox inbox/x.md\n",
+            )
+            issues = collect_issues(root)
+            self.assertTrue(any("generate" in item.message for item in issues), issues)
+
+    def test_openai_key_on_push_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(
+                root / ".github" / "workflows" / "bad.yml",
+                "name: bad\non:\n  push:\njobs:\n  x:\n    runs-on: ubuntu-latest\n"
+                "    env:\n      OPENAI_API_KEY: secret\n    steps:\n      - run: echo hi\n",
+            )
+            issues = collect_issues(root)
+            self.assertTrue(any("OPENAI_API_KEY" in item.message for item in issues), issues)
+
+    def test_workflow_call_ci_yml_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(
+                root / ".github" / "workflows" / "bad.yml",
+                "name: bad\non:\n  pull_request:\njobs:\n  x:\n"
+                "    uses: First-Light-TechHK/LearningGuidePortal/.github/workflows/ci.yml@main\n",
+            )
+            issues = collect_issues(root)
+            self.assertTrue(any(issues), issues)
+
+    def test_unittest_bypass_on_push_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(
+                root / ".github" / "workflows" / "self-test.yml",
+                "name: self-test\non:\n  push:\njobs:\n  t:\n    runs-on: ubuntu-latest\n"
+                "    steps:\n      - run: python -m unittest discover -s tests -t .\n",
+            )
+            issues = collect_issues(root)
+            self.assertTrue(any("unittest" in item.message for item in issues), issues)
+
+    def test_comment_no_generate_on_push_is_green(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(
+                root / ".github" / "workflows" / "ok.yml",
+                "# No generate.\nname: ok\non:\n  push:\njobs:\n  x:\n"
+                "    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n",
+            )
+            issues = collect_issues(root)
+            self.assertFalse(any("generate" in item.message for item in issues), issues)
+
+
+class SkillAndHuskyTests(unittest.TestCase):
+    def test_skill_without_lock_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(
+                root / "skills" / "use-x" / "SKILL.md",
+                "---\nname: use-x\ndescription: x\n---\n\n# X\n\n## Instructions\n\nDo x.\n",
+            )
+            issues = collect_issues(root)
+            self.assertTrue(any("## Lock" in item.message for item in issues), issues)
+
+    def test_husky_dir_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".husky").mkdir()
+            issues = collect_issues(root)
+            self.assertTrue(any(".husky" in item.path for item in issues), issues)
+
+
+class KernelLockTests(unittest.TestCase):
+    def test_overlay_kernel_with_product_host_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root / "overlay" / "x.py", "HOST = 'ilovelearningguide.com'\n")
+            issues = collect_issues(root)
+            self.assertTrue(any("ilovelearningguide" in item.message for item in issues), issues)
+
+
+class ExitCodeTests(unittest.TestCase):
+    def test_red_is_exit_2(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".husky").mkdir()
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            code = run_sop_lock(root, stdout=stdout, stderr=stderr)
+            self.assertEqual(code, EXIT_SOP)
+            self.assertTrue(stderr.getvalue())
+
+
+if __name__ == "__main__":
+    unittest.main()

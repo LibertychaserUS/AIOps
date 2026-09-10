@@ -11,6 +11,14 @@ Define Overlay “full cover” before writing any `cases.md`. Read [`docs/agent
 
 Linked notes (same method, old path): [`docs/agents/case-design.md`](../../docs/agents/case-design.md).
 
+## Lock / 不绿不能合
+
+原则：[`docs/sop-lock.md`](../../docs/sop-lock.md)。只锁可机器判定的子集。
+
+- armed 缺技法、invariant 未点名：`python -m overlay validate` / `cover` → CI **`overlay-check`**
+- 不 NLP 判断「角想全了没有」。人看 `cover` 矩阵再决定 `blocked` / `armed`。
+- 仓级禁令（push 不 generate）见 `python -m forge sop-lock` → **`sop-lock`**。
+
 ## Instructions
 
 「标准化全覆盖」在 Overlay 里**不是**扫完产品 PRD，也不是行覆盖率，也不是叶子两两穷尽。

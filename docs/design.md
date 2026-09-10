@@ -35,7 +35,7 @@ Learning Guide / `LearningGuidePortal` 是 **第一个接入方（fixture）**�
 | 角色 | 用 Forge | 用 Overlay |
 |---|---|---|
 | 产品 | 开 PR 交 inbox | 往 `inbox/` 丢需求摘录；审 `cases.md` |
-| 开发 | 只开 PR；红了修自己的 diff | 只修 `armed` 红的部分，不加手续 |
+| 开发 | `forge submit` 代推开 PR；红了修自己的 diff | 只修 `armed` 红的部分，不加手续 |
 | 测试（可虚拟） | 审 PR | 把 `draft` 标成 `blocked` 或 `armed` |
 | Agent（Copilot coding / Cursor cloud） | 只开草稿 PR | 可被派去 `generate`（人点）；不能写 `reviewed_by` / 不能 `armed` |
 | 接入方管理员 | `forge apply` | 写 `overlay.yaml`，挂 reusable workflow |
@@ -45,6 +45,7 @@ PR 的 review 和 merge 由 **GitHub Ruleset + 有写权限的人** 管理，不
 ### 1.3 非目标（冻结）
 
 - SaaS、数据库、Web 工作台、自建协作编辑器、自建 RBAC / 管理端门户。
+- Graphite 克隆（stack / merge-when-ready）、自动合入机器人。Forge 不合入。
 - CD、部署、打接入方生产域名（LG：`ilovelearningguide.com`）。
 - 改接入方已有构建 workflow（LG：`.github/workflows/ci.yml` / Verify）。
 - attach / 运行 / 门禁任何仓的 Proctor；编辑 Deepseek3。
@@ -96,7 +97,14 @@ PR 的 review 和 merge 由 **GitHub Ruleset + 有写权限的人** 管理，不
 
 ### 3.1 范围
 
-Forge 把「这个仓怎么被写」装成可重复的政策。不管用例，不审 diff 内容（diff 仍交给 CodeRabbit + 人），不调度 agent 舰队。
+Forge 管两件事，不是两套产品，也不是 Graphite 克隆或自动合入机器人：
+
+| 侧 | 管什么 | 命令 | 对齐 |
+|---|---|---|---|
+| **开发侧** | 怎么推上去变成 PR（代推） | `python -m forge submit` | [`gh pr create`](https://cli.github.com/manual/gh_pr_create) |
+| **Ops 侧** | 检查绿了谁来合 | Ruleset + 人 merge；`apply` 只装门 | [Ruleset required checks](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#require-status-checks-to-pass-before-merging) |
+
+不管用例，不审 diff（CodeRabbit + 人），不调度舰队，**不合入**。同类代推参考 [Graphite `gt submit`](https://graphite.com/docs/create-submit-prs)，只借「推分支 + 开/更新 draft PR」，不借 stack / merge-when-ready。RBAC：[`rbac.md`](rbac.md)。
 
 ### 3.2 对象
 
@@ -150,9 +158,19 @@ Merge Queue：第一刀不装。人多了由接入方在同一 Ruleset 上打开
 ```text
 python -m forge apply  --repo OWNER/NAME [--path forge.yaml] [--dry-run]
 python -m forge status --repo OWNER/NAME
+python -m forge submit --repo OWNER/NAME [--title T] [--dry-run]
 python -m forge pr-title --title "feat(overlay/dev): subject"
 python -m forge revoke --repo OWNER/NAME --name forge-protected-default
 ```
+
+`submit`（开发侧代推，对齐 [`gh pr create`](https://cli.github.com/manual/gh_pr_create)）：
+
+1. 读当前分支与 `forge.yaml` `protect`。
+2. `--dry-run`：打印将推的远程分支、PR 标题、正文六节标题；不 push、不调 GitHub；退出 0。
+3. 若 head 是 protect，或 repo 是 LearningGuidePortal：拒绝。
+4. 标题必须过 `forge pr-title`（[`pr-brief.md`](pr-brief.md)）。
+5. 非 dry-run 且有 token：`git push` 当前功能分支，再 POST/PATCH **draft** PR。永不 merge，永不 apply Ruleset。
+6. 本工作本 CI 只跑 dry-run，不 live-submit。
 
 `pr-title`：纯函数锁 GitHub **PR 标题**（Conventional Commits + 必填 scope `product/actor`）。退出 `0`/`2`。不写 GitHub。规格：[`pr-brief.md`](pr-brief.md)。Actions 检查名 `pr-title`，只跑 `pull_request`。
 
@@ -195,8 +213,8 @@ jobs:
 
 原文：[`../forge/agent-policy.md`](../forge/agent-policy.md)。实现不得削弱这几条：
 
-- 只开 PR，不推保护分支。
-- 不自 merge、不自 Approve。Review / merge 是 GitHub 上的人 + Ruleset。
+- 用 `forge submit` 开/更新 draft PR，不推保护分支。
+- 不自 merge、不自 Approve。Review / merge 是 GitHub 上的人 + Ruleset。Forge 不合入。
 - 不 live `forge apply`，不改 Ruleset。
 - 不改接入方构建 workflow。
 - 不写 Overlay `reviewed_by` / 回执，不把 `status` 改为 `armed`。
@@ -207,10 +225,13 @@ jobs:
 
 | 工具 | Forge 的态度 |
 |---|---|
+| [`gh pr create`](https://cli.github.com/manual/gh_pr_create) | **对齐**：开发侧 `submit` = 推当前分支 + 开/更新 draft PR |
+| [GitHub Ruleset required checks](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#require-status-checks-to-pass-before-merging) | **对齐**：Ops 侧合入门；人点 merge |
+| [Graphite `gt submit`](https://graphite.com/docs/create-submit-prs) | 只参考「代推开 PR」；**不**做 stack / merge-when-ready |
 | GitHub PR / blame / GitLens | 留下，不重做 |
 | CodeRabbit | 留下；可标 required，**不能**当唯一 merge 门 |
 | Copilot code review | 建议；**不能**当唯一 merge 门 |
-| Copilot coding agent / Cursor cloud | 允许写代码，必须过 Ruleset |
+| Copilot coding agent / Cursor cloud | 允许写代码，必须过 Ruleset；落地用 `submit`，不合入 |
 | HackMD / 飞书 / Notion | 不是 Forge 的一部分 |
 
 ### 3.8 错误码
@@ -219,13 +240,15 @@ jobs:
 |---|---|
 | 0 | 成功 |
 | 2 | 缺 token / 权限不足 |
-| 3 | `forge.yaml` 非法 |
+| 3 | `forge.yaml` 非法；protect 上 submit；标题过不了 `pr-title`；LearningGuidePortal |
 | 4 | GitHub API 失败（网络或 4xx/5xx） |
 | 5 | dry-run 完成（可选；或仍用 0 + 打印）——实现选 0 + `--dry-run` 字样 |
 
 ### 3.9 测试（Forge 自己的，不测接入方业务）
 
 - `apply` 对假 API：无 Ruleset 则 POST，有则 PUT，第二次无 POST。
+- `submit --dry-run` 打印 head / title / 正文六节，不 push。protect 与 LearningGuidePortal 拒绝。
+- `submit` 对假 Pulls API：POST draft；第二次 PATCH；永不打 `/merge`。
 - 默认 JSON 保护 `main`，含 PR 规则，bypass 为空。
 - `forge.yaml` 缺字段用默认；非法枚举失败。
 - Guard：改 `deny_paths` 的 diff fixture 必须红；只改 `README` 必须绿。
@@ -556,7 +579,7 @@ CPython 能调 C。第一刀不写 C：生成卡模型和网络，select 扫几�
 
 ```text
 forge/
-  __init__.py / apply.py / status.py
+  __init__.py / apply.py / status.py / submit.py / title.py
   ruleset.protected-default.json
   agent-policy.md
   CODEOWNERS.example

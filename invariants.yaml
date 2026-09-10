@@ -9,6 +9,7 @@ items:
     text: overlay generate is never invoked from push CI
     function_ids:
       - FN-overlay-generate
+      - FN-forge-sop-lock
     span: system
   - id: INV-receipt-not-model
     text: receipts are written only by select or run
@@ -24,4 +25,9 @@ items:
     text: product_command must not target forbid_hosts
     function_ids:
       - FN-overlay-select
+    span: system
+  - id: INV-sop-decidable
+    text: decidable skill SOP is program-locked; red cannot merge
+    function_ids:
+      - FN-forge-sop-lock
     span: system

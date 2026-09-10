@@ -13,6 +13,15 @@ Overlay is a standard part. Freeze the contract, not a product’s numbers. Agen
 
 **Who reviews and merges code:** GitHub humans + Ruleset ([`docs/rbac.md`](../../docs/rbac.md)). Overlay only decides which suites run. **管理端** arms/blocks and writes `reviewed_by`: [`../manage-repo/SKILL.md`](../manage-repo/SKILL.md). **开发端** writes inbox/suites as draft and fixes armed-red: [`../dev-pr/SKILL.md`](../dev-pr/SKILL.md). Agents never arm.
 
+## Lock / 不绿不能合
+
+原则：[`docs/sop-lock.md`](../../docs/sop-lock.md)。只锁可机器判定的子集，不 NLP 扫散文。
+
+- 契约 / 三技法 / invariant 点名 / blocked 不入选 / 回执 / `forbid_hosts`：`python -m overlay validate|cover|select|run` → CI **`overlay-check`**
+- push 不 generate、不 checkout LearningGuidePortal、不 `workflow_call` 产品 Verify、不旁路 unittest：`python -m forge sop-lock` → CI **`sop-lock`**
+- Overlay 测试只走 armed `product_command`。`sop-lock` 不是旁路 unittest。
+- 不绿不能合。人审：用例写得好不好、`reviewed_by` 是不是人。
+
 ## Instructions
 
 ### Reuse — keep the tool out of the product commit repo

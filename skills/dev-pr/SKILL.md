@@ -1,6 +1,6 @@
 ---
 name: dev-pr
-description: Act as 开发端 (human developer) on a Forge-protected GitHub repo. This skill should be used when opening a PR, writing the PR brief (docs/pr-brief.md Conventional Commits title + six headings), requesting review, or fixing an armed Overlay failure. Do not use to apply Rulesets, merge-gate setup, live forge apply, or write reviewed_by / armed (use manage-repo). Agents use this plus forge/agent-policy.md and must not self-merge. Do not invent branch, workflow, or skill prefixes.
+description: Act as 开发端 (human developer) on a Forge-protected GitHub repo. This skill should be used when submitting a PR via python -m forge submit (代推), writing the PR brief (docs/pr-brief.md Conventional Commits title + six headings), requesting review, or fixing an armed Overlay failure. Do not use to apply Rulesets, merge-gate setup, live forge apply, merge, or write reviewed_by / armed (use manage-repo). Agents use this plus forge/agent-policy.md and must not self-merge. Do not invent branch, workflow, or skill prefixes.
 metadata:
   short-description: Open PRs; do not arm or apply Forge
 ---
@@ -17,7 +17,12 @@ Do not `git add` `forge/`, `overlay/`, `schema/`, or `prompts/` into the product
 
 ### GitHub — land like everyone else
 
-1. **Open a PR.** Title must pass `python -m forge pr-title --title "…"`. Grammar is Conventional Commits 1.0.0 with required scope `product/actor`: `type(product/actor): subject` (optional `!` before `:`). Types: Angular / commitlint conventional (`feat` `fix` `docs` `ci` `chore` `test` `refactor` `perf` `style` `build` `revert`). Product: `forge` \| `overlay` \| `ci` \| `docs`. Actor: `dev` \| `admin` \| `agent`（开发=`dev`，管理=`admin`）。Example: `feat(overlay/dev): add overlay run to overlay-check`. That `actor` is the **only** 分工 label — not a branch name, not a workflow name, not a skill name. Do **not** invent `[开发][Overlay]` or `dev feat(overlay):`. Leave `cursor/…` / `copilot/` (including `cursor/…-6842`) alone. Body keeps the six 解说规格 headings: `做了什么` `为什么` `动了哪些门` `怎么验` `不做什么` `分工`. The **分工** heading is who reviews/merges ([`docs/rbac.md`](../../docs/rbac.md)), not the title actor. Spec: [`docs/pr-brief.md`](../../docs/pr-brief.md). 开发写。管理拒收 `pr-title` 红或正文缺节的 PR。Do not push protected branches (`main` unless `forge.yaml` lists others). Do not force-push those branches.
+1. **Submit a draft PR with Forge** (开发侧代推). Do not `git push` a protect branch. Do not merge.
+   ```text
+   PYTHONPATH=../AIOps python3 -m forge submit --repo OWNER/NAME --title "feat(overlay/dev): fix armed select" --dry-run
+   PYTHONPATH=../AIOps python3 -m forge submit --repo OWNER/NAME --title "feat(overlay/dev): fix armed select"
+   ```
+   `--dry-run` prints the intended remote branch, PR title, and the six body headings; no push; exit 0. Live submit (token present) pushes the feature branch and opens/updates a **draft** PR. Aligns with [`gh pr create`](https://cli.github.com/manual/gh_pr_create). Title must pass `python -m forge pr-title`. Grammar: Conventional Commits `type(product/actor): subject` ([`docs/pr-brief.md`](../../docs/pr-brief.md)). Example: `feat(overlay/dev): add overlay run to overlay-check`. Body headings: `做了什么` `为什么` `动了哪些门` `怎么验` `不做什么` `分工`. 开发写。管理拒收 `pr-title` 红或正文缺节的 PR。Do not push protected branches. Do not force-push those branches. Do not self-merge.
 2. **Lock the title locally** with `python -m forge pr-title --title "…"` before you ask for review. Do not install husky to block `git commit`.
 3. **Request a human review.** CodeRabbit is advisory. It is never enough to merge by itself.
 4. **Do not merge your own agent PRs.** Do not approve them. Do not write a review as `reviewed_by` on behalf of the model.
@@ -34,7 +39,7 @@ Do not `git add` `forge/`, `overlay/`, `schema/`, or `prompts/` into the product
 
 ### Agent extras (Copilot / Cursor)
 
-12. Draft PR only. Title must pass `python -m forge pr-title`. Fill the six headings. No self-approve. No self-merge. No Ruleset write. No Overlay arm. `generate` only when a human asked (not shipped). Dry-run Forge only if asked; never live apply.
+12. Draft PR only, via `forge submit`. Title must pass `python -m forge pr-title`. Fill the six headings. No self-approve. No self-merge. No Ruleset write. No Overlay arm. `generate` only when a human asked (not shipped). `submit --dry-run` is fine; never live apply.
 
 ### Never
 
@@ -56,14 +61,12 @@ Do not `git add` `forge/`, `overlay/`, `schema/`, or `prompts/` into the product
 git switch -c cursor/fix-armed-select
 # edit product code or suites/*/cases.md as draft
 PYTHONPATH=../AIOps python3 -m overlay validate --root .
-PYTHONPATH=../AIOps python3 -m forge pr-title --title "fix(overlay/dev): fix armed select"
-git push -u origin HEAD
-# open PR titled: fix(overlay/dev): fix armed select
-# body: 做了什么 / 为什么 / 动了哪些门 / 怎么验 / 不做什么 / 分工
+PYTHONPATH=../AIOps python3 -m forge submit --repo OWNER/NAME --title "fix(overlay/dev): fix armed select" --dry-run
+PYTHONPATH=../AIOps python3 -m forge submit --repo OWNER/NAME --title "fix(overlay/dev): fix armed select"
 # request a human; do not merge
 ```
 
-Illegal: `git push origin main`. Illegal: merge the agent PR you just opened. Illegal: `status: armed` in a suite you did not review as a human. Illegal: `python3 -m forge apply` without being 管理端. Illegal: branch `开发/overlay-fix` as a 分工 scheme. Illegal: title `[开发][Overlay] fix armed select`.
+Illegal: `git push origin main`. Illegal: `forge submit` on `main`. Illegal: merge the agent PR you just opened. Illegal: `status: armed` in a suite you did not review as a human. Illegal: `python3 -m forge apply` without being 管理端. Illegal: branch `开发/overlay-fix` as a 分工 scheme. Illegal: title `[开发][Overlay] fix armed select`.
 
 ## Performance Notes
 
@@ -73,7 +76,7 @@ No token on push. validate/select are local YAML. Title lint is a regex. Fix the
 
 | 现象 | 处理 |
 |---|---|
-| 想直推 main | 停。开 PR。 |
+| 想直推 main | 停。`forge submit --dry-run`，再 submit。 |
 | 想合自己的 agent PR | 停。等人。Agent 不自 merge。 |
 | armed check 红了 | 修那个 `function_id` 的代码或 `product_command`。不要改 Ruleset。 |
 | `pr-title` 红了 | 改 **PR 名** 为 `type(product/actor): subject`。本地先跑 `python -m forge pr-title --title "…"`。不要改分支名。 |
@@ -90,4 +93,10 @@ No token on push. validate/select are local YAML. Title lint is a regex. Fix the
 
 ## Lock（不绿不能合）
 
-`pr-title` 红则不能合（Ruleset 勾上 `forge.yaml` `required_checks` 之后）。本地：`python -m forge pr-title --title "…"`。见 [`docs/pr-brief.md`](../../docs/pr-brief.md)。
+原则：[`docs/sop-lock.md`](../../docs/sop-lock.md)。只锁可机器判定的子集。
+
+- 标题 `type(product/actor): subject` + 正文六节：`python -m forge pr-title` → CI **`pr-title`**
+- 代推 dry-run / protect 拒绝：`python -m forge submit --dry-run` + Forge 单测 → **`overlay-check`**
+- armed 红：修那个 `function_id`，门仍是 **`overlay-check`**
+- 仓级 SOP：`python -m forge sop-lock` → **`sop-lock`**（若已装）
+- 不绿不能合。不要装 husky。不要自合。

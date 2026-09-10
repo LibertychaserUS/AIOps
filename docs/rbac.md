@@ -5,13 +5,29 @@ PR 的 **review 和 merge 由 GitHub 上的人 + Repository Ruleset 管**，不�
 控制面只有这一套：
 
 - GitHub org **teams**（谁是 admin / maintainer / writer）
-- Repository **Ruleset**（禁直推、必须 PR、批准数、required checks）。本工作本声明的 check 名：`overlay-check`、`pr-title`（见 `forge.yaml`）。`pr-title` 红则不合。。本工作本声明的 check 名：`overlay-check`、`pr-title`（见 `forge.yaml`）。`pr-title` 红则不合。
+- Repository **Ruleset**（禁直推、必须 PR、批准数、required checks）。本工作本声明的 check 名：`overlay-check`、`pr-title`（见 `forge.yaml`）。`pr-title` 红则不合。
 - **CODEOWNERS**（哪条路径必须谁审）
 - Overlay `suite.yaml` 的人审字段（`reviewed_by`、`armed` / `blocked`）
 
 不要第二套权限库、不要 admin Web、不要数据库 RBAC、不要为角色再做一个门户。协作仍在 **GitHub + CodeRabbit**。Forge 不重做 diff 审。CodeRabbit **只建议，不能当唯一 merge 门**。
 
 角色怎么干活：管理端 [`../skills/manage-repo/SKILL.md`](../skills/manage-repo/SKILL.md)，开发端 [`../skills/dev-pr/SKILL.md`](../skills/dev-pr/SKILL.md)。产品 SOP 仍是 [`../skills/use-forge/SKILL.md`](../skills/use-forge/SKILL.md) 与 [`../skills/use-overlay/SKILL.md`](../skills/use-overlay/SKILL.md)。PR 解说面：[`pr-brief.md`](pr-brief.md)。
+
+---
+
+## 开发侧 vs Ops 侧
+
+开发侧 Forge 管「怎么推上去变成 PR」。Ops 侧管「检查绿了谁来合」。不要做成 Graphite 克隆，也不要做成自动合入机器人。
+
+| 侧 | 谁 | 做什么 | 不做什么 |
+|---|---|---|---|
+| **开发侧** | 人 / agent + `python -m forge submit` | 代推当前功能分支，开/更新 **draft** PR，标题过 `pr-title` | 不直推 protect；不自合；不 `forge apply` |
+| **Ops 侧** | 管理端 + Ruleset required checks | 勾 check、等人 Approve，绿了在 GitHub 点 merge | 不替开发 push；Forge **不合入** |
+
+对齐已有工具，不另造协议：
+
+- 开发侧代推：[GitHub CLI `gh pr create`](https://cli.github.com/manual/gh_pr_create)（推当前分支并开 PR）。同类参考 [Graphite `gt submit`](https://graphite.com/docs/create-submit-prs)，只借「推分支 + 开/更新 PR」，不借 stack，不借 merge-when-ready。
+- Ops 侧合入门：[GitHub Ruleset — Require status checks to pass](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#require-status-checks-to-pass-before-merging)。人点 merge。
 
 ---
 
@@ -35,9 +51,9 @@ Agent 只开草稿 PR。模型不写 `reviewed_by`。CI 不自动 `armed`。
 
 | 角色 | GitHub | Overlay | Forge |
 |---|---|---|---|
-| **管理端**（repo admin / maintainer） | 装 Ruleset、勾 required checks、写 CODEOWNERS / teams、绿+已批准后 merge | 写 `reviewed_by`，标 `armed` / `blocked` | 用 **admin token** `forge apply`；**永不**在 Overlay CI 里 apply |
-| **开发端**（人） | 开 PR、修 armed 红、请求 review；不推保护分支 | 写 inbox / suites **草稿**；除非自己也是审的人，否则不 arm | 守 [`../forge/agent-policy.md`](../forge/agent-policy.md)；不写 Ruleset |
-| **Agent**（Copilot / Cursor） | 只开草稿 PR；不自 Approve、不自 merge | 人点才可 `generate`（未交付）；永不 arm、永不写回执 | 除人要求的 `--dry-run` 外不 apply |
+| **管理端**（repo admin / maintainer） | 装 Ruleset、勾 required checks、写 CODEOWNERS / teams、绿+已批准后 merge | 写 `reviewed_by`，标 `armed` / `blocked` | 用 **admin token** `forge apply`；**永不**在 Overlay CI 里 apply；**不替开发** `forge submit` / push |
+| **开发端**（人） | 用 `forge submit` 代推开 PR、修 armed 红、请求 review；不推保护分支 | 写 inbox / suites **草稿**；除非自己也是审的人，否则不 arm | 守 [`../forge/agent-policy.md`](../forge/agent-policy.md)；不写 Ruleset |
+| **Agent**（Copilot / Cursor） | `forge submit` 开草稿 PR；不自 Approve、不自 merge | 人点才可 `generate`（未交付）；永不 arm、永不写回执 | 除人要求的 `--dry-run` 外不 apply；可用 `submit --dry-run` |
 | **CodeRabbit** | 只建议 | — | — |
 
 RBAC 不另做：GitHub 团队成员资格决定谁能推/合；Ruleset 执行门；CODEOWNERS 点名必须审的人；`suite.yaml` 记录谁审过用例。
