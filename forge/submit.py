@@ -3,7 +3,9 @@
 Aligns with GitHub CLI `gh pr create` (push current branch + create PR):
 https://cli.github.com/manual/gh_pr_create
 
-Does not clone Graphite (no stacks, no merge-when-ready). Never merges.
+Does not clone Graphite (no merge-when-ready). Never merges.
+Base is forge.yaml protect (default main): the PR is the squash 封顶.
+Do not open onto another feature branch that will be squashed away.
 Never applies a Ruleset. Ops (manage-repo + required checks) merges.
 
 Requires env FORGE_SUBMIT_TOKEN (PAT / fine-grained / GitHub App token).
@@ -261,11 +263,18 @@ def run_submit(
             head, cwd=cwd, git_runner=git_runner, environ=environ
         )
         assert_head_not_protect(resolved_head, config.protect)
+        locked = {normalize_branch(item) for item in (config.protect or list(DEFAULT_PROTECT))}
         resolved_base = (
             normalize_branch(base)
             if base and base.strip()
             else (config.protect[0] if config.protect else DEFAULT_PROTECT[0])
         )
+        if resolved_base not in locked:
+            raise ForgeError(
+                EXIT_CONFIG,
+                f"refusing to submit onto {resolved_base!r}; base must be protect "
+                "(squash 封顶; 换底 from main after squash)",
+            )
         subject = None if title is not None else resolve_commit_subject(
             cwd=cwd, git_runner=git_runner
         )

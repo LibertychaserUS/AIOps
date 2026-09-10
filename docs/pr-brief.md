@@ -2,6 +2,8 @@
 
 GitHub PR 是解说面。DevOps 和其他 agent 读**标题 + 正文**就知道做了什么，不靠翻 diff。不是门户，不另做解说站。
 
+本规格锁的是 **进 `main` 的那颗提交**，不是功能枝上每一颗中间 commit。默认落地是 **squash**：一单 PR 压成 `main` 上的一颗，标题就是那颗的 Conventional Commits header。这是提交内容的规格化，和标题语法同一层。
+
 「分工」写在 **GitHub PR 标题** 的 Conventional Commits scope（`product/actor` 的 `actor`）。只这一处。不是分支名，不是 workflow 的 `name:`，不是 `skills/<name>/`。不要另造 `管理/`、`开发/`、`agent/` 分支前缀。Forge 已有的 `agent_branch_prefixes`（默认 `cursor/`、`copilot/`，如 `cursor/overlay-architecture-6842`）管谁的分支能推，不是本规格；这类分支名不要改。
 
 标题 `actor` 只标明这单活戴哪顶帽子；`product` 标明碰哪件产品。谁审、谁合仍是 GitHub 上的人 + Ruleset，见 [`rbac.md`](rbac.md)。不要把标题当成权限。
@@ -26,6 +28,24 @@ feat(overlay/agent): adopt Overlay CI and Conventional Commit PR titles
 不要改成 `feat(ci/agent): split overlay and forge CI workflows`。那是「两个产品各搞一套对等 CI」的旧说法。
 
 标题 `product` 同时驱动 `python -m forge ci-select`（`forge.yaml` `ci.select.title`）：`overlay` → `overlay-check`；`forge` → `forge-check`；`ci` → 两个都跑；`docs` → 只跑通用。**通用检查 ≠ 产品门。** 不要另造第二种标题语法。
+
+---
+
+## 进 main 的提交（squash 封顶）
+
+核心原理（提交内容规格化）：
+
+**要进 `main` 的 PR，必须是整段工作的封顶。合完立刻以 `main` 上那颗新 SHA 为底再开下一枝。不要从即将被压掉的旧头再叠。**
+
+| 锁 | 意思 |
+|---|---|
+| 封顶 | 这一单 PR 是整段工作。squash 之后 `main` 上只多一颗，标题就是那颗 header |
+| 压完换底 | 下一枝从 `main` 的新 SHA 开。旧功能枝头不再当 base |
+| 不叠旧头 | 禁止把未合 / 即将 squash 的 `cursor/…` 当下一单的 base。血缘在 squash 后断开 |
+
+`python -m forge submit` 的 base 是 `forge.yaml` `protect`（默认 `main`），不开到另一条功能枝。GitHub 合入默认 squash。merge commit / rebase 也能用，但不改变这条：封顶再压，压完换底。
+
+非法：#3 squash 之后还拿旧架构枝开 #4 / #5。合法：#5 squash 进 `main`，下一单从新的 `main` 头开。
 
 ---
 

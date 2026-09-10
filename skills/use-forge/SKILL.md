@@ -17,7 +17,7 @@ Forge is a standard part: 开发侧 `check`（提交前本地门）+ `submit`（
 
 - **代推锁（提交前）：** `python -m forge check` 必须绿 **并且** 持有非空 `FORGE_SUBMIT_TOKEN`（PAT / fine-grained / GitHub App token）。缺密钥或 check 红：`submit`（含 `--dry-run`）退出 2，不 push、不开 PR。不回落 `GITHUB_TOKEN`、`FORGE_GITHUB_TOKEN`、本机 `gh auth`。Ops merge 用另一套权限，不是这把提交密钥。Overlay「token 只在 generate」说的是**模型密钥**，不是这把 GitHub 凭据。`submit`（含 `--dry-run`）必须有 `FORGE_SUBMIT_TOKEN`；缺则退出 2。Live 用真 PAT；CI dry-run 用假值、不 push。
 - LearningGuidePortal apply/submit 拒绝、dry-run 不写 API：`python -m forge apply --dry-run` + Forge 单测 → CI **`forge-check`**（合入锁）。overlay / pr-title / sop-lock / forge-check workflow **不得**调用 `forge submit`。
-- PR 标题：`python -m forge pr-title` → CI **`pr-title`**（合入锁）
+- PR 标题：`python -m forge pr-title` → CI **`pr-title`**（合入锁）。进 `main` 默认 squash：封顶再压，压完换底。`submit` base 是 `protect`，不叠即将被压掉的旧头。
 - 仓级 SOP（若已装）：`python -m forge sop-lock` → **`sop-lock`**（**通用**合入锁，永远跑；不是 forge-check 的一层）
 - 本工作本 Forge **产品门**：**`forge-check`**（unit + apply --dry-run；`forge.yaml` `ci` 选跑或跳过成功）。`submit` 必须持有 `FORGE_SUBMIT_TOKEN`。`gh auth` / `GH_TOKEN` / extraheader 都不够。
 - GitHub required checks 锁合入，不锁提交。本地 `forge check` + `FORGE_SUBMIT_TOKEN` 锁代推。**通用检查 ≠ 产品门。** 不绿不能提交。不绿不能合。人审：谁合、要不要 live apply、别的仓有没有 vendor 工具。

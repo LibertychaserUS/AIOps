@@ -10,6 +10,8 @@ actor:   dev|admin|agent   （开发=dev，管理=admin）
 例: feat(overlay/dev): add overlay run to overlay-check
 通用检查 ≠ 产品门。pr-title / sop-lock 永远跑。overlay-check / forge-check 由 forge.yaml ci 选跑或跳过。
 
+进 main 默认 squash：这一单必须是整段工作的封顶。合完从 main 新 SHA 换底再开下一枝。不要把未合的 cursor/ 旧头当 base。
+
 不是分支名、不是 workflow 名、不是 skill 名。
 不要写 [开发][Overlay]。不要用 dev feat(overlay):。
 不要改 cursor/…-6842 或 copilot/ 分支前缀。

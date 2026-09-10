@@ -322,6 +322,19 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
             issues.append(Issue("docs/sop-lock.md", "must state 通用检查 ≠ 产品门"))
         if "ci-select" not in text and "forge.yaml" not in text:
             issues.append(Issue("docs/sop-lock.md", "must document the forge.yaml CI selector"))
+        if "封顶" not in text or "换底" not in text or "squash" not in text:
+            issues.append(
+                Issue("docs/sop-lock.md", "must state squash 封顶 / 换底 as commit 规格化")
+            )
+    brief = root / "docs" / "pr-brief.md"
+    if not brief.is_file():
+        issues.append(Issue("docs/pr-brief.md", "missing PR brief spec"))
+    else:
+        brief_text = brief.read_text(encoding="utf-8")
+        if "封顶" not in brief_text or "换底" not in brief_text or "squash" not in brief_text:
+            issues.append(
+                Issue("docs/pr-brief.md", "must specify squash 封顶 / 换底 (commit 规格化)")
+            )
     forge_yaml = root / "forge.yaml"
     if not forge_yaml.is_file():
         issues.append(Issue("forge.yaml", "missing workshop forge.yaml"))
@@ -443,6 +456,8 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
             )
         if "通用" not in text or "产品门" not in text:
             issues.append(Issue(rel, "must state 通用检查 ≠ 产品门"))
+        if "封顶" not in text or "换底" not in text:
+            issues.append(Issue(rel, "must state squash 封顶 / 换底 (commit 规格化)"))
     manage = root / "skills" / "manage-repo" / "SKILL.md"
     if manage.is_file():
         text = manage.read_text(encoding="utf-8")
@@ -457,6 +472,10 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
             )
         if "通用" not in text or "产品门" not in text:
             issues.append(Issue(_rel(root, manage), "must state 通用检查 ≠ 产品门"))
+        if "封顶" not in text or "换底" not in text:
+            issues.append(
+                Issue(_rel(root, manage), "must state squash 封顶 / 换底 (commit 规格化)")
+            )
     overlay_skill = root / "skills" / "use-overlay" / "SKILL.md"
     if overlay_skill.is_file():
         text = overlay_skill.read_text(encoding="utf-8")
@@ -511,6 +530,8 @@ def check_submit_source(root: Path) -> list[Issue]:
         issues.append(
             Issue(rel, "submit must require FORGE_SUBMIT_TOKEN (no silent gh / GITHUB_TOKEN fallback)")
         )
+    if "封顶" not in text or "protect" not in text:
+        issues.append(Issue(rel, "submit base must be protect (squash 封顶)"))
     if re.search(r"""\.get\(\s*['\"]GITHUB_TOKEN['\"]""", text):
         issues.append(Issue(rel, "submit must not read GITHUB_TOKEN"))
     if re.search(r"""\.get\(\s*['\"]FORGE_GITHUB_TOKEN['\"]""", text):

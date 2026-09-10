@@ -9,7 +9,7 @@ PR 的 **review 和 merge 由 GitHub 上的人 + Repository Ruleset 管**，不�
 - **CODEOWNERS**（哪条路径必须谁审）
 - Overlay `suite.yaml` 的人审字段（`reviewed_by`、`armed` / `blocked`）
 
-不要第二套权限库、不要 admin Web、不要数据库 RBAC、不要为角色再做一个门户。协作仍在 **GitHub + CodeRabbit**。Forge 不重做 diff 审。CodeRabbit **只建议，不能当唯一 merge 门**。
+不要第二套权限库、不要 admin Web、不要数据库 RBAC、不要为角色再做一个门户。协作仍在 **GitHub + CodeRabbit**。Forge 不重做 diff 审。CodeRabbit **只建议，不能当唯一 merge 门**。进 `main` 默认 squash：PR 是整段工作的封顶（提交内容规格化，见 [`pr-brief.md`](pr-brief.md)）；合完换底。Forge 不合入。
 
 角色怎么干活：管理端 [`../skills/manage-repo/SKILL.md`](../skills/manage-repo/SKILL.md)，开发端 [`../skills/dev-pr/SKILL.md`](../skills/dev-pr/SKILL.md)。产品 SOP 仍是 [`../skills/use-forge/SKILL.md`](../skills/use-forge/SKILL.md) 与 [`../skills/use-overlay/SKILL.md`](../skills/use-overlay/SKILL.md)。PR 解说面：[`pr-brief.md`](pr-brief.md)。
 

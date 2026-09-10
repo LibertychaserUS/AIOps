@@ -156,6 +156,18 @@ class DryRunTests(unittest.TestCase):
 
 
 class RefuseTests(unittest.TestCase):
+    def test_non_protect_base_is_refused(self) -> None:
+        code, _out, err, fake, pusher = _submit(
+            base="cursor/overlay-architecture-6842",
+            dry_run=True,
+            environ={SUBMIT_TOKEN_ENV: "t"},
+        )
+        self.assertEqual(code, EXIT_CONFIG)
+        self.assertIn("protect", err)
+        self.assertIn("封顶", err)
+        self.assertEqual(fake.calls, [])
+        self.assertEqual(pusher.calls, [])
+
     def test_protect_head_is_refused(self) -> None:
         code, _out, err, fake, pusher = _submit(head="main", dry_run=True, environ={})
         self.assertEqual(code, EXIT_CONFIG)

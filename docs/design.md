@@ -193,6 +193,8 @@ python -m forge revoke --repo OWNER/NAME --name forge-protected-default
 
 `pr-title`：纯函数锁 GitHub **PR 标题**（Conventional Commits + 必填 scope `product/actor`）。退出 `0`/`2`。不写 GitHub。规格：[`pr-brief.md`](pr-brief.md)。Actions 检查名 `pr-title`，只跑 `pull_request`。这是**通用检查**，不属于 Forge 产品门。
 
+进 `main` 的落地默认 **squash**。标题规格化的是 squash 之后那一颗，不是功能枝上每一颗中间 commit。要进 `main` 的 PR 必须是整段工作的**封顶**；合完以 `main` 新 SHA **换底**再开下一枝。不要从即将被压掉的旧头再叠。`submit` 的 base 是 `protect`（默认 `main`）。不借 Graphite stack / merge-when-ready；Forge 仍不合入。
+
 `ci-select`：读 `forge.yaml` `ci`。**通用检查 ≠ 产品门。** 不是两个产品各搞一套对等 CI。
 
 ```text
@@ -663,7 +665,7 @@ schema/check.py          # 形状检查；不是产品 CLI
 docs/products.md
 docs/rbac.md
 docs/submit-credential.md  # 代推密钥：Forge 不保管，要求 `FORGE_SUBMIT_TOKEN`             # GitHub-native review/merge；管理端 vs 开发端
-docs/pr-brief.md          # PR 解说规格（标题分工 + 六节正文）
+docs/pr-brief.md          # PR 解说规格（进 main 的提交：squash 封顶 + 标题分工 + 六节正文）
 .github/PULL_REQUEST_TEMPLATE.md
 docs/2026-09-10-对话整理.md
 skills/use-forge/ SKILL.md

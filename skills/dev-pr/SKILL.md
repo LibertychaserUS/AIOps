@@ -27,7 +27,7 @@ Do not `git add` `forge/`, `overlay/`, `schema/`, or `prompts/` into the product
    PYTHONPATH=../AIOps python3 -m forge submit --repo OWNER/NAME --title "feat(overlay/dev): fix armed select" --dry-run
    PYTHONPATH=../AIOps python3 -m forge submit --repo OWNER/NAME --title "feat(overlay/dev): fix armed select"
    ```
-   `--dry-run` 先跑 `forge check`（**通用** + **产品门**）；红则退出 2。check 绿后仍必须持有非空 `FORGE_SUBMIT_TOKEN`（PAT / fine-grained / GitHub App token）。缺或空：退出 2，打印 `would require FORGE_SUBMIT_TOKEN` / `missing FORGE_SUBMIT_TOKEN`，不 push。不回落 `GITHUB_TOKEN`、`gh auth`、`GH_TOKEN` 或 Ops 的 `FORGE_GITHUB_TOKEN`。密钥在且 check 绿：打印计划 + `would require FORGE_SUBMIT_TOKEN`；不 push。永不打印 token 值。Live 同样先 check，再 push 功能分支并开/更新 **draft** PR。永不 merge / approve / arm。Aligns with [`gh pr create`](https://cli.github.com/manual/gh_pr_create) 的「推分支 + 开 draft PR」，但必须持钥。Title must pass `python -m forge pr-title`. Grammar: Conventional Commits `type(product/actor): subject` ([`docs/pr-brief.md`](../../docs/pr-brief.md)). Example: `feat(overlay/dev): add overlay run to overlay-check`. Body headings: `做了什么` `为什么` `动了哪些门` `怎么验` `不做什么` `分工`. 开发写。管理拒收 `pr-title` 红或正文缺节的 PR。Do not push protected branches. Do not force-push those branches. Do not self-merge. Ops merge 用另一套权限，不是这把提交密钥。
+   `--dry-run` 先跑 `forge check`（**通用** + **产品门**）；红则退出 2。check 绿后仍必须持有非空 `FORGE_SUBMIT_TOKEN`（PAT / fine-grained / GitHub App token）。缺或空：退出 2，打印 `would require FORGE_SUBMIT_TOKEN` / `missing FORGE_SUBMIT_TOKEN`，不 push。不回落 `GITHUB_TOKEN`、`gh auth`、`GH_TOKEN` 或 Ops 的 `FORGE_GITHUB_TOKEN`。密钥在且 check 绿：打印计划 + `would require FORGE_SUBMIT_TOKEN`；不 push。永不打印 token 值。Live 同样先 check，再 push 功能分支并开/更新 **draft** PR（base 是 `protect` / `main`）。永不 merge / approve / arm。Aligns with [`gh pr create`](https://cli.github.com/manual/gh_pr_create) 的「推分支 + 开 draft PR」，但必须持钥。Title must pass `python -m forge pr-title`. Grammar: Conventional Commits `type(product/actor): subject` ([`docs/pr-brief.md`](../../docs/pr-brief.md)). 标题规格化的是 squash 进 `main` 的那颗。这一单必须是整段工作的**封顶**；合完从 `main` 新 SHA **换底**。不要从即将被压掉的旧头再叠。Example: `feat(overlay/dev): add overlay run to overlay-check`. Body headings: `做了什么` `为什么` `动了哪些门` `怎么验` `不做什么` `分工`. 开发写。管理拒收 `pr-title` 红或正文缺节的 PR。Do not push protected branches. Do not force-push those branches. Do not self-merge. Ops merge 用另一套权限，不是这把提交密钥。
 3. **Lock the title locally** with `python -m forge pr-title --title "…"` (also inside `forge check`) before you ask for review. Title `product` also selects product gates (`overlay` / `forge` / `ci`=both / `docs`=common only). **通用检查 ≠ 产品门。** Do not install husky to block `git commit`.
 4. **Request a human review.** CodeRabbit and Copilot comments run after PR spec and before Overlay full CI. They are advisory. They are never enough to merge by themselves. If Overlay Ops **打回** (`bounce` comment), fix that failed stage (title/body or armed Overlay CI); do not merge. Ops keeps `overlay-ops-debug` / receipts on the run.
 5. **Do not merge your own agent PRs.** Do not approve them. Do not write a review as `reviewed_by` on behalf of the model.
@@ -97,6 +97,7 @@ Overlay 模型 token 不在 push 上花。Forge 代推必须另持 `FORGE_SUBMIT
 | 想把 overlay/ 拷进产品仓 | 停。`$use-overlay`。 |
 | CodeRabbit 批了就想合 | 还要人 Approve + required checks（构建门 + 已勾的 `pr-title`，不是只有 CodeRabbit）。 |
 | 支付/登录 suite 想 armed | 停。功能没就绪就 `blocked`，不当红。 |
+| 想从还没合进 main 的 cursor/ 旧头再开一单 | 停。进 main 的 PR 必须封顶。squash 后换底。见 [`docs/pr-brief.md`](../../docs/pr-brief.md)。 |
 | 想写散文标题 | 停。`type(product/actor): subject` 一行。见 [`docs/pr-brief.md`](../../docs/pr-brief.md)。 |
 | 管理说缺规格 | 按 [`.github/PULL_REQUEST_TEMPLATE.md`](../../.github/PULL_REQUEST_TEMPLATE.md) 补六节。 |
 | 想装 husky 挡 commit | 停。本工作本不强制 commit hook。代推锁是 `python -m forge check`；合入锁是 GitHub required checks。 |
@@ -106,7 +107,8 @@ Overlay 模型 token 不在 push 上花。Forge 代推必须另持 `FORGE_SUBMIT
 原则：[`docs/sop-lock.md`](../../docs/sop-lock.md)。只锁可机器判定的子集。
 
 - **代推锁（提交前）：** `python -m forge check` 必须绿 **并且** 持有非空 `FORGE_SUBMIT_TOKEN`。缺密钥或 check 红：`forge submit`（含 `--dry-run`）拒绝，不 push、不开 PR。CI `GITHUB_TOKEN` 是合入锁，不是代推。Ops merge 是另一套权限。
-- 标题 `type(product/actor): subject` + 正文六节：`python -m forge pr-title`（也在 check 里）→ CI **`pr-title`**（合入锁）
+- 标题 `type(product/actor): subject` + 正文六节：`python -m forge pr-title`（也在 check 里）→ CI **`pr-title`**（合入锁）。进 `main` 默认 squash：**封顶**再压，压完**换底**。`submit` base 是 `protect`。
+- 不要从即将被压掉的旧头再叠。GitHub UI 把 base 指到另一条 `cursor/` 枝：仅人审。
 - 代推 dry-run / protect 拒绝：`python -m forge submit --dry-run` + Forge 单测 → **`forge-check`**（合入锁）
 - Overlay armed 红：修那个 `function_id`，门仍是 **`overlay-check`**
 - 仓级 SOP：`python -m forge sop-lock` → **`sop-lock`**（**通用**合入锁，永远跑；不是 forge-check 的一层）

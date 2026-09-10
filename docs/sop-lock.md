@@ -55,6 +55,7 @@ GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge
 | 本工作本 `forge.yaml` 列出 `overlay-check`、`pr-title`、`forge-check`、`sop-lock`；`apply` 写入 Ruleset `required_status_checks`；CodeRabbit 不能当唯一门 | `sop-lock` + `forge apply --dry-run` | 目标仓是否真跑过 apply | 不 live apply LearningGuidePortal |
 | 每个 `skills/*/SKILL.md` 有 `## Lock` 并指向程序 | `sop-lock` | Lock 段落写得清不清 | |
 | PR 标题 `type(product/actor): subject` | `python -m forge pr-title` → **`pr-title`** | 祈使句好不好读 | `[开发][Overlay]` 红 |
+| 进 `main` 的 PR 必须封顶；squash 后换底；不从即将被压掉的旧头再叠 | `sop-lock` 扫 `pr-brief` / skill；`submit` base=`protect` | GitHub UI 是否把 PR base 指到另一条 `cursor/` 枝 | 提交内容规格化；默认 squash。不 NLP 验「这单够不够封顶」 |
 | PR 正文六个 `##` 原样且按序 | 同上（`docs/pr-brief.md` 存在才锁） | 各节内容是否说清 | 不 NLP 验「不做什么」名单 |
 | 代推前本地门必须绿 | `python -m forge check`（代推锁；`submit` 调用） | 人是否绕过 CLI 直 push | GitHub required checks 只锁合入；可选 `forge/hooks/pre-submit`，不装 husky |
 | Live / dry-run `submit` 必须有`FORGE_SUBMIT_TOKEN` | `python -m forge submit` + `sop-lock` 扫源码 | 人是否直 `git push` | `gh auth login` / `GH_TOKEN` / 本机 extraheader / CI `GITHUB_TOKEN` 都不够。同一把 `FORGE_SUBMIT_TOKEN` 开 PR 并注入 HTTPS push。永不打印 token |
