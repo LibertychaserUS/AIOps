@@ -8,10 +8,10 @@
 
 | 产品 | 现在能 pin 的 tag | SHA | 管什么 |
 |---|---|---|---|
-| **Overlay** | [`overlay-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.0) | `235e514e673fa68b24879c8e139f2a5c6633ebb5` | 需求叶子 → 可审套件。CI 只跑 `armed`。没有 `generate`。 |
-| **Forge** | [`forge-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.0) | 同一 SHA | 本地 `check` 绿之后 `submit` 开 draft PR。人 + Ruleset 才合。Forge 不合入。 |
+| **Overlay** | [`overlay-v1.0.1`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.1) | 本 tag（与 `forge-v1.0.1` 同一提交） | 需求叶子 → 可审套件。CI 只跑 `armed`。没有 `generate`。 |
+| **Forge** | [`forge-v1.0.1`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.1) | 同一提交 | 本地 `check` 绿之后 `submit` 开 draft PR。人 + Ruleset 才合。Forge 不合入。 |
 
-`main` 上的 `pyproject.toml` 可能已经写着 `1.0.1`。**`overlay-v1.0.1` / `forge-v1.0.1` 这两个 tag 现在不存在。** 人按 [`docs/release.md`](docs/release.md) 发布之前，agent 必须 pin **v1.0.0**。禁止 `git checkout overlay-v1.0.1`。禁止 pin `main`。GitHub 的 Latest 徽章只挂一件产品，不要拿 Latest 当针。
+旧针 [`overlay-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.0) / [`forge-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.0) 仍停在 `235e514e673fa68b24879c8e139f2a5c6633ebb5`。不要 force-move `1.0.0`。禁止 pin `main`。GitHub 的 Latest 徽章只挂一件产品，不要拿 Latest 当针。
 
 需要：CPython **3.12+**。把本仓（或 fork）clone 到**产品仓旁边**。
 
@@ -31,7 +31,7 @@
 ```text
 git clone https://github.com/LibertychaserUS/AIOps.git /tmp/AIOps
 cd /tmp/AIOps
-git checkout overlay-v1.0.0
+git checkout overlay-v1.0.1
 python3 -m pip install -r requirements.txt
 export PYTHONPATH=/tmp/AIOps
 
@@ -41,7 +41,7 @@ python3 -m overlay cover --root .
 python3 -m forge check --root .
 ```
 
-`overlay-v1.0.0` 和 `forge-v1.0.0` 是同一提交。checkout 哪一条都行。
+`overlay-v1.0.1` 和 `forge-v1.0.1` 是同一提交。checkout 哪一条都行。
 
 `python -m forge` 现有子命令：`apply` `status` `check` `submit` `pr-title`/`title` `sop-lock` `ci-select` `ops-review` `bounce` `release`。没有 `brief`、`credential`、`ops-chain`、`revoke`。
 
@@ -56,15 +56,15 @@ python3 -m forge check --root .
 
 **第一次 vs 之后默认跑。** Forge 是开发完成后的全栈 GitHub 落地（`check` → `submit`），不是测试工具。不要为了接 Forge 去改 Overlay / Verify。接入方如果已有 `gh pr create`、husky、直推 main、只走 Verify、或自己的分支名：先提醒对照新旧（不合入、不 live-apply、不 arm、不改 Verify），等人明确同意再写 `forge.yaml` / 贴政策。同意过一次——或仓里已有 `forge.yaml` 且他们说过「同意」——之后只再问一次，说「之后默认按 Forge 落地」，然后默认跑 `check` / `submit`。不要每次存盘都问。初始化同意 ≠ 可以 live-apply 或 arm Overlay。
 
-别的 agent 装 skill（只 pin **已存在的 tag**；`gh skill` 没有 `--agent copilot`）：
+别的 agent 装 skill（只 pin **已发布的 tag**；host id：`codex` / `cursor` / `claude-code` / `github-copilot`）：
 
 ```text
-gh skill install LibertychaserUS/AIOps --agent codex --pin overlay-v1.0.0 --all
-gh skill install LibertychaserUS/AIOps --agent cursor --pin overlay-v1.0.0 --all
-gh skill install LibertychaserUS/AIOps --agent claude-code --pin overlay-v1.0.0 --all
+gh skill install LibertychaserUS/AIOps --agent codex --pin overlay-v1.0.1 --all
+gh skill install LibertychaserUS/AIOps --agent cursor --pin overlay-v1.0.1 --all
+gh skill install LibertychaserUS/AIOps --agent claude-code --pin overlay-v1.0.1 --all
 ```
 
-或在产品仓把 `skills/*` symlink 到 `.agents/skills` / `.cursor/skills` / `.claude/skills`。`overlay-v1.0.0` 上的 `use-forge` 仍把 `apply` 写进安装步骤；冷启动以本 README / 本仓更新后的 `use-forge` 六步为准，live `apply` 只在 `manage-repo`。
+或在产品仓把 `skills/*` symlink 到 `.agents/skills` / `.cursor/skills` / `.claude/skills`。`overlay-v1.0.1` 上的 `$use-forge` 是六步冷启动；live `apply` 只在 `manage-repo`。
 
 ---
 
@@ -85,7 +85,7 @@ gh skill install LibertychaserUS/AIOps --agent claude-code --pin overlay-v1.0.0 
 - `invariants.yaml` 的 `function_ids` 必须对上某篇 `cases.md` 的 `##` 标题；invariant id 必须在某篇 `cases.md` 里作为独立 token 出现。
 - 本工作本 fixture 里 login/payment 是 **blocked**。Learning Guide 产品仓可能已经 **armed**。不要把 fixture 状态抄到产品上。
 
-产品仓 CI：可以 `uses: LibertychaserUS/AIOps/.github/workflows/overlay.yml@overlay-v1.0.0`，也可以自己写 inline `overlay-check.yml`（checkout pin 再跑 CLI）。**产品仓已经有能跑的 inline，就不要再抄 reusable。**
+产品仓 CI：可以 `uses: LibertychaserUS/AIOps/.github/workflows/overlay.yml@overlay-v1.0.1`，也可以自己写 inline `overlay-check.yml`（checkout pin 再跑 CLI）。**产品仓已经有能跑的 inline，就不要再抄 reusable。**
 
 `required_checks` 填 **GitHub 上显示的 check / job 名**，不要抄 workflow 的 `name:`，除非两个字符串本来就一样。例子里的 `Verify` 只是例子。Learning Guide 是 `Typecheck` / `Lint` / `Build and test` / `overlay-check`。
 
@@ -94,7 +94,7 @@ gh skill install LibertychaserUS/AIOps --agent claude-code --pin overlay-v1.0.0 
 ## 禁止
 
 - 不要 vendor `forge/` / `overlay/` / `schema/` / `prompts/`
-- 不要 pin `main`，不要 checkout 不存在的 `v1.0.1`
+- 不要 pin `main`，不要 force-move `1.0.0`
 - 不要改 Learning Guide Verify，不要把 `test:io` 塞进 Verify
 - 不要 live-apply Forge 到 LearningGuidePortal
 - 不要打 `ilovelearningguide.com`

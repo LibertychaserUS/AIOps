@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "aiops"
 version = "1.0.1"
-description = "Forge + Overlay. Pin published overlay-v1.0.0 and forge-v1.0.0 until a human publishes 1.0.1."
+description = "Forge + Overlay. Pin published overlay-v1.0.1 and forge-v1.0.1."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

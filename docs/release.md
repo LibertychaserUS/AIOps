@@ -8,7 +8,7 @@
 | Overlay | `overlay-vX.Y.Z` | `overlay-v1.0.1` |
 | Forge | `forge-vX.Y.Z` | `forge-v1.0.1` |
 
-接入方 pin **已经存在的 tag 或 SHA**，不要 pin 浮动 `main`。在人真正打出 `overlay-v1.0.1` / `forge-v1.0.1` 之前，文档和 agent 必须继续写 [`overlay-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.0) / [`forge-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.0)。不要让 README 指向还不存在的 tag。GitHub 每个仓只有一个 Latest 徽章；两条 tag 都在，Latest 不代表另一条没发。
+接入方 pin **已经存在的 tag 或 SHA**，不要 pin 浮动 `main`。当前官方针是 [`overlay-v1.0.1`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.1) / [`forge-v1.0.1`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.1)。旧针 [`overlay-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.0) / [`forge-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.0) 不要 force-move。不要让 README 指向还不存在的下一版 tag。GitHub 每个仓只有一个 Latest 徽章；两条 tag 都在，Latest 不代表另一条没发。
 
 ---
 
@@ -26,12 +26,12 @@
 
 ```text
 # 本机（Ops token = FORGE_GITHUB_TOKEN 或 GITHUB_TOKEN，contents:write）
-# 人确认 tag 还不存在之后再发。Agent 在 tag 出现之前继续 pin v1.0.0。
-python3 -m forge release --repo LibertychaserUS/AIOps --version 1.0.1 --dry-run
-python3 -m forge release --repo LibertychaserUS/AIOps --version 1.0.1
+# 人确认新 tag 还不存在之后再发。不要 force-move 已有针。
+python3 -m forge release --repo LibertychaserUS/AIOps --version X.Y.Z --dry-run
+python3 -m forge release --repo LibertychaserUS/AIOps --version X.Y.Z
 ```
 
-或 GitHub Actions：`release` workflow → **Run workflow** → `version=1.0.1` → `products=both`。  
+或 GitHub Actions：`release` workflow → **Run workflow** → `version=X.Y.Z` → `products=both`。  
 `on:` 只有 `workflow_dispatch`。
 
 `forge release`：缺 token 红（live）；已存在的 tag 红；拒绝 LearningGuidePortal；`make_latest=false`（不要用 Latest 当 pin）。永不 merge，不 generate，不 submit。

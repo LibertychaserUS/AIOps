@@ -40,7 +40,7 @@ Overlay is a standard part. Freeze the contract, not a product’s numbers. Agen
 - `invariants.yaml` `function_ids` must match existing `##` titles. The invariant id must appear as a token in some `cases.md`.
 - This workshop’s Learning Guide **fixture** keeps login/payment `blocked`. A product repo may already have those suites `armed`. Do not copy fixture status onto the product.
 
-Pin **`overlay-v1.0.0`**. Do not checkout `overlay-v1.0.1` until that tag exists.
+Pin **`overlay-v1.0.1`**. Do not pin floating `main`. Do not force-move `1.0.0`.
 
 ## Instructions
 
@@ -58,7 +58,7 @@ The product repo commits **only**:
 - `inbox/`
 - `suites/`
 - `invariants.yaml` (optional)
-- a thin workflow: either `uses:` [`.github/workflows/overlay.yml`](../../.github/workflows/overlay.yml) from the **tool** repo at **`overlay-v1.0.0`** (or a SHA), **or** an inline `overlay-check.yml` that checkouts that pin and runs `python -m overlay`. If the product already has a working inline job, **do not replace it** with the reusable caller. Never pin floating `main`.
+- a thin workflow: either `uses:` [`.github/workflows/overlay.yml`](../../.github/workflows/overlay.yml) from the **tool** repo at **`overlay-v1.0.1`** (or a SHA), **or** an inline `overlay-check.yml` that checkouts that pin and runs `python -m overlay`. If the product already has a working inline job, **do not replace it** with the reusable caller. Never pin floating `main`.
 
 That is the whole adoption surface. Do **not** copy `overlay/` into the product tree so that CI sees `local=true`. When `overlay/__init__.py` is absent, the reusable workflow checkouts `tool_repository` (default `LibertychaserUS/AIOps`) into `_aiops` and sets `PYTHONPATH`. **That checkout is the correct reuse path.**
 
@@ -91,7 +91,7 @@ If you forked the workshop, `uses:` **your fork** at a pin and pass `tool_reposi
 
 ### CI — same gate as the tests
 
-7. Wire Overlay CI. Reusable `uses: LibertychaserUS/AIOps/.github/workflows/overlay.yml@overlay-v1.0.0` is valid. An **inline** product job that checkouts the same pin and runs `overlay validate` / `run` is also valid. Learning Guide already uses the reusable caller plus a wrapper job named `overlay-check` — do not replace that working file. If another product already has a working **inline** job, do not replace it with reusable either. This workshop’s `overlay-check.yml` is for this workshop, not a package to vendor. Do not copy this workshop’s `ci.yml` (common checks only).
+7. Wire Overlay CI. Reusable `uses: LibertychaserUS/AIOps/.github/workflows/overlay.yml@overlay-v1.0.1` is the official pin (`overlay-v1.0.0` still exists; do not force-move it). An **inline** product job that checkouts the same pin and runs `overlay validate` / `run` is also valid. Learning Guide already uses the reusable caller plus a wrapper job named `overlay-check` — do not replace that working file. If another product already has a working **inline** job, do not replace it with reusable either. This workshop’s `overlay-check.yml` is for this workshop, not a package to vendor. Do not copy this workshop’s `ci.yml` (common checks only).
 8. Push runs **validate + select + run**. On **pull_request** (when selected) Overlay Ops is: **spec (`pr-title`) → review-bots (CodeRabbit + Copilot comments, advisory) → full Overlay CI on this checkout → human merge**. Red spec/CI: `python -m forge bounce` 打回 the PR and keeps `overlay-ops-debug` + receipts. `run` executes each selected suite’s `product_command` in the **caller (product) checkout**. It does not clone a foreign product repo (Learning Guide Portal is never checked out from here). It **does** checkout the tool repo when `overlay/` is not local. No generate. No token spend on push. Do not wait for CodeRabbit to be a required check.
 9. Local equivalent (tool next door):
    ```text
@@ -171,7 +171,7 @@ validate / select are local YAML. `run` is local subprocess in the caller checko
 | 另开一个 Overlay unittest workflow / 让 Overlay run 跑 Forge 单测 | 停。Overlay 命令写进 Overlay armed suite。Forge 单测走 `forge-check`。 |
 | 抓不到全局 corner | 先读全部 inbox/suites，把性质写成 invariant，再写叶子。不要两两穷尽。见 `$design-cases`。 |
 | armed 缺 Edge | 契约红。补技法。 |
-| `uses: …@main` 或 checkout `overlay-v1.0.1` | 停。pin 已发布的 `overlay-v1.0.0`（或 SHA）。 |
+| `uses: …@main` | 停。pin 已发布的 `overlay-v1.0.1`（或 SHA）。不要 pin `main`。 |
 | `### Depth` / `## Specified` | 契约红。改成 `### Edge`；Specified 改成普通段落或注释，不要用 `##`。 |
 | 跨套件重复 `function_id` | 契约红。全局唯一。 |
 | invariant 写了不存在的 `## ML-FR-011` | 契约红。先改 `##` 标题或改 invariant。 |

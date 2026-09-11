@@ -11,7 +11,7 @@ Forge is the developer gate: local `check`, then `submit` (draft PR). It does no
 
 **Who reviews and merges:** GitHub humans + Ruleset. RBAC: [`docs/rbac.md`](../../docs/rbac.md). **开发端** after this skill: [`../dev-pr/SKILL.md`](../dev-pr/SKILL.md). **管理端** (live `apply`, required checks, merge, Overlay arm/block): [`../manage-repo/SKILL.md`](../manage-repo/SKILL.md). Agents: [`forge/agent-policy.md`](../../forge/agent-policy.md) — no self-merge, no self-approve.
 
-Pin **published** tags only: `overlay-v1.0.0` / `forge-v1.0.0` (same SHA `235e514…`). Do not pin `main`. Do not checkout `v1.0.1` until those tags exist on GitHub. Start: [`../../README.md`](../../README.md) / [`../../README.zh-CN.md`](../../README.zh-CN.md).
+Pin **published** tags only: `overlay-v1.0.1` / `forge-v1.0.1` (same commit). Do not pin `main`. Do not force-move `1.0.0`. Start: [`../../README.md`](../../README.md) / [`../../README.zh-CN.md`](../../README.zh-CN.md).
 
 ## First run vs default-run
 
@@ -63,10 +63,10 @@ Stay imperative. Six cold-start steps. Live apply is **not** in this list. Steps
 ```text
 git clone https://github.com/LibertychaserUS/AIOps.git /tmp/AIOps
 cd /tmp/AIOps
-git checkout overlay-v1.0.0
+git checkout overlay-v1.0.1
 ```
 
-`forge-v1.0.0` is the same commit. Need CPython **3.12+**. Do not vendor `forge/` into the product git repo.
+`forge-v1.0.1` is the same commit. Need CPython **3.12+**. Do not vendor `forge/` into the product git repo.
 
 ### 2. Install Python deps
 
@@ -122,13 +122,13 @@ Guard workflow is later. Overlay CI: if the product already has an inline `overl
 ## Examples
 
 ```text
-# Product cwd, tool at /tmp/AIOps @ overlay-v1.0.0
+# Product cwd, tool at /tmp/AIOps @ overlay-v1.0.1
 PYTHONPATH=/tmp/AIOps python3 -m forge check --root . --title "feat(overlay/dev): fix armed select"
 # submit requires FORGE_SUBMIT_TOKEN even on --dry-run
 PYTHONPATH=/tmp/AIOps python3 -m forge submit --repo OWNER/PRODUCT --title "feat(overlay/dev): fix armed select" --dry-run
 ```
 
-Illegal: `git checkout overlay-v1.0.1` while that tag is missing. Illegal: `git add forge/` in the product repo. Illegal: live `forge apply` as an agent. Illegal: `python -m forge revoke` / `brief` / `credential` / `ops-chain`. Illegal: `required_checks: [Verify]` on a repo whose jobs are `Typecheck` / `Lint` / `Build and test`.
+Illegal: `git checkout` a tag that is not on GitHub. Illegal: `git add forge/` in the product repo. Illegal: live `forge apply` as an agent. Illegal: `python -m forge revoke` / `brief` / `credential` / `ops-chain`. Illegal: `required_checks: [Verify]` on a repo whose jobs are `Typecheck` / `Lint` / `Build and test`.
 
 ## Performance Notes
 
@@ -139,7 +139,7 @@ Illegal: `git checkout overlay-v1.0.1` while that tag is missing. Illegal: `git 
 | 现象 | 处理 |
 |---|---|
 | 想把 `forge/` 拷进产品仓好 import | 停。工具留在 `/tmp/AIOps` 或 fork；产品仓只留 `forge.yaml`。本地用 `PYTHONPATH`。 |
-| checkout `overlay-v1.0.1` 失败 | tag 还不存在。改 pin `overlay-v1.0.0`。 |
+| checkout `overlay-v1.0.1` 失败 | `git fetch --tags` 后再 pin `overlay-v1.0.1`。不要 pin `main`。 |
 | 退出码 2 | 缺 `FORGE_SUBMIT_TOKEN`，或本机 `forge check` 红。不要用 `GITHUB_TOKEN` / `gh auth` 凑。 |
 | `forge check` 因 Overlay 契约红 | 叶子必须 `### Functional` / `### Negative` / `### Edge`。不要 `### Depth`。不要 `## Specified`。`$use-overlay`。 |
 | 抄了 `required_checks: Verify` 但对不上 CI | 改成 PR 上真实的 job 名。 |
