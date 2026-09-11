@@ -292,3 +292,5 @@ python3 -m forge release --repo LibertychaserUS/AIOps --version X.Y.Z --dry-run
 ```
 
 Does not deploy. Does not run on push. Does not merge.
+
+**1.0.1 honesty:** the annotated tags exist at `b4afc10ae0be4725e5109030f14a05bb2291fe4a`. Publishing is Human/Ops (`forge release` or Actions `release`). Release objects may not exist yet — do not treat `/releases/tag/overlay-v1.0.1` as proof. Do not force-move `1.0.0` or `1.0.1`. Ops owns the next Release / semver.

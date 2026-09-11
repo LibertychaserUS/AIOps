@@ -43,3 +43,9 @@ python3 -m forge release --repo LibertychaserUS/AIOps --version X.Y.Z
 - 不重钉已经有人 pin 的旧 tag（要更新就打 `1.0.1`，不要 force-move `1.0.0`）
 - 不打生产
 - 不在 overlay-check / forge-check / pr-title / sop-lock 里调用 `forge release`
+
+---
+
+## 1.0.1 honesty (do not retag)
+
+`overlay-v1.0.1` / `forge-v1.0.1` exist as annotated git tags at `b4afc10ae0be4725e5109030f14a05bb2291fe4a`. SOP is **Human / Ops** (`人点发布` / `python -m forge release` / Actions `release` `workflow_dispatch`). The tags were pushed; GitHub Release objects may still be missing (`gh release view overlay-v1.0.1` 404; `gh release create` is 403 for `cursor[bot]`). Do not delete or force-move those tags. Ops should create the Release pages for the existing tags, or own the next semver. Pin the git tag (`git checkout overlay-v1.0.1` / `/tree/overlay-v1.0.1`), not a missing `/releases/tag/` page.

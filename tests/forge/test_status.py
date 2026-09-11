@@ -28,8 +28,10 @@ class StatusTests(unittest.TestCase):
             environ={"FORGE_GITHUB_TOKEN": "t"},
         )
         self.assertEqual(code, EXIT_OK, stderr.getvalue())
-        self.assertIn("installed: no", stdout.getvalue())
-        self.assertIn(RULESET_NAME, stdout.getvalue())
+        text = stdout.getvalue()
+        self.assertIn("installed: no", text)
+        self.assertIn(RULESET_NAME, text)
+        self.assertIn("local declaration", text)
         self.assertEqual(fake.writes(), [])
         self.assertTrue(all(method == "GET" for method in fake.methods()))
 

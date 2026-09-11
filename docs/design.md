@@ -183,7 +183,8 @@ python -m forge release --repo OWNER/NAME --version X.Y.Z [--dry-run]
 3. 有 `docs/pr-brief.md` 且提供了 `--body` / `PR_BODY`：lint 正文六节。有 brief 无 body：跳过，并写明 CI 会 lint `PR_BODY`。本地省略标题/正文 ≠ CI 已过同一把锁。
 4. 根上有 `schema/check.py`（工具仓）：跑它。接入方产品根没有 `schema/` 则跳过。
 5. 本工作本有 `tests/forge/test_title.py`：跑快单测子集。
-6. 打印清单。任一红退出 2。无模型。
+6. 有 `forge.yaml` 且是 git 工作本：对照 `protect` 的 merge-base（加工作区）算 diff。碰到 `deny_paths` 则红。`agent_branch_prefixes` 只记录（第一刀不限制人的前缀，见 3.5.2）。无 `forge.yaml` 或无 git 则跳过。
+7. 打印清单。任一红退出 2。无模型。
 
 `submit`（开发侧代推；对齐 [`gh pr create`](https://cli.github.com/manual/gh_pr_create) 的「推分支 + 开 draft PR」；**必须**持有命名密钥 `FORGE_SUBMIT_TOKEN`）：
 

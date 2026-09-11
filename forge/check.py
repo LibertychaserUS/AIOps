@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import TextIO
 
 from forge import EXIT_OK
+from forge.apply import ForgeError, load_config
 from forge.brief import brief_spec_exists, lint_pr_body
 from forge.title import run_pr_title
 
@@ -56,6 +57,135 @@ def workshop_fast_test_modules(root: Path) -> list[str]:
 def _last_line(text: str) -> str:
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     return lines[-1] if lines else ""
+
+
+def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", "-C", str(root), *args],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def is_git_work_tree(root: Path) -> bool:
+    proc = _git(root, "rev-parse", "--is-inside-work-tree")
+    return proc.returncode == 0 and proc.stdout.strip() == "true"
+
+
+def current_branch(root: Path) -> str | None:
+    proc = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
+    if proc.returncode != 0:
+        return None
+    name = proc.stdout.strip()
+    if not name or name == "HEAD":
+        return None
+    return name
+
+
+def resolve_protect_ref(root: Path, protect: Sequence[str]) -> str | None:
+    for name in protect:
+        for candidate in (
+            f"refs/heads/{name}",
+            name,
+            f"origin/{name}",
+            f"refs/remotes/origin/{name}",
+        ):
+            proc = _git(root, "rev-parse", "--verify", "--quiet", candidate)
+            if proc.returncode == 0:
+                return candidate
+    return None
+
+
+def normalize_repo_path(path: str) -> str:
+    rel = path.replace("\\", "/")
+    while rel.startswith("./"):
+        rel = rel[2:]
+    return rel
+
+
+def path_is_denied(path: str, deny_paths: Sequence[str]) -> bool:
+    rel = normalize_repo_path(path)
+    for deny in deny_paths:
+        target = normalize_repo_path(str(deny))
+        if not target:
+            continue
+        if rel == target:
+            return True
+        if target.endswith("/") and rel.startswith(target):
+            return True
+        if not target.endswith("/") and rel.startswith(target + "/"):
+            return True
+    return False
+
+
+def list_changed_paths(root: Path, base_ref: str | None) -> list[str] | None:
+    """Changed paths vs protect merge-base (or HEAD). None if not a git work tree."""
+    if not is_git_work_tree(root):
+        return None
+    paths: set[str] = set()
+    if base_ref:
+        merge = _git(root, "merge-base", "HEAD", base_ref)
+        base = merge.stdout.strip() if merge.returncode == 0 and merge.stdout.strip() else base_ref
+        for args in (
+            ("diff", "--name-only", "--no-renames", base),
+            ("diff", "--name-only", "--no-renames", "--cached", base),
+        ):
+            proc = _git(root, *args)
+            if proc.returncode == 0:
+                paths.update(normalize_repo_path(line) for line in proc.stdout.splitlines() if line.strip())
+    else:
+        for args in (
+            ("diff", "--name-only", "--no-renames", "HEAD"),
+            ("diff", "--name-only", "--no-renames", "--cached"),
+        ):
+            proc = _git(root, *args)
+            if proc.returncode == 0:
+                paths.update(normalize_repo_path(line) for line in proc.stdout.splitlines() if line.strip())
+    untracked = _git(root, "ls-files", "--others", "--exclude-standard")
+    if untracked.returncode == 0:
+        paths.update(normalize_repo_path(line) for line in untracked.stdout.splitlines() if line.strip())
+    return sorted(p for p in paths if p)
+
+
+def matching_agent_prefix(branch: str | None, prefixes: Sequence[str]) -> str | None:
+    if not branch:
+        return None
+    for prefix in prefixes:
+        if branch.startswith(prefix):
+            return prefix
+    return None
+
+
+def deny_paths_step(root: Path) -> Step:
+    """Fail when the local diff touches forge.yaml deny_paths. No GitHub write.
+
+    agent_branch_prefixes are recorded (design 3.5.2: human branches stay allowed).
+    They are not a local fail in this cut.
+    """
+    forge_yaml = root / "forge.yaml"
+    if not forge_yaml.is_file():
+        return Step("deny_paths", "skip", "no forge.yaml")
+    try:
+        config = load_config(forge_yaml)
+    except ForgeError as exc:
+        return Step("deny_paths", "fail", exc.message)
+    if not is_git_work_tree(root):
+        return Step("deny_paths", "skip", "no git work tree")
+    base = resolve_protect_ref(root, config.protect)
+    changed = list_changed_paths(root, base)
+    if changed is None:
+        return Step("deny_paths", "skip", "no git work tree")
+    hits = [path for path in changed if path_is_denied(path, config.deny_paths)]
+    branch = current_branch(root)
+    prefix = matching_agent_prefix(branch, config.agent_branch_prefixes)
+    suffix = f"; agent branch {branch}" if prefix and branch else ""
+    if hits:
+        shown = ", ".join(hits)
+        return Step("deny_paths", "fail", f"diff touches {shown}{suffix}")
+    if base:
+        return Step("deny_paths", "ok", f"vs {base}{suffix}")
+    return Step("deny_paths", "ok", f"no protect ref{suffix}")
 
 
 def _print_captured(text: str, stream: TextIO) -> None:
@@ -237,6 +367,8 @@ def run_check(
         steps.append(Step("sop-lock", "fail", _last_line(buf_err.getvalue()) or f"exit {code}"))
     else:
         steps.append(Step("sop-lock", "ok", _last_line(buf_out.getvalue())))
+
+    steps.append(deny_paths_step(root))
 
     nested = bool(env.get(CHECK_ENV)) or bool(os.environ.get(CHECK_ENV))
     modules = workshop_fast_test_modules(root)

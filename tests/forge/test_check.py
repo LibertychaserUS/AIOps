@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import io
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
 from forge import EXIT_OK
 from forge.__main__ import main
-from forge.check import EXIT_CHECK, run_check
+from forge.check import EXIT_CHECK, deny_paths_step, path_is_denied, run_check
 from forge.title import EXAMPLE
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -216,6 +218,118 @@ class SkipAndFailTests(unittest.TestCase):
         self.assertNotIn("npx husky", text.lower())
         self.assertNotIn("husky install", text.lower())
         self.assertTrue(hook.stat().st_mode & 0o111)
+
+
+def _git(root: Path, *args: str) -> None:
+    subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+
+
+def _init_product(root: Path) -> None:
+    (root / ".github" / "workflows").mkdir(parents=True)
+    (root / ".github" / "workflows" / "ci.yml").write_text("name: ci\n", encoding="utf-8")
+    (root / "README.md").write_text("hello\n", encoding="utf-8")
+    (root / "forge.yaml").write_text(
+        "schema: forge-config/v1\n"
+        "protect:\n"
+        "  - main\n"
+        "agent_branch_prefixes:\n"
+        "  - cursor/\n"
+        "  - copilot/\n"
+        "deny_paths:\n"
+        "  - .github/workflows/ci.yml\n",
+        encoding="utf-8",
+    )
+    _git(root, "init", "-b", "main")
+    _git(root, "config", "user.email", "t@example.test")
+    _git(root, "config", "user.name", "T")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-m", "init")
+
+
+class DenyPathsCheckTests(unittest.TestCase):
+    def test_readme_only_is_green(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product(root)
+            _git(root, "checkout", "-b", "cursor/docs")
+            (root / "README.md").write_text("hello world\n", encoding="utf-8")
+            _git(root, "add", "README.md")
+            _git(root, "commit", "-m", "docs")
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            code = run_check(
+                root,
+                title=EXAMPLE,
+                stdout=stdout,
+                stderr=stderr,
+                environ={},
+                run_unittests=False,
+            )
+            self.assertEqual(code, EXIT_OK, stderr.getvalue())
+            out = stdout.getvalue()
+            self.assertIn("deny_paths", out)
+            self.assertNotIn("FAIL", out)
+            self.assertIn("agent branch cursor/docs", out)
+
+    def test_deny_path_commit_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product(root)
+            _git(root, "checkout", "-b", "cursor/ci")
+            (root / ".github" / "workflows" / "ci.yml").write_text("name: ci\non: push\n", encoding="utf-8")
+            _git(root, "add", "-A")
+            _git(root, "commit", "-m", "touch deny")
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            code = run_check(
+                root,
+                title=EXAMPLE,
+                stdout=stdout,
+                stderr=stderr,
+                environ={},
+                run_unittests=False,
+            )
+            self.assertEqual(code, EXIT_CHECK)
+            out = stdout.getvalue()
+            self.assertIn("deny_paths", out)
+            self.assertIn("FAIL", out)
+            self.assertIn(".github/workflows/ci.yml", out)
+            self.assertIn("agent branch cursor/ci", out)
+
+    def test_human_branch_also_fails_on_deny_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product(root)
+            _git(root, "checkout", "-b", "feature/ci")
+            (root / ".github" / "workflows" / "ci.yml").write_text("name: ci\non: push\n", encoding="utf-8")
+            stdout = io.StringIO()
+            code = run_check(
+                root,
+                title=EXAMPLE,
+                stdout=stdout,
+                stderr=io.StringIO(),
+                environ={},
+                run_unittests=False,
+            )
+            self.assertEqual(code, EXIT_CHECK)
+            self.assertIn(".github/workflows/ci.yml", stdout.getvalue())
+            self.assertNotIn("agent branch", stdout.getvalue())
+
+    def test_no_forge_yaml_skips_deny_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            step = deny_paths_step(root)
+            self.assertEqual(step.status, "skip")
+            self.assertIn("no forge.yaml", step.detail)
+
+    def test_path_match_is_exact_or_directory(self) -> None:
+        deny = [".github/workflows/ci.yml", "docs/locked"]
+        self.assertTrue(path_is_denied(".github/workflows/ci.yml", deny))
+        self.assertTrue(path_is_denied("./.github/workflows/ci.yml", deny))
+        self.assertFalse(path_is_denied(".github/workflows/ci.yml.bak", deny))
+        self.assertTrue(path_is_denied("docs/locked/readme.md", deny))
+        self.assertFalse(path_is_denied("docs/open.md", deny))
+        self.assertFalse(path_is_denied("github/workflows/ci.yml", deny))
 
 
 if __name__ == "__main__":

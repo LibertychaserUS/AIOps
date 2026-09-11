@@ -42,6 +42,10 @@ def run_status(
         if not existing:
             print("installed: no", file=out)
             print(f"name: {RULESET_NAME}", file=out)
+            print(
+                "note: forge.yaml is a local declaration; GitHub Rulesets stay empty until Ops apply",
+                file=out,
+            )
             return EXIT_OK
         detail = existing
         ruleset_id = existing.get("id")

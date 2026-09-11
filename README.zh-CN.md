@@ -104,3 +104,5 @@ gh skill install LibertychaserUS/AIOps --agent claude-code --pin overlay-v1.0.1 
 - 不要把 Harness MCP 的 pipeline skill 当成这套 Forge
 
 细设计在 [`docs/design.md`](docs/design.md)，不要把那一篇整篇搬进产品仓。
+
+`1.0.1` 的 annotated tag 已在 `b4afc10ae0be4725e5109030f14a05bb2291fe4a`。发版是 Human/Ops（`forge release` 或 Actions `release`）。GitHub Release 对象可能还没有——不要把 `/releases/tag/overlay-v1.0.1` 当成已发布证明。不要 force-move `1.0.0` / `1.0.1`。下一版 Release / semver 归 Ops。
