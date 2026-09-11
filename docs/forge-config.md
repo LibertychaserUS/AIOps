@@ -59,7 +59,7 @@ docs_sync:
 内建三条（只扫 git 跟踪且未被 `.gitignore` 忽略的 `*.md`；`node_modules/`、构建产物不算）：
 
 1. 仓内 `*.md` 相对链接目标必须存在。以 `/` 开头的链接视为站点根路径（Web 产品的 `public/`），不检查；`http(s)://`、`mailto:`、`#` 也不检查。
-2. `*.md` 里出现的 `overlay-vX.Y.Z` / `forge-vX.Y.Z` 必须是已有 git tag，或 CHANGELOG 里 `## [overlay-X.Y.Z]` / `## [forge-X.Y.Z]`。允许写下一版，但要先登记。
+2. （仅工作本根）`*.md` 里出现的 `overlay-vX.Y.Z` / `forge-vX.Y.Z` 必须是已有 git tag，或 CHANGELOG 里 `## [overlay-X.Y.Z]` / `## [forge-X.Y.Z]`。允许写下一版，但要先登记。
 3. 若 `docs/STATE.md` 存在，其保护分支 / required checks / CI job 名必须与当前 `forge.yaml` + `.github/workflows` 一致，否则红（「运行 forge status --write」）。pin / 最近 tag 只作记录，不参与比对（发布提交先带 STATE 再打 tag）。
 
 ## forbidden_live_repos

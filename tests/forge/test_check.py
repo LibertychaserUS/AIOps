@@ -625,10 +625,28 @@ class DocsSyncCheckTests(unittest.TestCase):
             code, out = _check(root)
             self.assertEqual(code, EXIT_OK, out)
 
-    def test_unregistered_pin_mention_is_red(self) -> None:
+    def _init_workshop_like(self, root: Path) -> None:
+        # Pin mentions are checked against this repo's own tags, so only the
+        # workshop (which owns overlay-v*/forge-v*) runs that rule.
+        _init_product(root)
+        (root / "overlay").mkdir()
+        (root / "overlay" / "__init__.py").write_text('__version__ = "0"\n', encoding="utf-8")
+        _git(root, "add", "-A")
+        _git(root, "commit", "-m", "workshop")
+
+    def test_adopter_may_mention_tool_pins_it_does_not_own(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _init_product(root)
+            _git(root, "checkout", "-b", "cursor/docs")
+            (root / "README.md").write_text("pin overlay-v9.9.9 from the tool repo\n", encoding="utf-8")
+            code, out = _check(root)
+            self.assertEqual(code, EXIT_OK, out)
+
+    def test_unregistered_pin_mention_is_red_in_the_workshop(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._init_workshop_like(root)
             _git(root, "checkout", "-b", "cursor/docs")
             (root / "README.md").write_text("pin overlay-v9.9.9\n", encoding="utf-8")
             code, out = _check(root)
@@ -638,7 +656,7 @@ class DocsSyncCheckTests(unittest.TestCase):
     def test_changelog_heading_registers_next_pin(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _init_product(root)
+            self._init_workshop_like(root)
             (root / "CHANGELOG.md").write_text("## [overlay-9.9.9]\n\nnext\n", encoding="utf-8")
             _git(root, "add", "-A")
             _git(root, "commit", "-m", "changelog")

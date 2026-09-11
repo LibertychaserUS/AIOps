@@ -417,7 +417,9 @@ def docs_sync_step(root: Path, environ: Mapping[str, str] | None = None) -> Step
                         + ", ".join(rule.require)
                     )
     misses.extend(_relative_link_failures(root))
-    misses.extend(_pin_mention_failures(root))
+    if is_workshop_root(root):
+        # overlay-v*/forge-v* tags live in the tool repo; adopters may cite them freely.
+        misses.extend(_pin_mention_failures(root))
     state_path = root / "docs" / "STATE.md"
     if state_path.is_file():
         ok, message = state_is_fresh(root, config, state_path.read_text(encoding="utf-8"))

@@ -4,9 +4,16 @@
 
 产品分两条线：`overlay-X.Y.Z` 与 `forge-X.Y.Z`。对应 git tag 为 `overlay-vX.Y.Z` / `forge-vX.Y.Z`。未发布的段写在下面，打 tag 时由 `forge release` 引用。
 
+## [forge-1.1.2]
+
+### Fixed
+
+- `docs_sync` 的「版本引用必须是已有 tag」只在工作本根执行；接入方引用工具 tag（`overlay-v2.0.0`）不再被自己仓库没有该 tag 判红。
+
 ## [forge-1.1.1]
 
 ### Fixed
+
 
 - `docs_sync` 只扫 git 跟踪且未忽略的 `*.md`；`node_modules/` 等不再被当成仓内文档。
 - `docs_sync` 把以 `/` 开头的链接视为站点根路径（Web 产品 `public/`），不再当仓内相对路径报错。
