@@ -1,6 +1,14 @@
 ---
 name: dev-pr
-description: Act as 开发端 (human developer) on a Forge-protected GitHub repo. This skill should be used when running python -m forge check (local pre-submit gate), submitting a PR via python -m forge submit (代推; check must be green), writing the PR brief (docs/pr-brief.md Conventional Commits title + six headings), requesting review, or fixing an armed Overlay failure. Do not use to apply Rulesets, merge-gate setup, live forge apply, merge, or write reviewed_by / armed (use manage-repo). Agents use this plus forge/agent-policy.md and must not self-merge. Do not invent branch, workflow, or skill prefixes.
+description: >-
+  Act as 开发端 (human developer) on a Forge-protected GitHub repo.
+  Use when running python -m forge check (local pre-submit gate), submitting a
+  PR via python -m forge submit (代推; check must be green), writing the PR brief
+  (docs/pr-brief.md Conventional Commits title + six headings), requesting
+  review, or fixing an armed Overlay failure. Do not apply Rulesets, set up
+  merge gates, live-apply Forge, merge, or write reviewed_by / armed
+  (use manage-repo). Agents use this plus forge/agent-policy.md and must not
+  self-merge. Do not invent branch, workflow, or skill prefixes.
 metadata:
   short-description: Open PRs; do not arm or apply Forge
 ---

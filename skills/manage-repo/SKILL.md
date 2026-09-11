@@ -1,6 +1,15 @@
 ---
 name: manage-repo
-description: Act as 管理端 (repo admin / maintainer) on GitHub-native review and merge. Ops only: review required checks (合入锁) and merge when green. Local python -m forge check is the 开发侧 代推锁 — Ops does not run it for developers. This skill should be used when applying a Forge Ruleset, setting required checks, writing CODEOWNERS, merging a green+approved PR, rejecting a PR that fails pr-title or lacks the six headings (docs/pr-brief.md), or arming/blocking an Overlay suite (`reviewed_by`). Do not push or forge submit for developers (use dev-pr). Do not invent branch, workflow, or skill prefixes. Product install SOP stays in use-forge and use-overlay.
+description: >-
+  Act as 管理端 (repo admin / maintainer) on GitHub-native review and merge.
+  Ops only reviews required checks (合入锁) and merges when green.
+  Local python -m forge check is the 开发侧 代推锁 — Ops does not run it for developers.
+  Use when applying a Forge Ruleset, setting required checks, writing CODEOWNERS,
+  merging a green+approved PR, rejecting a PR that fails pr-title or lacks the
+  six headings (docs/pr-brief.md), or arming/blocking an Overlay suite
+  (`reviewed_by`). Do not push or forge submit for developers (use dev-pr).
+  Do not invent branch, workflow, or skill prefixes. Product install SOP stays
+  in use-forge and use-overlay.
 metadata:
   short-description: Admin Ruleset, merge, Overlay arm/block
 ---
