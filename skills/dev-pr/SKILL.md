@@ -28,6 +28,8 @@ PYTHONPATH=../AIOps python3 -m forge check --root . --title "feat(overlay/agent)
 4. **Overlay：不要把 `status` 改成 `blocked`。** `suite_guard` 在 agent 分支上会红。人改走 `$manage-repo`。
 5. **Title** 过 `python -m forge pr-title`。本工作本 `title.scopes` 是列表（`product/actor`）；接入方若写 `any` 则只查 Conventional Commits 语法。正文六节：`做了什么` `为什么` `动了哪些门` `怎么验` `不做什么` `分工`。进保护分支默认 squash：**封顶**再压，压完**换底**。
 6. **Promote 不是 submit。** `dev` → `main` 用 `forge promote`，仍然不 merge。
+7. **正文从 diff 写。** 开 PR 前跑 `git diff --stat origin/<protect[0]>...HEAD`，六标题「做了什么」逐条对应改动的文件与行为；改了工作流 / 套件 `status` / `forge.yaml` / `overlay.yaml` / 迁移必须写明。审查方会逐条对账，对不上不批。
+8. **带上上下文。** 改了配置或工作流 → 重新生成 `docs/STATE.md`；契约变更 → ADR；工具改动 → `CHANGELOG.md`；`docs_sync` 表命中的路径同 PR 改文档。
 7. 需要状态页时：`python -m forge status --repo OWNER/NAME --root . --write docs/STATE.md`。改 `forge/**` 时按 `docs_sync` 同步 CHANGELOG / 配置文档。
 
 ### Never

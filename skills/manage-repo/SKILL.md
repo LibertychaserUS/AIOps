@@ -28,6 +28,8 @@ metadata:
 5. **Overlay `blocked`** 是人手改 yaml。Agent 不得在 agent 分支上做（`suite_guard` 红）。`blocked` 必须有带链接或编号的 `blocked_reason`。不要写已删除的旧字段。改完：`python -m overlay validate --root .`。
 6. **发布：** `python -m forge release --repo OWNER/NAME --products overlay --version 2.0.0 --dry-run` 与 `--products forge --version 1.1.0` 分两次（`--products both` 要求两产品 `__version__` 相同）。CHANGELOG 必须有 `## [overlay-2.0.0]` / `## [forge-1.1.0]`。不要 force-move 已有针。
 
+7. **审 PR 的两项职责（人和审查 agent 都适用）。** 一、正文与 diff 逐条对账：「做了什么」每条能在 `git diff --stat` 里找到；diff 里的工作流 / 套件 `status` / 配置 / 迁移改动正文必须写；对不上 → request changes 并列出条目。二、全局上下文：`docs/STATE.md` 是否随配置重生成、契约变更有没有 ADR、`CHANGELOG.md` 有没有段、`docs_sync` 表要求的文档是否同 PR 改。缺就点名到文件再批。机器只能判定 `docs_sync` / `--check-state` 那部分，其余靠这一条。
+
 ## Never
 
 - 不要 vendor 工具。

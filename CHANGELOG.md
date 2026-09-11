@@ -4,6 +4,12 @@
 
 产品分两条线：`overlay-X.Y.Z` 与 `forge-X.Y.Z`。对应 git tag 为 `overlay-vX.Y.Z` / `forge-vX.Y.Z`。未发布的段写在下面，打 tag 时由 `forge release` 引用。
 
+## [Unreleased]
+
+### Changed
+
+- 规则：开 PR 的 agent 正文必须从 diff 写；审 PR 的 agent 逐条对账正文与 diff，并检查 STATE / ADR / CHANGELOG / `docs_sync` 目标是否随 PR 更新（`forge/agent-policy.md`、`skills/dev-pr`、`skills/manage-repo`）。工具化候选：`pr-body` 增加「正文提到的路径必须在 diff 或树里」「diff 触碰 deny_paths / suite.yaml / forge.yaml / overlay.yaml 时正文必须出现该路径」。
+
 ## [forge-1.1.2]
 
 ### Fixed
