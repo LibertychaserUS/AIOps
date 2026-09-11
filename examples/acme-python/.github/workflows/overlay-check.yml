@@ -1,0 +1,19 @@
+# Acme Python Overlay caller. Pin a published tag, never floating main.
+# run installs the product toolchain via setup_command, then overlay run.
+name: overlay-check
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  overlay:
+    uses: LibertychaserUS/AIOps/.github/workflows/overlay.yml@overlay-v2.0.0
+    with:
+      enable_run: true
+      tool_repository: LibertychaserUS/AIOps
+      tool_ref: overlay-v2.0.0
+      setup_command: pip install -r requirements-dev.txt

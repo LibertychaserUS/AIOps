@@ -5,17 +5,18 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
+    "schema",
     "id",
     "title",
-    "status",
     "kind",
     "subject",
     "source"
   ],
   "properties": {
+    "schema": { "const": "overlay-suite/v2" },
     "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
     "title": { "type": "string", "minLength": 1 },
-    "status": { "enum": ["draft", "blocked", "armed"] },
+    "status": { "enum": ["active", "blocked"] },
     "kind": { "enum": ["functional", "regression"] },
     "subject": { "enum": ["product", "agent"] },
     "source": { "type": "string", "minLength": 1 },
@@ -23,10 +24,7 @@
       "type": "array",
       "items": { "type": "string" }
     },
-    "reviewed_by": { "type": ["string", "null"] },
-    "reviewed_at": { "type": ["string", "null"] },
     "blocked_reason": { "type": ["string", "null"] },
-    "armed_reason": { "type": ["string", "null"] },
     "product_command": { "type": ["string", "null"] }
   }
 }

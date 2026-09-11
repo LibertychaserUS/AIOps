@@ -1,0 +1,7 @@
+schema: overlay-invariants/v1
+items:
+  - id: INV-stock-never-negative
+    text: reserve never stores a negative on-hand quantity
+    function_ids:
+      - INV-01
+    span: system

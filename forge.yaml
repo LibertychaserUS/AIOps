@@ -1,19 +1,63 @@
 schema: forge-config/v1
 protect:
+  - dev
   - main
 agent_branch_prefixes:
   - cursor/
   - copilot/
+  - agent/
 deny_paths:
-  - .github/workflows/ci.yml
-required_checks:
-  - overlay-check
-  - pr-title
-  - forge-check
-  - sop-lock
-review:
-  min_approvals: 1
-  code_owners: false
+  - .github/workflows/release.yml
+branches:
+  dev:
+    required_checks:
+      - overlay-check
+      - pr-title
+      - forge-check
+      - sop-lock
+      - unittest
+    approvals: 0
+    code_owners: false
+  main:
+    required_checks:
+      - overlay-check
+      - pr-title
+      - forge-check
+      - sop-lock
+      - unittest
+    approvals: 1
+    code_owners: true
+    promote_from: dev
+title:
+  scopes:
+    - overlay/dev
+    - overlay/admin
+    - overlay/agent
+    - forge/dev
+    - forge/admin
+    - forge/agent
+    - ci/dev
+    - ci/admin
+    - ci/agent
+    - docs/dev
+    - docs/admin
+    - docs/agent
+docs_sync:
+  - paths:
+      - forge/**
+    require:
+      - CHANGELOG.md
+      - docs/forge-config.md
+  - paths:
+      - overlay/**
+    require:
+      - CHANGELOG.md
+  - paths:
+      - .github/workflows/overlay.yml
+    require:
+      - README.md
+forbidden_live_repos:
+  - first-light-techhk/learningguideportal
 ci:
   common:
     - pr-title

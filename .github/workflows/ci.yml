@@ -1,10 +1,10 @@
 # Workshop common checks only. 通用检查 ≠ 产品门.
-# Jobs named pr-title + sop-lock (stable for Ruleset / forge.yaml).
+# Jobs named pr-title + sop-lock + unittest (stable for Ruleset / forge.yaml).
 # Forge product door stays in forge-check.yml.
 # Overlay product door + Ops DAG stays in overlay-check.yml.
 # Adopters pin reusable overlay.yml — do not copy this workshop ci.yml.
 # release.yml is human publish, not CI.
-# Skip via ci-select is a product-door concern; these two jobs always run.
+# Skip via ci-select is a product-door concern; these jobs always run.
 
 name: ci
 
@@ -61,3 +61,23 @@ jobs:
 
       - name: sop-lock
         run: python -m forge sop-lock --root .
+
+  unittest:
+    name: unittest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Full unittest discover
+        run: python3 -m unittest discover -s tests -t . -q

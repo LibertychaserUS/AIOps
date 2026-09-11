@@ -24,7 +24,7 @@ Forge apply on this workshop prints a Ruleset payload in dry-run and does not wr
 
 # Out of scope
 
-- Live apply to LearningGuidePortal.
+- Live apply to a repo listed in `forbidden_live_repos`.
 - forge-guard.yml (later slice).
 
 # User cases

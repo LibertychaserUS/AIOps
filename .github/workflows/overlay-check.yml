@@ -5,12 +5,12 @@
 #
 # Overlay Ops DAG on pull_request when selected:
 #   spec (PR 标题/正文规格) → review-bots (CodeRabbit + Copilot, advisory)
-#   → full CI on this checkout (validate → select → run armed Overlay)
+#   → full CI on this checkout (validate → select → run active Overlay)
 #   → human Ops merge
 # Red spec/CI: bounce 打回 + keep ops-debug / receipts for debug.
 # CodeRabbit is never the only merge gate. Never generate. Never forge submit.
-# Never arm. branch is pinned to main so agent branches still execute the
-# armed Overlay tool tests. Forge tests live on forge-check.
+# branch is pinned to main so agent branches still execute the
+# active Overlay tool tests. Forge tests live on forge-check.
 
 name: overlay-check
 

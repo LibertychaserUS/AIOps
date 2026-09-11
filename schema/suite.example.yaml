@@ -1,18 +1,16 @@
 # Contract example for suites/<id>/suite.yaml
 # Kernel example uses generic ids — not a product catalog or route tree.
 
+schema: overlay-suite/v2
 id: checkout-retry
 title: Checkout retry without double charge
-status: draft
+status: active
 kind: functional
 subject: product
 source: inbox/checkout-retry.md
 packages:
   - src/checkout
-reviewed_by: null
-reviewed_at: null
 blocked_reason: null
-armed_reason: null
 product_command: null
 
 # cases.md headings start with an adopter-minted function_id (e.g. FN-login-retry).

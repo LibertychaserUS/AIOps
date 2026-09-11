@@ -39,6 +39,8 @@ class FakeGitHub:
         self.review_comments: list[dict] = []
         self.check_runs: list[dict] = []
         self.releases: list[dict] = []
+        # tag name -> {"sha": ..., "type": "commit"} or {"sha": tagobj, "type": "tag", "peeled": commit}
+        self.tags: dict[str, dict] = {}
         self.main_sha = "abc1234deadbeef"
         self.calls: list[tuple[str, str, dict | None]] = []
         self.next_id = 1
@@ -115,6 +117,24 @@ class FakeGitHub:
                 raise HTTPError(req.full_url, 405, "method", hdrs=None, fp=io.BytesIO(b"{}"))
             if ref == "heads/main":
                 return FakeResponse(200, {"ref": "refs/heads/main", "object": {"sha": self.main_sha}})
+            if ref.startswith("tags/"):
+                found_tag = self.tags.get(ref[len("tags/"):])
+                if found_tag is not None:
+                    return FakeResponse(
+                        200,
+                        {
+                            "ref": f"refs/{ref}",
+                            "object": {"sha": found_tag["sha"], "type": found_tag.get("type", "commit")},
+                        },
+                    )
+            raise HTTPError(req.full_url, 404, "not found", hdrs=None, fp=io.BytesIO(b'{"message":"not found"}'))
+
+        if parts[3] == "git" and len(parts) == 6 and parts[4] == "tags":
+            if method != "GET":
+                raise HTTPError(req.full_url, 405, "method", hdrs=None, fp=io.BytesIO(b"{}"))
+            for item in self.tags.values():
+                if item.get("type") == "tag" and item["sha"] == parts[5]:
+                    return FakeResponse(200, {"sha": parts[5], "object": {"sha": item["peeled"], "type": "commit"}})
             raise HTTPError(req.full_url, 404, "not found", hdrs=None, fp=io.BytesIO(b'{"message":"not found"}'))
 
         if parts[3] != "rulesets":
@@ -166,11 +186,16 @@ class FakeGitHub:
             qs = parse_qs(query)
             head = (qs.get("head") or [None])[0]
             want = head.split(":", 1)[-1] if head else None
+            base = (qs.get("base") or [None])[0]
             found = []
             for pull in self.pulls:
                 ref = (pull.get("head") or {}).get("ref") if isinstance(pull.get("head"), dict) else None
-                if want is None or ref == want:
-                    found.append(pull)
+                pull_base = (pull.get("base") or {}).get("ref") if isinstance(pull.get("base"), dict) else None
+                if want is not None and ref != want:
+                    continue
+                if base is not None and pull_base != base:
+                    continue
+                found.append(pull)
             return FakeResponse(200, found)
         if method == "GET" and number is not None:
             found_one = self._pull_by_number(number)

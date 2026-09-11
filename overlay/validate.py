@@ -19,9 +19,14 @@ INBOX_FORBIDDEN_FIELDS = frozenset(
     {"status", "reviewed_by", "armed", "blocked", "product_command"}
 )
 FLOATING_REFS = frozenset({"main", "master", "HEAD", "latest"})
-SUITE_STATUSES = frozenset({"draft", "blocked", "armed"})
+SUITE_STATUSES = frozenset({"active", "blocked"})
 SUITE_KINDS = frozenset({"functional", "regression"})
-NEVER_RED_ALLOWED = frozenset({"draft", "blocked"})
+NEVER_RED_ALLOWED = frozenset({"blocked"})
+REMOVED_SUITE_FIELDS = frozenset({"reviewed_by", "reviewed_at", "armed_reason"})
+REMOVED_STATUSES = frozenset({"draft", "armed"})
+SUITE_SCHEMA_V2 = "overlay-suite/v2"
+SUITE_SCHEMA_V1 = "overlay-suite/v1"
+MIGRATE_HINT = "python -m overlay migrate --root ."
 KIND_LATER = "later"
 INBOX_MAX_BYTES = 32 * 1024
 INBOX_MAX_CHARS = 8000
@@ -34,6 +39,12 @@ REQUIRED_TECHNIQUES = frozenset({"functional", "negative", "edge"})
 TOKEN_RE = re.compile(r"\S+")
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 URL_IN_TEXT_RE = re.compile(r"https?://[^\s)>\]]+", re.IGNORECASE)
+BLOCKED_REASON_REF_RE = re.compile(
+    r"https?://[^\s]+"
+    r"|#\d+"
+    r"|\b[A-Z]{1,8}-\d+\b"
+    r"|[\w./-]+\.md(?:#[\w.-]+)?"
+)
 
 
 @dataclass
@@ -77,10 +88,7 @@ class SuiteDoc:
     kind: str
     subject: str
     source: str
-    reviewed_by: str | None
-    reviewed_at: str | None
     blocked_reason: str | None
-    armed_reason: str | None
     cases_path: Path
     cases_text: str
     function_ids: list[str]
@@ -227,17 +235,6 @@ def is_blank(value: Any) -> bool:
     return value is None or (isinstance(value, str) and not value.strip())
 
 
-def parse_iso8601(value: str) -> bool:
-    text = value.strip()
-    if text.endswith("Z"):
-        text = text[:-1] + "+00:00"
-    try:
-        datetime.fromisoformat(text)
-    except ValueError:
-        return False
-    return True
-
-
 def load_overlay_config(root: Path, issues: list[Issue]) -> OverlayConfig | None:
     path = root / "overlay.yaml"
     rel = _rel(root, path)
@@ -302,12 +299,12 @@ def load_overlay_config(root: Path, issues: list[Issue]) -> OverlayConfig | None
                 continue
             kinds[str(name)] = KIND_LATER
 
-    never_red = data.get("never_red_statuses", ["draft", "blocked"])
+    never_red = data.get("never_red_statuses", ["blocked"])
     if never_red is None:
-        never_red = ["draft", "blocked"]
+        never_red = ["blocked"]
     if not isinstance(never_red, list) or not all(isinstance(item, str) for item in never_red):
         issues.append(Issue(rel, "never_red_statuses must be a list of strings"))
-        never_set: frozenset[str] = frozenset({"draft", "blocked"})
+        never_set: frozenset[str] = frozenset({"blocked"})
     else:
         never_set = frozenset(never_red)
         extra = never_set - NEVER_RED_ALLOWED
@@ -332,7 +329,7 @@ def load_overlay_config(root: Path, issues: list[Issue]) -> OverlayConfig | None
         default_ref=default_ref,
         branches=branches,
         kinds=kinds,
-        never_red_statuses=never_ok or frozenset({"draft", "blocked"}),
+        never_red_statuses=never_ok or frozenset({"blocked"}),
         forbid_hosts=hosts,
     )
 
@@ -446,6 +443,30 @@ def validate_suite_file(
     if not isinstance(data, dict):
         issues.append(Issue(rel, "suite.yaml must be a mapping"))
         return None
+
+    schema_id = data.get("schema")
+    if schema_id != SUITE_SCHEMA_V2:
+        if schema_id == SUITE_SCHEMA_V1 or is_blank(schema_id):
+            issues.append(
+                Issue(
+                    rel,
+                    f"schema must be {SUITE_SCHEMA_V2} (got {schema_id!r}); run `{MIGRATE_HINT}`",
+                )
+            )
+        else:
+            issues.append(
+                Issue(rel, f"schema must be {SUITE_SCHEMA_V2} (got {schema_id!r})")
+            )
+
+    removed = [key for key in REMOVED_SUITE_FIELDS if key in data]
+    if removed:
+        issues.append(
+            Issue(
+                rel,
+                f"removed field(s) {', '.join(removed)}; run `{MIGRATE_HINT}`",
+            )
+        )
+
     for err in schema_validate(data, suite_schema, "$"):
         issues.append(Issue(rel, err))
 
@@ -453,9 +474,20 @@ def validate_suite_file(
     dirname = path.parent.name
     if suite_id and suite_id != dirname:
         issues.append(Issue(rel, f"id {suite_id!r} must equal directory name {dirname!r}"))
-    status = data.get("status")
-    if status is not None and status not in SUITE_STATUSES:
-        issues.append(Issue(rel, f"illegal status {status!r}"))
+    status_raw = data.get("status")
+    if is_blank(status_raw):
+        status = "active"
+    else:
+        status = status_raw
+        if status in REMOVED_STATUSES:
+            issues.append(
+                Issue(
+                    rel,
+                    f"status draft/armed 在 v2 已移除；运行 `{MIGRATE_HINT}`",
+                )
+            )
+        elif status not in SUITE_STATUSES:
+            issues.append(Issue(rel, f"illegal status {status!r}"))
     source = str(data.get("source") or "")
     expected_source = f"inbox/{dirname}.md"
     if source and source != expected_source:
@@ -464,30 +496,19 @@ def validate_suite_file(
     if source == expected_source and not inbox_path.is_file():
         issues.append(Issue(rel, f"source {expected_source} does not exist"))
 
-    reviewed_by = data.get("reviewed_by")
-    reviewed_at = data.get("reviewed_at")
     blocked_reason = data.get("blocked_reason")
-    armed_reason = data.get("armed_reason")
-    if isinstance(reviewed_by, str):
-        reviewed_by = reviewed_by.strip() or None
-    if isinstance(reviewed_at, str):
-        reviewed_at = reviewed_at.strip() or None
     if isinstance(blocked_reason, str):
         blocked_reason = blocked_reason.strip() or None
-    if isinstance(armed_reason, str):
-        armed_reason = armed_reason.strip() or None
 
-    if status in {"blocked", "armed"} and is_blank(reviewed_by):
-        issues.append(Issue(rel, f"{status} requires non-empty reviewed_by"))
-    if not is_blank(reviewed_by):
-        if is_blank(reviewed_at):
-            issues.append(Issue(rel, "reviewed_at is required when reviewed_by is set"))
-        elif not parse_iso8601(str(reviewed_at)):
-            issues.append(Issue(rel, "reviewed_at must be ISO-8601"))
     if status == "blocked" and is_blank(blocked_reason):
         issues.append(Issue(rel, "blocked requires blocked_reason"))
-    if status == "armed" and is_blank(armed_reason):
-        issues.append(Issue(rel, "armed requires armed_reason"))
+    elif status == "blocked" and not BLOCKED_REASON_REF_RE.search(str(blocked_reason)):
+        issues.append(
+            Issue(
+                rel,
+                "blocked_reason must contain a link (http(s)://) or a register id (OF-12, #123)",
+            )
+        )
 
     raw_cmd = data.get("product_command")
     product_command: str | None
@@ -519,16 +540,16 @@ def validate_suite_file(
         token = parse_function_id(heading.group(1))
         if token is None:
             issues.append(Issue(cases_rel, f"## heading needs a non-empty function_id without whitespace: {heading.group(1)!r}"))
-    if status == "armed" and not function_ids:
-        issues.append(Issue(cases_rel, "armed suite needs at least one ## <function_id> heading"))
-    if status == "armed":
+    if status == "active" and not function_ids:
+        issues.append(Issue(cases_rel, "active suite needs at least one ## <function_id> heading"))
+    if status == "active":
         for fid in function_ids:
             missing = sorted(REQUIRED_TECHNIQUES - techniques.get(fid, frozenset()))
             if missing:
                 issues.append(
                     Issue(
                         cases_rel,
-                        f"armed function_id {fid!r} missing techniques: {', '.join(missing)}",
+                        f"active function_id {fid!r} missing techniques: {', '.join(missing)}",
                     )
                 )
 
@@ -568,10 +589,7 @@ def validate_suite_file(
         kind=str(data.get("kind") or ""),
         subject=str(data.get("subject") or ""),
         source=source,
-        reviewed_by=reviewed_by if isinstance(reviewed_by, str) else None,
-        reviewed_at=reviewed_at if isinstance(reviewed_at, str) else None,
         blocked_reason=blocked_reason if isinstance(blocked_reason, str) else None,
-        armed_reason=armed_reason if isinstance(armed_reason, str) else None,
         cases_path=cases_path,
         cases_text=cases_text,
         function_ids=function_ids,

@@ -1,3 +1,4 @@
+schema: overlay-suite/v2
 id: login
 title: Registration and Authentication
 status: blocked
@@ -6,8 +7,5 @@ subject: product
 source: inbox/login.md
 packages:
   - modules/user-registration
-reviewed_by: fixture
-reviewed_at: 2026-09-10T00:00:00Z
-blocked_reason: Login is not ready to gate.
-armed_reason: null
+blocked_reason: Login is not ready to gate; see docs/adr/0002-remove-armed.md.
 product_command: null

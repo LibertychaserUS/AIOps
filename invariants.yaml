@@ -1,7 +1,7 @@
 schema: overlay-invariants/v1
 items:
   - id: INV-never-red-blocked
-    text: draft and blocked suites never redden overlay-check
+    text: blocked suites never redden overlay-check
     function_ids:
       - FN-overlay-select
     span: system
@@ -17,7 +17,7 @@ items:
       - FN-overlay-select
     span: system
   - id: INV-forge-does-not-arm
-    text: Forge must not write Overlay status or reviewed_by
+    text: Forge must not write Overlay status on an agent branch
     function_ids:
       - FN-forge-apply
     span: system

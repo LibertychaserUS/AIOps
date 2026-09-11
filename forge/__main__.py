@@ -1,4 +1,4 @@
-"""python -m forge apply|status|submit|check|pr-title|sop-lock|ci-select|ops-review|bounce|release"""
+"""python -m forge apply|status|submit|promote|check|pr-title|sop-lock|ci-select|ops-review|bounce|release"""
 
 from __future__ import annotations
 
@@ -29,18 +29,31 @@ def _parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command")
 
-    apply_p = sub.add_parser("apply", help="create or update forge-protected-default")
+    apply_p = sub.add_parser("apply", help="create or update forge-protected-<branch> and forge-protected-tags")
     apply_p.add_argument("--repo", required=True, help="OWNER/NAME")
     apply_p.add_argument("--path", default=None, help="forge.yaml (optional; defaults protect=main)")
     apply_p.add_argument(
         "--dry-run",
         action="store_true",
         dest="dry_run",
-        help="print the ruleset payload and exit 0 without writing",
+        help="print all ruleset payloads and exit 0 without writing",
     )
 
-    status_p = sub.add_parser("status", help="read-only: is the ruleset installed?")
+    status_p = sub.add_parser("status", help="read-only: installed / missing / drifted per ruleset")
     status_p.add_argument("--repo", required=True, help="OWNER/NAME")
+    status_p.add_argument("--root", default=".", help="repo root (default: .)")
+    status_p.add_argument("--path", default=None, help="forge.yaml (optional)")
+    status_p.add_argument(
+        "--write",
+        default=None,
+        help="write a generated Chinese status page (e.g. docs/STATE.md)",
+    )
+    status_p.add_argument(
+        "--check-state",
+        action="store_true",
+        dest="check_state",
+        help="fail if docs/STATE.md is missing or stale vs forge.yaml + git",
+    )
 
     check_p = sub.add_parser(
         "check",
@@ -73,6 +86,11 @@ def _parser() -> argparse.ArgumentParser:
         "--head",
         default=None,
         help="Feature branch to submit. Default: current HEAD, else GITHUB_HEAD_REF.",
+    )
+    submit_p.add_argument(
+        "--base",
+        default=None,
+        help="PR base. Default: protect[0]. Must be a protect branch.",
     )
     submit_p.add_argument(
         "--dry-run",
@@ -154,6 +172,21 @@ def _parser() -> argparse.ArgumentParser:
     review_p.add_argument("--write-report", required=True, help="directory for review-bots.yaml")
     review_p.add_argument("--wait", type=int, default=0, dest="wait_s", help="seconds to poll")
     review_p.add_argument("--poll", type=int, default=5, dest="poll_s")
+
+    promote_p = sub.add_parser(
+        "promote",
+        help="open or update a promote PR (from → to). Never merges. Needs FORGE_SUBMIT_TOKEN.",
+    )
+    promote_p.add_argument("--repo", required=True, help="OWNER/NAME")
+    promote_p.add_argument("--from", dest="from_branch", required=True, help="source branch (e.g. dev)")
+    promote_p.add_argument("--to", dest="to_branch", required=True, help="target branch (e.g. main)")
+    promote_p.add_argument("--path", default=None, help="forge.yaml (optional)")
+    promote_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        help="print the intended PR; no GitHub write. Still requires FORGE_SUBMIT_TOKEN.",
+    )
 
     bounce_p = sub.add_parser(
         "bounce",
@@ -247,6 +280,10 @@ def main(
             stdout=out,
             stderr=err,
             environ=env_dict,
+            root=Path(args.root),
+            path=args.path,
+            write=args.write,
+            check_state=args.check_state,
         )
     if args.command == "check":
         title = args.title if args.title is not None else env_dict.get("PR_TITLE")
@@ -266,6 +303,7 @@ def main(
             dry_run=args.dry_run,
             path=args.path,
             head=args.head,
+            base=args.base,
             urlopen=opener,
             base_url=api,
             stdout=out,
@@ -302,6 +340,7 @@ def main(
             environ=env_dict,
             stdout=out,
             stderr=err,
+            root=Path(args.root),
         )
         if code != EXIT_OK:
             return code
@@ -325,6 +364,21 @@ def main(
             title=title,
             changed=args.changed,
             github_output=args.github_output,
+            stdout=out,
+            stderr=err,
+            environ=env_dict,
+        )
+    if args.command == "promote":
+        from forge.promote import run_promote
+
+        return run_promote(
+            repo=args.repo,
+            from_branch=args.from_branch,
+            to_branch=args.to_branch,
+            path=args.path,
+            dry_run=args.dry_run,
+            urlopen=opener,
+            base_url=api,
             stdout=out,
             stderr=err,
             environ=env_dict,

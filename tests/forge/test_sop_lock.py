@@ -105,7 +105,19 @@ class WorkflowLockTests(unittest.TestCase):
             issues = collect_issues(root)
             self.assertFalse(any("unittest" in item.message for item in issues), issues)
 
-    def test_ci_yml_unittest_on_push_is_red(self) -> None:
+    def test_ci_yml_unittest_job_on_push_is_green(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(
+                root / ".github" / "workflows" / "ci.yml",
+                "name: ci\non:\n  push:\njobs:\n  unittest:\n"
+                "    runs-on: ubuntu-latest\n    steps:\n"
+                "      - run: python3 -m unittest discover -s tests -t . -q\n",
+            )
+            issues = collect_issues(root)
+            self.assertFalse(any("unittest" in item.message for item in issues), issues)
+
+    def test_ci_yml_non_unittest_job_discover_is_red(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _write(

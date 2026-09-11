@@ -2,7 +2,7 @@
 
 GitHub PR 是解说面。DevOps 和其他 agent 读**标题 + 正文**就知道做了什么，不靠翻 diff。不是门户，不另做解说站。
 
-本规格锁的是 **进 `main` 的那颗提交**，不是功能枝上每一颗中间 commit。默认落地是 **squash**：一单 PR 压成 `main` 上的一颗，标题就是那颗的 Conventional Commits header。这是提交内容的规格化，和标题语法同一层。
+本规格锁的是 **进保护发布枝的那颗提交**，不是功能枝上每一颗中间 commit。默认落地是 **squash**：一单 PR 压成目标枝上的一颗，标题就是那颗的 Conventional Commits header。这是提交内容的规格化，和标题语法同一层。
 
 「分工」写在 **GitHub PR 标题** 的 Conventional Commits scope（`product/actor` 的 `actor`）。只这一处。不是分支名，不是 workflow 的 `name:`，不是 `skills/<name>/`。不要另造 `管理/`、`开发/`、`agent/` 分支前缀。Forge 已有的 `agent_branch_prefixes`（默认 `cursor/`、`copilot/`，如 `cursor/overlay-architecture-6842`）管谁的分支能推，不是本规格；这类分支名不要改。
 
@@ -17,7 +17,7 @@ python -m forge check --root . --title "feat(overlay/dev): add cover triad and i
 python -m forge pr-title --title "feat(overlay/dev): add cover triad and invariants"
 ```
 
-退出 `0` 绿、`2` 红。CI 同名检查 **`pr-title`**（只跑 `pull_request`）。本工作本 `forge.yaml` `required_checks` 已列入 `overlay-check`、`pr-title`、`forge-check`、`sop-lock`；Ruleset 勾上之后，红则不能合。代推前 `python -m forge check` 红则不能提交；缺 `FORGE_SUBMIT_TOKEN` 也不能提交（含 `--dry-run`）。不要 live `forge apply`。不要用 husky/npm 挡 `git commit`。
+退出 `0` 绿、`2` 红。CI 同名检查 **`pr-title`**（只跑 `pull_request`）。工作本实际勾哪些 checks 见 [`STATE.md`](STATE.md)。代推前 `python -m forge check` 红则不能提交；缺 `FORGE_SUBMIT_TOKEN` 也不能提交（含 `--dry-run`）。不要 live `forge apply`。不要用 husky/npm 挡 `git commit`。子命令见 [`cli.md`](cli.md)。
 
 本仓 PR #3 的 GitHub 标题已由人在 UI 定为（不要再改，除非完全不准）：
 
@@ -31,11 +31,11 @@ feat(overlay/agent): adopt Overlay CI and Conventional Commit PR titles
 
 ---
 
-## 进 main 的提交（squash 封顶）
+## 进保护分支的提交（squash 封顶）
 
 核心原理（提交内容规格化）：
 
-**要进 `main` 的 PR，必须是整段工作的封顶。合完立刻以 `main` 上那颗新 SHA 为底再开下一枝。不要从即将被压掉的旧头再叠。**
+**要进保护分支的 PR，必须是整段工作的封顶。合完立刻以目标枝上那颗新 SHA 为底再开下一枝。不要从即将被压掉的旧头再叠。**
 
 | 锁 | 意思 |
 |---|---|
@@ -43,7 +43,7 @@ feat(overlay/agent): adopt Overlay CI and Conventional Commit PR titles
 | 压完换底 | 下一枝从 `main` 的新 SHA 开。旧功能枝头不再当 base |
 | 不叠旧头 | 禁止把未合 / 即将 squash 的 `cursor/…` 当下一单的 base。血缘在 squash 后断开 |
 
-`python -m forge submit` 的 base 是 `forge.yaml` `protect`（默认 `main`），不开到另一条功能枝。GitHub 合入默认 squash。merge commit / rebase 也能用，但不改变这条：封顶再压，压完换底。
+`python -m forge submit` 的 base 是 `forge.yaml` `protect[0]`（常见为 `dev`），`--base` 必须在 `protect`。不开到另一条功能枝。GitHub 合入默认 squash。merge commit / rebase 也能用，但不改变这条：封顶再压，压完换底。
 
 非法：#3 squash 之后还拿旧架构枝开 #4 / #5。合法：#5 squash 进 `main`，下一单从新的 `main` 头开。
 
@@ -96,8 +96,8 @@ type(product/actor): subject
 - `feat(overlay/dev): add overlay run to overlay-check`
 - `docs(docs/admin): add PR brief spec`
 
-合法：分支仍叫 `cursor/fix-armed-select`，标题写成 `fix(overlay/dev): fix armed select`。  
-非法：把分支改成 `开发/overlay-fix` 来表示角色。非法：把 `overlay-check` 或 `dev-pr` 改名来表示角色。非法：`[开发][Overlay] fix armed select`。
+合法：分支仍叫 agent 前缀 + 功能名，标题写成 `fix(overlay/dev): fix select drop`。  
+非法：把分支改成 `开发/overlay-fix` 来表示角色。非法：把 `overlay-check` 或 `dev-pr` 改名来表示角色。非法：`[开发][Overlay] fix select`。
 
 混改：标题只标主产品。其余列在「做了什么」。不要写成 `feat(overlay+docs/dev):`。
 
@@ -124,7 +124,7 @@ type(product/actor): subject
 
 ### 为什么
 
-对照哪条契约或 git-chain：[`design.md`](design.md)、[`2026-09-10-对话整理.md`](2026-09-10-对话整理.md)、Overlay `function_id` / 状态机、Forge Ruleset。一句话到一小段。
+对照哪条契约或 git-chain：[`design.md`](design.md)、[`adr/`](adr/)、Overlay `function_id` / 状态机、Forge Ruleset。一句话到一小段。
 
 ### 动了哪些门
 
@@ -132,7 +132,7 @@ type(product/actor): subject
 
 | 值 | 含义 |
 |---|---|
-| `overlay-check` | 本仓或接入方 Overlay job（validate + select + run Overlay armed） |
+| `overlay-check` | 本仓或接入方 Overlay job（validate + select + run Overlay `active`） |
 | `pr-title` | PR 标题 Conventional Commits + `product/actor` 锁 |
 | `forge-check` | 本仓 Forge **产品门**（unit + apply --dry-run；`forge.yaml` `ci` 选跑或跳过） |
 | `sop-lock` | 仓内 SOP（workflow / 内核 / skill Lock / required_checks） |
@@ -143,27 +143,18 @@ type(product/actor): subject
 
 ### 怎么验
 
-可复制的命令，以及会入选的 **armed** suite id。本工作本常用：
+可复制的命令见 [`cli.md`](cli.md)，以及会入选的 **active** suite id。本工作本常用：
 
 ```text
 python3 -m forge check --root . --title "feat(overlay/dev): add cover triad and invariants"
-python3 -m overlay validate --root .
-python3 -m overlay cover --root .
-python3 -m overlay select --branch main --root .
-python3 -m overlay run --branch main --root . --workdir . --write-receipt receipts-run/
-python3 -m forge apply --path forge.yaml --dry-run
 python3 -m forge sop-lock --root .
-python3 -m forge submit --repo OWNER/NAME --title "feat(forge/dev): add submit middleware" --dry-run
-python3 -m forge pr-title --title "feat(overlay/dev): add cover triad and invariants"
-python3 -m forge ci-select --check overlay-check --title "feat(overlay/dev): add cover triad"
-python3 -m forge ci-select --check forge-check --title "feat(forge/dev): add submit"
 ```
 
-写清：哪些 suite 应 selected、哪些应 dropped（`draft` / `blocked`）。标题：假标题单测在 `tests/forge/test_title.py`；真 PR 靠 Actions `pr-title`。
+写清：哪些 suite 应 selected、哪些应 dropped（`blocked`）。标题：假标题单测在 `tests/forge/test_title.py`；真 PR 靠 Actions `pr-title`。
 
 ### 不做什么
 
-至少点名：不改 LearningGuidePortal Verify；不 attach / 跑 / 门禁 Proctor；不编辑 Deepseek3；push 上不 `generate`；不 live `forge apply`；不 live-submit 本工作本进 CI；不自合；不打生产；不 vendor 工具进产品仓；不自建门户。不要用 husky/npm 当本工作本的强制 commit 门。
+至少点名：不改接入方构建门；不 attach 监考进程；push 上不 `generate`；不 live `forge apply`；不 live-submit 本工作本进 CI；不自合；不打生产；不 vendor 工具进产品仓；不自建门户。不要用 husky/npm 当本工作本的强制 commit 门。
 
 ### 分工
 
@@ -175,6 +166,6 @@ python3 -m forge ci-select --check forge-check --title "feat(forge/dev): add sub
 
 ## 未知分支
 
-不要为每个 feature 分支新建 Overlay workflow。Overlay CI 仍走**同一条** `overlay-check` 家族。某分支跑哪些 `kind` 写在接入方 `overlay.yaml` 的 `branches:`（git-chain）。表里没有的分支：`select` 空集、预演绿。本工作本把 `overlay-check` 的 `branch` 钉成 `main`，所以 `cursor/` 分支仍跑 armed Overlay 工具测试。产品门按 `forge.yaml` `ci` 选跑或跳过成功。标题检查是通用层，只在 PR 上跑，永不 skip。
+不要为每个 feature 分支新建 Overlay workflow。Overlay CI 仍走**同一条** `overlay-check` 家族。某分支跑哪些 `kind` 写在接入方 `overlay.yaml` 的 `branches:`（git-chain）。未知分支回落 `branches.default` 再到 `main`。产品门按 `forge.yaml` `branches:` 选跑或跳过成功。标题检查是通用层，只在 PR 上跑，永不 skip。
 
 这与 PR 名分工无关：不要把 `cursor/…-6842` 改成角色前缀，也不要为角色改 workflow 名或 skill 名。

@@ -30,7 +30,7 @@ from forge.apply import (
     ForgeError,
     GitHubClient,
     UrlOpen,
-    assert_apply_allowed,
+    assert_submit_allowed,
     load_config,
     normalize_branch,
     parse_repo,
@@ -128,11 +128,16 @@ def resolve_commit_subject(
     return subject or None
 
 
-def intended_title(explicit: str | None, commit_subject: str | None) -> str:
+def intended_title(
+    explicit: str | None,
+    commit_subject: str | None,
+    *,
+    scopes: str | list[str] | None = None,
+) -> str:
     if explicit is not None:
         return explicit
     if commit_subject:
-        code, _, _ = lint_title(commit_subject)
+        code, _, _ = lint_title(commit_subject, scopes=scopes)
         if code == EXIT_OK:
             return commit_subject
     raise ForgeError(
@@ -256,7 +261,7 @@ def run_submit(
     err = sys.stderr if stderr is None else stderr
     try:
         owner, name = parse_repo(repo)
-        assert_apply_allowed(owner, name)
+        assert_submit_allowed(owner, name)
         config_path = None if path is None else Path(path)
         config = load_config(config_path)
         resolved_head = resolve_head(
@@ -278,8 +283,8 @@ def run_submit(
         subject = None if title is not None else resolve_commit_subject(
             cwd=cwd, git_runner=git_runner
         )
-        resolved_title = intended_title(title, subject)
-        code, message, _parts = lint_title(resolved_title)
+        resolved_title = intended_title(title, subject, scopes=config.title_scopes)
+        code, message, _parts = lint_title(resolved_title, scopes=config.title_scopes)
         if code != EXIT_OK:
             raise ForgeError(EXIT_CONFIG, message)
         checker = run_check if check_fn is None else check_fn

@@ -1,3 +1,4 @@
+schema: overlay-suite/v2
 id: overlay-generate
 title: Overlay generate (not shipped)
 status: blocked
@@ -6,8 +7,5 @@ subject: product
 source: inbox/overlay-generate.md
 packages:
   - overlay
-reviewed_by: workshop
-reviewed_at: 2026-09-10T00:00:00Z
-blocked_reason: generate is slice 2; must not spend tokens on push.
-armed_reason: null
+blocked_reason: generate is slice 2; must not spend tokens on push. See docs/adr/0002-remove-armed.md.
 product_command: null

@@ -1,10 +1,12 @@
-"""Run armed suite product_command. No model. No foreign product checkout."""
+"""Run active suite product_command. No model. No foreign product checkout."""
 
 from __future__ import annotations
 
+import hashlib
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import TextIO
 
@@ -49,12 +51,17 @@ def run_command(
     )
 
 
+def _command_sha256(command: str) -> str:
+    return hashlib.sha256(command.encode("utf-8")).hexdigest()
+
+
 def run_events_for_suite(
     suite: SuiteDoc,
     *,
     command: str | None,
     exit_code: int | None,
     rule: str | None,
+    duration_s: float | None = None,
 ) -> dict[str, object]:
     event: dict[str, object] = {"suite": suite.suite_id, "status": suite.status}
     function_id = _first_function_id(suite)
@@ -66,11 +73,18 @@ def run_events_for_suite(
     if rule == REFUSED_FORBID_HOSTS:
         event["type"] = "refused"
         event["rule"] = REFUSED_FORBID_HOSTS
-        event["command"] = command
+        if command:
+            event["command"] = command
+            event["command_sha256"] = _command_sha256(command)
         return event
     event["type"] = RAN
     event["command"] = command
+    event["exit"] = exit_code
     event["exit_code"] = exit_code
+    if duration_s is not None:
+        event["duration_s"] = duration_s
+    if command:
+        event["command_sha256"] = _command_sha256(command)
     return event
 
 
@@ -98,6 +112,8 @@ def run_run(
         return EXIT_CONTRACT
 
     selection = select_suites(suites, config, branch)
+    if selection.fallback_note:
+        print(f"overlay run: {selection.fallback_note}", file=err)
     assert_errors = assert_selection(selection)
     if assert_errors:
         for message in assert_errors:
@@ -133,16 +149,27 @@ def run_run(
             continue
 
         try:
+            started = time.perf_counter()
             result = run_command(command, workdir=workdir, timeout=timeout)
+            duration_s = round(time.perf_counter() - started, 3)
             code = result.returncode
             if result.stdout:
                 print(result.stdout, file=out, end="" if result.stdout.endswith("\n") else "\n")
             if result.stderr:
                 print(result.stderr, file=err, end="" if result.stderr.endswith("\n") else "\n")
         except subprocess.TimeoutExpired:
+            duration_s = float(timeout)
             code = 124
             print(f"overlay run: {suite.suite_id} timed out after {timeout}s", file=err)
-        events.append(run_events_for_suite(suite, command=command, exit_code=code, rule=None))
+        events.append(
+            run_events_for_suite(
+                suite,
+                command=command,
+                exit_code=code,
+                rule=None,
+                duration_s=duration_s,
+            )
+        )
         ran += 1
         print(f"overlay run: {suite.suite_id} exit={code}", file=err)
         print(f"{suite.suite_id} {code}", file=out)

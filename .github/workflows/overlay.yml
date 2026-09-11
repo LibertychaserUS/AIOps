@@ -1,11 +1,13 @@
-# Reusable Overlay CI: validate + select, and optionally run Overlay armed product_command.
+# Reusable Overlay CI: validate + select, and optionally run Overlay active product_command.
+# run needs the product toolchain: pass setup_command (npm ci / pip install ...) or write an inline job.
 # Forge tests do not belong here — workshop Forge CI is forge-check.yml.
 # Adopters pin this file; do not copy this workshop's ci.yml.
 # Always checkout the caller (product). If overlay/ is absent (correct adopter
 # shape), checkout inputs.tool_repository into _aiops — do not vendor overlay/
 # into the product repo. Default is this workshop. Forks pass their own repo.
-# No foreign product clone (never LearningGuidePortal).
-# No generate. No tokens on push. Do not workflow_call a product ci.yml / Verify.
+# No foreign product clone.
+# No generate. No tokens on push. Do not workflow_call a product ci.yml.
+# forbid_hosts is string match against product_command (slip guard, not a security boundary).
 
 name: overlay
 
@@ -13,7 +15,7 @@ on:
   workflow_call:
     inputs:
       enable_run:
-        description: "Run selected armed product_command in the caller checkout."
+        description: "Run selected active product_command in the caller checkout."
         type: boolean
         default: false
       root:
@@ -34,6 +36,10 @@ on:
         default: LibertychaserUS/AIOps
       tool_ref:
         description: "Git ref of the tool checkout. Empty uses github.workflow_sha."
+        type: string
+        default: ""
+      setup_command:
+        description: "Shell run in the caller checkout before overlay run (e.g. npm ci, pip install -r requirements-dev.txt). Empty skips. Only the run job uses it."
         type: string
         default: ""
 
@@ -203,6 +209,10 @@ jobs:
           if [ -z "$B" ]; then B="${{ github.base_ref }}"; fi
           if [ -z "$B" ]; then B="${{ github.ref_name }}"; fi
           echo "name=$B" >> "$GITHUB_OUTPUT"
+
+      - name: Install product dependencies
+        if: ${{ inputs.setup_command != '' }}
+        run: ${{ inputs.setup_command }}
 
       - name: overlay run
         run: |

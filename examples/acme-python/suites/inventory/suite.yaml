@@ -1,0 +1,10 @@
+schema: overlay-suite/v2
+id: inventory
+title: Warehouse inventory reserve
+status: active
+kind: functional
+subject: product
+source: inbox/inventory.md
+packages:
+  - inventory
+product_command: python3 -m unittest discover -s tests -q

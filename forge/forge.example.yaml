@@ -1,20 +1,34 @@
 schema: forge-config/v1
 protect:
+  - dev
   - main
 agent_branch_prefixes:
   - cursor/
   - copilot/
+  - agent/
 deny_paths:
-  - .github/workflows/ci.yml
+  - .github/workflows/
 # required_checks = GitHub check / job names as they appear on a PR, not the
-# workflow `name:` unless those strings are identical. This example uses
-# `Verify` because the sample job is called that. Learning Guide uses
-# `Typecheck`, `Lint`, `Build and test`, `overlay-check`.
-required_checks:
-  - Verify
-review:
-  min_approvals: 1
-  code_owners: false
+# workflow `name:` unless those strings are identical.
+branches:
+  dev:
+    required_checks:
+      - unit
+      - lint
+    approvals: 0
+    code_owners: false
+  main:
+    required_checks:
+      - unit
+      - lint
+      - overlay-check
+    approvals: 1
+    code_owners: true
+    promote_from: dev
+title:
+  scopes: any
+docs_sync: []
+forbidden_live_repos: []
 ci:
   common:
     - pr-title

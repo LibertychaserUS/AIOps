@@ -48,4 +48,7 @@ jobs:
 
       - name: forge apply --dry-run
         if: steps.sel.outputs.run == 'true'
-        run: python3 -m forge apply --repo LibertychaserUS/AIOps --path forge.yaml --dry-run
+        run: python3 -m forge apply --repo ${{ github.repository }} --path forge.yaml --dry-run
+
+      - name: forge status --check-state
+        run: python -m forge status --root . --repo ${{ github.repository }} --check-state

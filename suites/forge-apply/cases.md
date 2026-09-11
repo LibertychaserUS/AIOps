@@ -20,15 +20,15 @@
 - Title: apply without token
 - Steps: unset FORGE_GITHUB_TOKEN and GITHUB_TOKEN; apply without --dry-run
 - Expected: exit 2; no partial write
-- Title: Forge does not arm Overlay
+- Title: Forge does not flip Overlay status
 - INV-forge-does-not-arm
 - Steps: inspect apply payload and agent-policy
-- Expected: no suite.yaml write; no reviewed_by; no status change
+- Expected: no suite.yaml write; no status change
 
 ### Edge
-- Title: LearningGuidePortal is refused
-- Steps: apply --repo First-Light-TechHK/LearningGuidePortal
-- Expected: rejected; product Verify untouched
+- Title: a repo in forbidden_live_repos is refused
+- Steps: apply --repo example-org/production-app with that repo in forbidden_live_repos
+- Expected: rejected; the product build workflow is untouched
 
 ## FN-forge-submit 开发侧代推
 
@@ -52,8 +52,8 @@
 - Expected: exit 2; refusing (local check is red); no push; no PR; token not printed
 
 ### Edge
-- Title: LearningGuidePortal submit is refused
-- Steps: submit --repo First-Light-TechHK/LearningGuidePortal
+- Title: submit onto the upstream fixture is refused
+- Steps: submit --repo <upstream fixture listed in FORBIDDEN_REPOS>
 - Expected: rejected; no push
 - Title: fake live submit never merges
 - Steps: submit with FORGE_SUBMIT_TOKEN against FakeGitHub
@@ -102,4 +102,4 @@
 - Expected: not a generate-on-push failure
 - Title: Overlay-bypass unittest discover on push is red
 - Steps: a `self-test` workflow runs `unittest discover` on push
-- Expected: exit 2; Overlay tests stay in Overlay armed `product_command`; Forge tests stay on `forge-check`
+- Expected: exit 2; Overlay tests stay in Overlay active `product_command`; Forge tests stay on `forge-check`

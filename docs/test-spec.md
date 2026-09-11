@@ -106,7 +106,7 @@ schema **不得**把 `REQ-n`、`ML-FR-004`、`PAY-01`、`LOGIN-01` 或 `^[A-Z]{2
 | 范围 | Out of scope 不得变成 test item，不得被 select 跑 |
 | 编号 | 与 PRD 功能同一 `function_id`；level 只当面 |
 | 来源 | `suite.yaml` 的 `source` = `inbox/<id>.md`；inbox 若声明 `source`，pin 到产品仓路径 + ref |
-| 就绪 | inbox `readiness: not-ready` → 人审应标 `blocked`；不得因为 PRD 写了验收标准就 `armed` |
+| 就绪 | inbox `readiness: not-ready` → 人审应标 `blocked`；不得因为 PRD 写了验收标准就当可进门 |
 | 变更 | 产品仓 PRD 更新：人改 inbox 摘录和 `source.ref`，再 generate / 手改 cases，重新审 |
 
 **不跟随**
@@ -161,7 +161,7 @@ Functional / Negative / Edge
 
 1. `function_id` 只来自**同一篇** inbox 的 In scope（或 User cases 行首）。
 2. 标题是一句话功能，不是 PRD 章名。
-3. `armed` 的每个 `function_id` 必须三种技法齐（Functional / Negative / Edge）。`draft` / `blocked` 可以薄，`cover` 只提示。
+3. `active` 的每个 `function_id` 必须三种技法齐（Functional / Negative / Edge）。`blocked` 可以薄，`cover` 只提示。
 4. In scope 有几行带 id，generate 就抽几条。
 5. `kind: user-case`：场景行首同样带 `function_id`。
 6. `kind: figma-ref`：第一刀只出对照说明；若有 In scope，行首仍要 id。
@@ -190,21 +190,21 @@ items:
 
 | 层 | 完成定义 | 谁检查 |
 |---|---|---|
-| 叶子 | 已切进 inbox 的每条 `function_id` 有一节；`armed` 则 Functional / Negative / Edge 齐 | `validate` / `cover` |
+| 叶子 | 已切进 inbox 的每条 `function_id` 有一节；`active` 则 Functional / Negative / Edge 齐 | `validate` / `cover` |
 | 不变量 | `invariants.yaml` 里每条 id 在某篇 `cases.md` 被点名；列出的 `function_ids` 都存在 | 有该文件才查 |
 | 交互 | 已耦合的叶子有一条 `span: interaction`（或正文点到兄弟 id） | `cover` 提示；不穷尽两两 |
 
-不表示：PRD 每一章都有用例；产品 Verify 已实现步骤；行覆盖率；叶子笛卡尔积；支付/登录写进 PRD 就必须 `armed`。
+不表示：PRD 每一章都有用例；产品构建门已实现步骤；行覆盖率；叶子笛卡尔积；未就绪功能写进 PRD 就必须 `active`。
 
 要求对**全局理解**的 corner 不住在单条 In scope 里。它们是跨叶子的性质（状态机、跨产品禁令、同一资源的组合）。写法：先读完整棵 overlay root，再声明 invariant / interaction。不要为此再开一套 `CROSS-01` 主键。
 
-`python -m overlay cover --root .` 打印矩阵。CI 的 `validate` 已含 `armed` 技法与 invariant 点名。
+`python -m overlay cover --root .` 打印矩阵。CI 的 `validate` 已含 `active` 技法与 invariant 点名。
 
 ---
 
 ## 9. PRD 变了，规格怎么跟
 
-人改 inbox 的 `source.ref` + 摘录；`function_id` 保持稳定。重新 generate 只许变成/保持 `draft`。禁止 CI 见 PRD 路径变了就重写 `cases.md`。禁止模型改 `reviewed_by`。禁止改已登记的 `function_id` 去「重排号」。
+人改 inbox 的 `source.ref` + 摘录；`function_id` 保持稳定。重新 generate 只许变成/保持 `active` 草稿。禁止 CI 见 PRD 路径变了就重写 `cases.md`。禁止模型写回执。禁止改已登记的 `function_id` 去「重排号」。
 
 ---
 
@@ -217,12 +217,12 @@ items:
 ## 11. 校验（`overlay validate`）
 
 1. 有 suite 则 `suite.yaml.source` == `inbox/<id>.md`。
-2. `cases.md` 非空。`armed` 至少一条以 `function_id` 开头的 `##` 标题（非空、无空白）。`blocked`/`draft` 允许很薄。
-3. 不得把 `status: armed` 写进用例正文当门。
+2. `cases.md` 非空。`active` 至少一条以 `function_id` 开头的 `##` 标题（非空、无空白）。`blocked` 允许很薄。
+3. 不得把 `status: active` 写进用例正文当门。
 4. **不**因为 In scope 没有 id、或 id 不像 FR 号 / `LOGIN-01` 而红。有 id 则须无空白。
 5. `cases.md` 的 `function_id` 标题必须能在同一篇 inbox 的 In scope（或 User cases 行首）找到；Out of scope 不得当标题。
 6. 若有 `trace.yaml`：符合 schema；`suite` 等于目录名；`function_id` 能在 `cases.md` 找到；`level` ∈ `unit`\|`integration`\|`smoke`\|`k6`\|`e2e`；`type` ∈ `functional`\|`negative`\|`edge`；若有 `relates`，那些 id 必须是本 overlay root 里某片叶子。
-7. `armed` 缺技法 → 红。`draft` / `blocked` 缺技法不红。
+7. `active` 缺技法 → 红。`blocked` 缺技法不红。
 8. 若有 `invariants.yaml`：符合 schema；每条 `function_ids` 都能在某篇 `cases.md` 找到；每条 `id` 必须作为 token 出现在某篇 `cases.md`。
 9. 不因为「产品仓还有没切的 PRD」而红。
 10. 不因为产品仓历史文件还叫 `E2E-B1` / `LOAD-001` 而红；本仓 fixture 不得再发明这种平行号族。
@@ -240,38 +240,22 @@ items:
 - 把 PRD 验收标准原文当 `cases.md` 主体。
 - 用覆盖率 agent 证明「跟随了 PRD」。
 - 为全局 corner 再开 `CROSS-01` / `E2E-B1` 主键，或对所有叶子两两穷尽。
-- 测试规格驱动改产品 Verify。
+- 测试规格驱动改产品构建门。
 - Overlay 元规格里出现某产品的路由或域名（只许 fixture）。
 - 为 unit / e2e / k6 各做一套主键（`E2E-B1` vs `UT-007` vs `LOAD-001`）。
 - 内核 schema 写死某产品的 `ML-FR-*` 清单，或把 FR / `LOGIN-01` 号段正则写成法律。
 
 ---
 
-## 13. Learning Guide fixture
+## 13. Fixture 不是内核
 
-只举例。这些 id 住在产品仓测试与 handbook 注释里；Overlay 内核不得写死 LG 路由。
+编号、路由、域名只许写在 `examples/` 里。通用形状：[`../examples/acme-python/`](../examples/acme-python/)。带口音的编译结果：[`../examples/learning-guide/`](../examples/learning-guide/)。不要把那里的 id 抄进 schema pattern。
 
-| function_id | 产品叶子（PRD / 实践） | Overlay 落点 | 备注 |
-|---|---|---|---|
-| `ML-FR-004` | My Learning 课程卡片 | `inbox/my-learning.md` → `cases.md` | 产品仓 `tests/unit/ML-FR-004-006-course-cards.test.ts` |
-| `ML-FR-007` | Unique LP progress | 同上 inbox 第二条 In scope | 产品仓 `ML-FR-007-unique-lp-progress.test.ts` |
-| `PAY-01` | 付款后权益（未就绪） | `inbox/payment.md`；suite `blocked` | 产品仓 `PAY-stripe.skip.spec.ts` 已占 `PAY-01`…`PAY-07` |
-| `AUTH-01` | 有效会话看自己的数据 | `inbox/login.md`；suite `blocked` | 不要写成 `E2E-B1-004` |
-| `LEARN-02` | 已购未学不造卡片 | 与 `ML-FR-004` 对齐的设计锁；本 fixture 不另开 suite | 产品仓 unit 文件名已用 `LEARN-02` |
-| `KS-01` | 未登录 KS API 必须 401 | 未切进本 fixture 三篇 inbox | 产品仓 `KS-01-unauth-api.spec.ts` |
-| `AUTH-05` | 会话门（LG 号族） | 未切 | 以后切仍用此号，不新开 e2e 号族 |
-
-反例（历史，不要学进 Overlay）：
+反例（不要学进 Overlay）：
 
 | 反例 | 为什么错 |
 |---|---|
-| `E2E-B1-007` | 平行号族。同一条应是 `LEARN-02/e2e/01` 或 `ML-FR-004/e2e/01` |
-| `LOAD-001`…`004` | k6 stub 自编号。有 SLA 之后应是对应功能的 `/k6/` 实例（付款负载 → `PAY-01/k6/01`） |
+| 平行号族（同一叶子两套主键） | 失败时对不上文档叶子 |
+| 负载测试自编号 | 有 SLA 之后应是对应 `function_id` 的 `/k6/` 实例 |
 
-| suite | 状态 | 追溯 | 不追溯 |
-|---|---|---|---|
-| `my-learning` | `armed` + `ML-FR-004` / `ML-FR-007` | inbox 摘录的卡片与进度 | 整份 My Learning docx |
-| `payment` | `blocked` + `PAY-01` | inbox 里「付款后权益更新」 | 整份 Payment PRD、真卡、生产 webhook |
-| `login` | `blocked` + `AUTH-01` | inbox 里「有效会话看自己的数据」 | 整份 Registration/Auth PRD |
-
-三篇 inbox、三份测试规格。不是一份 PRD 规格派生三份镜像文档。
+三篇 inbox 就三份测试规格。不是一份 PRD 规格派生三份镜像文档。

@@ -18,14 +18,40 @@ class SelectTests(unittest.TestCase):
         self.assertNotIn("login", result.stdout)
         self.assertIn("never_red_statuses", result.stderr + result.stdout)
         self.assertIn("dropped=2", result.stderr)
+        self.assertTrue(
+            "blocked_reason" in result.stderr or "reason=" in result.stderr,
+            result.stderr,
+        )
 
-    def test_unknown_branch_is_empty_and_green(self) -> None:
+    def test_unknown_branch_falls_back_to_main(self) -> None:
         result = run_overlay("select", "--branch", "does-not-exist", "--root", str(LG))
         self.assertEqual(result.returncode, 0, result.stderr)
         selected = [line for line in result.stdout.splitlines() if line.strip()]
-        self.assertEqual(selected, [])
+        self.assertEqual(selected, ["my-learning"])
+        self.assertTrue(
+            "does-not-exist" in result.stderr and "main" in result.stderr,
+            result.stderr,
+        )
 
-    def test_hotfix_still_selects_functional_armed(self) -> None:
+    def test_unknown_branch_falls_back_to_branches_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = write_generic_root(Path(tmp))
+            overlay = root / "overlay.yaml"
+            overlay.write_text(
+                overlay.read_text(encoding="utf-8").replace(
+                    "  default:\n    run: [functional]\n",
+                    "  default:\n    run: [regression]\n",
+                ),
+                encoding="utf-8",
+            )
+            result = run_overlay("select", "--branch", "no-such-branch", "--root", str(root))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            selected = [line for line in result.stdout.splitlines() if line.strip()]
+            self.assertEqual(selected, [])
+            self.assertIn("default", result.stderr)
+            self.assertIn("no-such-branch", result.stderr)
+
+    def test_hotfix_still_selects_functional_active(self) -> None:
         result = run_overlay("select", "--branch", "hotfix", "--root", str(LG))
         self.assertEqual(result.returncode, 0, result.stderr)
         selected = [line for line in result.stdout.splitlines() if line.strip()]
@@ -50,7 +76,7 @@ class SelectTests(unittest.TestCase):
             root = copy_lg(Path(tmp))
             path = root / "suites" / "my-learning" / "suite.yaml"
             path.write_text(
-                path.read_text(encoding="utf-8").replace("status: armed", "status: ready"),
+                path.read_text(encoding="utf-8").replace("status: active", "status: ready"),
                 encoding="utf-8",
             )
             result = run_overlay("select", "--branch", "main", "--root", str(root))
@@ -72,16 +98,46 @@ class SelectTests(unittest.TestCase):
             kind="functional",
             subject="product",
             source="inbox/x.md",
-            reviewed_by="a",
-            reviewed_at="2026-09-10T00:00:00Z",
-            blocked_reason="no",
-            armed_reason=None,
+            blocked_reason="no; see OF-12",
             cases_path=Path("suites/x/cases.md"),
             cases_text="# x\n",
             function_ids=[],
         )
         errors = assert_selection(Selection(selected=[fake], dropped=[]))
         self.assertTrue(errors)
+
+    def test_branch_defaults_to_github_base_ref(self) -> None:
+        result = run_overlay(
+            "select",
+            "--root",
+            str(LG),
+            env={"GITHUB_BASE_REF": "hotfix", "GITHUB_REF_NAME": "cursor/ignored"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        selected = [line for line in result.stdout.splitlines() if line.strip()]
+        self.assertEqual(selected, ["my-learning"])
+
+    def test_branch_defaults_to_github_ref_name(self) -> None:
+        result = run_overlay(
+            "select",
+            "--root",
+            str(LG),
+            env={"GITHUB_BASE_REF": "", "GITHUB_REF_NAME": "hotfix"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        selected = [line for line in result.stdout.splitlines() if line.strip()]
+        self.assertEqual(selected, ["my-learning"])
+
+    def test_branch_defaults_to_main(self) -> None:
+        result = run_overlay(
+            "select",
+            "--root",
+            str(LG),
+            env={"GITHUB_BASE_REF": "", "GITHUB_REF_NAME": ""},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        selected = [line for line in result.stdout.splitlines() if line.strip()]
+        self.assertEqual(selected, ["my-learning"])
 
 
 if __name__ == "__main__":

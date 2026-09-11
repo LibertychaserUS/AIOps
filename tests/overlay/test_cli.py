@@ -13,6 +13,7 @@ class CliTests(unittest.TestCase):
         self.assertIn("select", result.stdout)
         self.assertIn("run", result.stdout)
         self.assertIn("cover", result.stdout)
+        self.assertIn("migrate", result.stdout)
 
     def test_validate_help(self) -> None:
         result = run_overlay("validate", "--help")
@@ -30,7 +31,7 @@ class CliTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
 
     def test_review_refuses_without_i_am(self) -> None:
-        result = run_overlay("review", "--suite", "my-learning", "--status", "blocked")
+        result = run_overlay("review", "--suite", "my-learning", "--status", "active")
         self.assertEqual(result.returncode, 2)
         self.assertIn("--i-am", result.stderr)
 

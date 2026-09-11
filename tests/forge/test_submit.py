@@ -73,7 +73,7 @@ class DryRunTests(unittest.TestCase):
         self.assertIn(REQUIRE_SUBMIT_TOKEN, out)
         self.assertIn(MISSING_SUBMIT_TOKEN, err)
         self.assertIn(f"head: {HEAD}", out)
-        self.assertIn("base: main", out)
+        self.assertIn("base: dev", out)
         self.assertIn(f"title: {TITLE}", out)
         for heading in BODY_HEADINGS:
             self.assertIn(heading, out)
@@ -86,7 +86,7 @@ class DryRunTests(unittest.TestCase):
         self.assertIn("dry-run", out)
         self.assertIn(REQUIRE_SUBMIT_TOKEN, out)
         self.assertIn(f"head: {HEAD}", out)
-        self.assertIn("base: main", out)
+        self.assertIn("base: dev", out)
         self.assertIn(f"title: {TITLE}", out)
         for heading in BODY_HEADINGS:
             self.assertIn(heading, out)
@@ -183,6 +183,17 @@ class RefuseTests(unittest.TestCase):
         )
         self.assertEqual(code, EXIT_CONFIG)
         self.assertIn("refusing", err)
+        self.assertEqual(fake.calls, [])
+        self.assertEqual(pusher.calls, [])
+
+    def test_fork_learning_guide_submit_stays_allowed(self) -> None:
+        # Developers submit draft PRs to the fork; only live apply / release refuse it.
+        code, out, err, fake, pusher = _submit(
+            repo="LibertychaserUS/LearningGuidePortal",
+            dry_run=True,
+        )
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn("dry-run", out)
         self.assertEqual(fake.calls, [])
         self.assertEqual(pusher.calls, [])
 

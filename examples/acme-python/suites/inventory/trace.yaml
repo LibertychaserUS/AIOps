@@ -1,0 +1,27 @@
+schema: overlay-trace/v1
+suite: inventory
+items:
+  - function_id: INV-01
+    case_id: INV-01/functional
+    type: functional
+    level: unit
+  - function_id: INV-01
+    case_id: INV-01/negative
+    type: negative
+    level: unit
+  - function_id: INV-01
+    case_id: INV-01/edge
+    type: edge
+    level: unit
+  - function_id: INV-02
+    case_id: INV-02/functional
+    type: functional
+    level: unit
+  - function_id: INV-02
+    case_id: INV-02/negative
+    type: negative
+    level: unit
+  - function_id: INV-02
+    case_id: INV-02/edge
+    type: edge
+    level: unit

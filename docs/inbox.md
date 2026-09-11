@@ -102,17 +102,17 @@ packages:
 | `packages` | string[] | 否 | 生成时原样写入 `suite.yaml`；第一刀可 `[]` |
 | `locale` | string | 否 | 提示词语言，默认 `en-GB`；不驱动产品 i18n |
 
-**没有**这些字段（放了 validate 失败）：`status`、`reviewed_by`、`armed`、`blocked`、`product_command`。那是 suite 的。
+**没有**这些字段（放了 validate 失败）：`status`、审核者字段、`product_command`。那是 suite 的。
 
 ### `readiness` 是提示，不是门
 
 | 值 | 含义 | generate | 人审 |
 |---|---|---|---|
-| `ready` | 作者认为代码已可测 | 仍出 `draft` | 人可以标 `armed` |
-| `not-ready` | 作者认为不该进门禁 | 仍出 `draft`；把提示抄进 `cases.md` 顶部 | 人应标 `blocked`（不自动） |
-| `unknown` | 没表态 | 仍出 `draft` | 人决定 |
+| `ready` | 作者认为代码已可测 | 仍出可审草稿 | 人可以保持 `active` |
+| `not-ready` | 作者认为不该进门禁 | 仍出草稿；把提示抄进 `cases.md` 顶部 | 人应标 `blocked`（不自动） |
+| `unknown` | 没表态 | 仍出草稿 | 人决定 |
 
-实现不得因为 `readiness: ready` 写出 `status: armed`。
+实现不得因为 `readiness: ready` 写出已解禁以外的状态。人签走 PR，不写在 inbox。
 
 ---
 
@@ -127,7 +127,7 @@ overlay validate          只查契约与体积，不调模型
         │ 人点或 workflow_dispatch
         ▼
 overlay generate --inbox inbox/<id>.md
-        │  只读 inbox；写出 suites/<id>/（status=draft）
+        │  只读 inbox；写出 suites/<id>/（status=active 草稿，经 PR）
         │  不改 inbox
         ▼
 人审 suite.yaml           inbox 保持不动，除非需求变了再改摘录
@@ -136,8 +136,8 @@ overlay generate --inbox inbox/<id>.md
 | 动作 | 改 inbox？ | 改 suite？ |
 |---|---|---|
 | 产品改需求摘录 | 是（新 PR） | 否；需要则重新 generate（`--force-draft`） |
-| generate | 否 | 是，只许变成/保持 draft |
-| 人审 blocked/armed | 否 | 是 |
+| generate | 否 | 是，只许变成/保持 `active` 草稿 |
+| 人审 blocked | 否 | 是 |
 | select / run | 否 | 否 |
 
 `source` 指向的大 PRD 更新了：人改 `source.ref` + 必要时改正文摘录。Overlay 第一刀不自动去拉 docx。
@@ -147,7 +147,7 @@ overlay generate --inbox inbox/<id>.md
 ## 6. 和 suite / generate 的接法
 
 - `generate` 的 `--inbox` 必须是 `inbox/<id>.md`。输出目录默认 `suites/<id>/`。
-- 写出的 `suite.yaml`：`id`、`source: inbox/<id>.md`、`packages` 从 inbox 拷；`status: draft`；`reviewed_*` 空。
+- 写出的 `suite.yaml`：`id`、`source: inbox/<id>.md`、`packages` 从 inbox 拷；`status: active`；无审核字段。
 - `cases.md` 是测试规格正文（`function_id` 来自本 inbox 已写的 id 或当场铸造，不来自本仓 FR 表）。开头可写一行：`<!-- inbox-readiness: not-ready -->` 给审的人看。
 - 一对多：**第一刀不做**。三篇切片 = 三篇 inbox，三个 suite。不要一篇 inbox 生成三个目录。
 - 多对一：禁止。两个 inbox 不得指向同一 `suites/<id>/`。
@@ -176,34 +176,20 @@ Inbox 校验失败 = Overlay **契约红**（退出码 2），与 `blocked` 不�
 
 ## 8. CLI
 
-```text
-python -m overlay inbox-new --id ID --kind user-case
-    # 写出带空节的模板，不调模型
+Inbox 没有单独的子命令清单。校验走 `overlay validate`。完整 CLI：[`cli.md`](cli.md)。
 
-python -m overlay validate
-    # 含全部 inbox
-
-python -m overlay generate --inbox inbox/ID.md
-```
-
-`inbox-new` 给产品一个能开 PR 的空壳。不代替人写 Intent / User cases。
+`inbox-new` 若尚未交付，产品用手写带空节的模板，不代替人写 Intent / User cases。
 
 ---
 
 ## 9. 接入方怎么用
 
 1. 每条要对齐的需求范围 = 一篇 inbox（宁可多篇短的，不要一篇全集）。
-2. 未就绪范围单独成篇，`readiness: not-ready`，审成 `blocked`。
+2. 未就绪范围单独成篇，`readiness: not-ready`，审成 `blocked`（reason 带链接）。
 3. 大 PRD 留在产品仓，inbox 只 pin + 摘录。
 4. 走 PR 合入 inbox（装了 Forge 就自然如此）。
 
-Learning Guide fixture：
-
-| 文件 | kind | readiness | 审完 suite | 产品仓 `source.path` |
-|---|---|---|---|---|
-| `inbox/my-learning.md` | prd | ready | 可 `armed` | `My_Learning_PRD_v1.0_0814.docx` |
-| `inbox/payment.md` | prd | not-ready | 必须 `blocked` | `Payment_Management_PRD_v1.0_0814.docx` |
-| `inbox/login.md` | prd | not-ready | 必须 `blocked` | `Registration_Authentication_PRD_v1.0_0814.docx` |
+带口音的 fixture 见 [`../examples/learning-guide/`](../examples/learning-guide/)。通用形状见 [`../examples/acme-python/`](../examples/acme-python/)。
 
 ---
 
@@ -213,4 +199,4 @@ Learning Guide fixture：
 - 用 inbox 当 wiki 或会议纪要。
 - 第一刀解析 docx/xlsx/Figma 节点。
 - Agent 不经 PR 改保护分支上的 inbox。
-- 从 inbox 直接 `armed`。
+- 从 inbox 直接解禁进门（解禁走 suite + PR）。

@@ -48,4 +48,4 @@ schema **不得**要求 `REQ-n`、`LOGIN-01`、`ML-FR-004`，或 `^[A-Z]{2,8}(-[
 
 失败时读 `function_id`，指回文档叶子；用 `level` 看是哪一层。
 
-Learning Guide fixture 可以出现该产品自己的 id。那些不是 Overlay 合法编号表。内核例子用 `FN-login-retry`。
+`examples/` 里可以出现某产品自己的 id。那些不是 Overlay 合法编号表。内核例子用 `FN-login-retry`。

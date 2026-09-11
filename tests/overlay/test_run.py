@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import sys
 import tempfile
 import unittest
@@ -37,6 +38,7 @@ class RunTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--write-receipt", result.stdout)
         self.assertIn("--workdir", result.stdout)
+        self.assertIn("--timeout", result.stdout)
 
     def test_run_without_receipt_is_usage_error(self) -> None:
         result = run_overlay("run", "--branch", "main", "--root", str(LG))
@@ -69,7 +71,8 @@ class RunTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = write_generic_root(Path(tmp))
             marker = Path(tmp) / "ran.txt"
-            _set_command(root, f"{PY} -c \"from pathlib import Path; Path({str(marker)!r}).write_text('ok')\"")
+            command = f"{PY} -c \"from pathlib import Path; Path({str(marker)!r}).write_text('ok')\""
+            _set_command(root, command)
             dest = Path(tmp) / "receipts"
             result = run_overlay(
                 "run",
@@ -89,8 +92,12 @@ class RunTests(unittest.TestCase):
             ran = [event for event in data["events"] if event["type"] == "ran"]
             self.assertEqual(len(ran), 1)
             self.assertEqual(ran[0]["suite"], "checkout-retry")
-            self.assertEqual(ran[0]["exit_code"], 0)
+            self.assertEqual(ran[0].get("exit", ran[0].get("exit_code")), 0)
             self.assertEqual(ran[0]["function_id"], "FN-login-retry")
+            self.assertIn("duration_s", ran[0])
+            self.assertGreaterEqual(float(ran[0]["duration_s"]), 0)
+            digest = hashlib.sha256(command.encode("utf-8")).hexdigest()
+            self.assertEqual(ran[0]["command_sha256"], digest)
 
     def test_failed_command_is_exit_5_and_still_writes_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -111,7 +118,36 @@ class RunTests(unittest.TestCase):
             self.assertEqual(result.returncode, EXIT_RUN, result.stderr + result.stdout)
             data = _one_receipt(dest)
             ran = [event for event in data["events"] if event["type"] == "ran"]
-            self.assertEqual(ran[0]["exit_code"], 1)
+            self.assertEqual(ran[0].get("exit", ran[0].get("exit_code")), 1)
+
+    def test_timeout_records_exit_and_duration(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = write_generic_root(Path(tmp))
+            command = "sleep 5"
+            _set_command(root, command)
+            dest = Path(tmp) / "receipts"
+            result = run_overlay(
+                "run",
+                "--branch",
+                "main",
+                "--root",
+                str(root),
+                "--write-receipt",
+                str(dest),
+                "--workdir",
+                str(root),
+                "--timeout",
+                "1",
+            )
+            self.assertNotEqual(result.returncode, EXIT_OK, result.stderr + result.stdout)
+            data = _one_receipt(dest)
+            ran = [event for event in data["events"] if event["type"] == "ran"]
+            self.assertEqual(len(ran), 1)
+            self.assertEqual(ran[0].get("exit", ran[0].get("exit_code")), 124)
+            self.assertGreaterEqual(float(ran[0]["duration_s"]), 0.5)
+            self.assertLess(float(ran[0]["duration_s"]), 4)
+            digest = hashlib.sha256(command.encode("utf-8")).hexdigest()
+            self.assertEqual(ran[0]["command_sha256"], digest)
 
     def test_forbid_hosts_in_command_is_exit_2_and_does_not_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -140,7 +176,7 @@ class RunTests(unittest.TestCase):
             refused = [event for event in data["events"] if event["type"] == "refused"]
             self.assertEqual(refused[0]["rule"], "forbid_hosts")
 
-    def test_learning_guide_run_skips_armed_without_command(self) -> None:
+    def test_learning_guide_run_skips_active_without_command(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             dest = Path(tmp) / "receipts"
             result = run_overlay(
@@ -167,7 +203,7 @@ class RunTests(unittest.TestCase):
             self.assertEqual(dropped.get("payment"), "never_red_statuses")
             self.assertEqual(dropped.get("login"), "never_red_statuses")
 
-    def test_unknown_branch_is_empty_and_green(self) -> None:
+    def test_unknown_branch_falls_back_and_is_green(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             dest = Path(tmp) / "receipts"
             result = run_overlay(
@@ -180,7 +216,7 @@ class RunTests(unittest.TestCase):
                 str(dest),
             )
             self.assertEqual(result.returncode, EXIT_OK, result.stderr)
-            self.assertIn("selected=0", result.stderr)
+            self.assertIn("main", result.stderr)
 
     def test_workshop_commands_are_not_recursive(self) -> None:
         overlay = (REPO / "suites" / "overlay-select" / "suite.yaml").read_text(encoding="utf-8")

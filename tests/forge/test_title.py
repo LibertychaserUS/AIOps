@@ -151,6 +151,34 @@ class BadTitlesTests(unittest.TestCase):
         self.assertIsNone(parts)
 
 
+class ScopeModeTests(unittest.TestCase):
+    def test_scopes_any_allows_missing_scope(self) -> None:
+        code, message, parts = lint_title("feat: add cover triad", scopes="any")
+        self.assertEqual(code, EXIT_OK, message)
+        self.assertIsNotNone(parts)
+
+    def test_scopes_any_rejects_trailing_period_and_long_title(self) -> None:
+        code, message, _ = lint_title("feat: add a period.", scopes="any")
+        self.assertEqual(code, EXIT_TITLE)
+        self.assertIn("period", message)
+        long_title = "feat: " + ("a" * 70)
+        self.assertGreater(len(long_title), 72)
+        code, message, _ = lint_title(long_title, scopes="any")
+        self.assertEqual(code, EXIT_TITLE)
+        self.assertIn("72", message)
+
+    def test_scopes_list_keeps_product_actor_and_membership(self) -> None:
+        allowed = ["overlay/agent", "forge/agent"]
+        code, message, _ = lint_title("feat(overlay/agent): add cover", scopes=allowed)
+        self.assertEqual(code, EXIT_OK, message)
+        code, message, _ = lint_title("feat(overlay/dev): add cover", scopes=allowed)
+        self.assertEqual(code, EXIT_TITLE)
+        self.assertIn("title.scopes", message)
+        code, message, _ = lint_title("feat: add cover", scopes=allowed)
+        self.assertEqual(code, EXIT_TITLE)
+        self.assertIn("scope", message)
+
+
 class RegexLockTests(unittest.TestCase):
     def test_published_pattern_is_the_program_lock(self) -> None:
         self.assertEqual(TITLE_RE.pattern, TITLE_PATTERN)
@@ -210,6 +238,7 @@ class WorkshopConfigTests(unittest.TestCase):
         self.assertIn("pr-title", text)
         self.assertIn("forge-check", text)
         self.assertIn("sop-lock", text)
+        self.assertIn("unittest", text)
 
     def test_pr_title_workflow_is_pull_request_only(self) -> None:
         text = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
@@ -223,6 +252,7 @@ class WorkshopConfigTests(unittest.TestCase):
         self.assertIn("forge ci-select", overlay)
         self.assertIn("python -m forge pr-title", overlay)
         self.assertIn("name: spec", overlay)
+        self.assertIn("name: unittest", text)
 
 
 if __name__ == "__main__":

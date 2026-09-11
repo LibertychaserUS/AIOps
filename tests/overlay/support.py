@@ -16,15 +16,21 @@ def copy_lg(dest: Path) -> Path:
     return root
 
 
-def run_overlay(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(REPO)
+def run_overlay(
+    *args: str,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    merged = os.environ.copy()
+    merged["PYTHONPATH"] = str(REPO)
+    if env:
+        merged.update(env)
     return subprocess.run(
         [sys.executable, "-m", "overlay", *args],
         cwd=cwd or REPO,
         capture_output=True,
         text=True,
-        env=env,
+        env=merged,
         check=False,
     )
 
@@ -44,11 +50,12 @@ branches:
     run: [functional, regression]
   hotfix:
     run: [functional]
+  default:
+    run: [functional]
 kinds:
   concurrency: later
   agent: later
 never_red_statuses:
-  - draft
   - blocked
 forbid_hosts:
   - prod.example.com
@@ -85,18 +92,16 @@ Retry checkout without a double charge for the same receipt.
 
 
 GENERIC_SUITE = """\
+schema: overlay-suite/v2
 id: checkout-retry
 title: Checkout retry without double charge
-status: armed
+status: active
 kind: functional
 subject: product
 source: inbox/checkout-retry.md
 packages:
   - src/checkout
-reviewed_by: fixture
-reviewed_at: 2026-09-10T00:00:00Z
 blocked_reason: null
-armed_reason: Pin already ships the retry path.
 product_command: null
 """
 

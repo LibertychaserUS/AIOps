@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import os
 import subprocess
 import tempfile
 import unittest
@@ -10,7 +11,7 @@ from pathlib import Path
 
 from forge import EXIT_OK
 from forge.__main__ import main
-from forge.check import EXIT_CHECK, deny_paths_step, path_is_denied, run_check
+from forge.check import EXIT_CHECK, deny_paths_step, path_is_denied, run_check, suite_guard_step
 from forge.title import EXAMPLE
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -137,7 +138,7 @@ class TitleStepTests(unittest.TestCase):
 
 
 class SkipAndFailTests(unittest.TestCase):
-    def test_adopter_root_skips_overlay_and_schema(self) -> None:
+    def test_adopter_root_omits_workshop_only_rows(self) -> None:
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -155,12 +156,14 @@ class SkipAndFailTests(unittest.TestCase):
             self.assertEqual(code, EXIT_OK, stderr.getvalue())
             out = stdout.getvalue()
             self.assertIn("no overlay.yaml", out)
-            self.assertIn("no schema/", out)
-            self.assertIn("no workshop tests/", out)
             self.assertIn("pr-title", out)
+            self.assertNotIn("schema/check.py", out)
+            self.assertNotIn("sop-lock", out)
+            self.assertNotIn("unittest (fast)", out)
+            self.assertNotIn("no workshop tests/", out)
             self.assertIn("ok", out)
 
-    def test_sop_lock_failure_is_red(self) -> None:
+    def test_adopter_husky_does_not_print_sop_lock(self) -> None:
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -176,9 +179,8 @@ class SkipAndFailTests(unittest.TestCase):
                 environ={},
                 run_unittests=False,
             )
-            self.assertEqual(code, EXIT_CHECK)
-            self.assertIn("sop-lock", stdout.getvalue())
-            self.assertIn("FAIL", stdout.getvalue())
+            self.assertEqual(code, EXIT_OK, stderr.getvalue())
+            self.assertNotIn("sop-lock", stdout.getvalue())
 
     def test_overlay_validate_failure_is_red(self) -> None:
         import tempfile
@@ -221,7 +223,16 @@ class SkipAndFailTests(unittest.TestCase):
 
 
 def _git(root: Path, *args: str) -> None:
-    subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+    # Isolate from the developer's global git config: a commit signer
+    # (commit.gpgsign + gpg.ssh.program) turns each fixture commit into a
+    # multi-second RPC and can prompt. Fixtures never need signatures.
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
+    subprocess.run(
+        ["git", "-C", str(root), "-c", "commit.gpgsign=false", *args],
+        check=True,
+        capture_output=True,
+        env=env,
+    )
 
 
 def _init_product(root: Path) -> None:
@@ -330,6 +341,283 @@ class DenyPathsCheckTests(unittest.TestCase):
         self.assertTrue(path_is_denied("docs/locked/readme.md", deny))
         self.assertFalse(path_is_denied("docs/open.md", deny))
         self.assertFalse(path_is_denied("github/workflows/ci.yml", deny))
+
+
+ACTIVE_SUITE = (
+    "id: login\n"
+    "status: active\n"
+    "product_command: true\n"
+)
+BLOCKED_SUITE = (
+    "id: login\n"
+    "status: blocked\n"
+    "blocked_reason: parked pending https://example.test/OF-12\n"
+    "product_command: true\n"
+)
+
+
+def _init_product_with_suite(root: Path) -> None:
+    _init_product(root)
+    (root / "suites" / "login").mkdir(parents=True)
+    (root / "suites" / "login" / "suite.yaml").write_text(ACTIVE_SUITE, encoding="utf-8")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-m", "draft suite")
+
+
+def _check(root: Path, environ: dict[str, str] | None = None) -> tuple[int, str]:
+    stdout = io.StringIO()
+    code = run_check(
+        root,
+        title=EXAMPLE,
+        stdout=stdout,
+        stderr=io.StringIO(),
+        environ=environ or {},
+        run_unittests=False,
+    )
+    return code, stdout.getvalue()
+
+
+class ProtectBaseResolutionTests(unittest.TestCase):
+    def test_stale_local_main_does_not_produce_false_hits(self) -> None:
+        # A developer whose local main is behind origin/main must not see the
+        # merged work of others reported as their own deny_paths / arm diff.
+        with tempfile.TemporaryDirectory() as tmp:
+            remote = Path(tmp) / "remote.git"
+            remote.mkdir()
+            _git(remote, "init", "--bare", "-b", "main")
+            root = Path(tmp) / "clone"
+            root.mkdir()
+            _init_product_with_suite(root)
+            _git(root, "remote", "add", "origin", str(remote))
+            _git(root, "push", "-q", "origin", "main")
+            # Someone else lands a deny_path change and arms the suite on origin/main.
+            other = Path(tmp) / "other"
+            _git(Path(tmp), "clone", "-q", str(remote), str(other))
+            _git(other, "config", "user.email", "o@example.test")
+            _git(other, "config", "user.name", "O")
+            (other / ".github" / "workflows" / "ci.yml").write_text("name: ci\non: push\n", encoding="utf-8")
+            (other / "suites" / "login" / "suite.yaml").write_text(BLOCKED_SUITE, encoding="utf-8")
+            _git(other, "add", "-A")
+            _git(other, "commit", "-m", "human lands ci + arms")
+            _git(other, "push", "-q", "origin", "main")
+            # Our clone: local main stale, fetch origin, branch from origin/main, touch README only.
+            _git(root, "fetch", "-q", "origin")
+            _git(root, "checkout", "-q", "-b", "cursor/docs", "origin/main")
+            (root / "README.md").write_text("hello again\n", encoding="utf-8")
+            code, out = _check(root)
+            self.assertEqual(code, EXIT_OK, out)
+            self.assertIn("vs refs/remotes/origin/main", out)
+
+
+class MonorepoRootTests(unittest.TestCase):
+    """--root may be a subdirectory of the git repo (monorepo adopter)."""
+
+    def _init_monorepo(self, top: Path) -> Path:
+        (top / ".github" / "workflows").mkdir(parents=True)
+        (top / ".github" / "workflows" / "ci.yml").write_text("name: top\n", encoding="utf-8")
+        product = top / "services" / "inventory"
+        product.mkdir(parents=True)
+        (product / ".github" / "workflows").mkdir(parents=True)
+        (product / ".github" / "workflows" / "ci.yml").write_text("name: product\n", encoding="utf-8")
+        (product / "README.md").write_text("hello\n", encoding="utf-8")
+        (product / "forge.yaml").write_text(
+            "schema: forge-config/v1\nprotect:\n  - main\nagent_branch_prefixes:\n  - cursor/\n"
+            "deny_paths:\n  - .github/workflows/\n",
+            encoding="utf-8",
+        )
+        _git(top, "init", "-b", "main")
+        _git(top, "config", "user.email", "t@example.test")
+        _git(top, "config", "user.name", "T")
+        _git(top, "add", "-A")
+        _git(top, "commit", "-m", "init")
+        return product
+
+    def test_top_level_workflow_change_is_not_the_products_deny_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            top = Path(tmp)
+            product = self._init_monorepo(top)
+            _git(top, "checkout", "-b", "cursor/top")
+            (top / ".github" / "workflows" / "ci.yml").write_text("name: top2\n", encoding="utf-8")
+            code, out = _check(product)
+            self.assertEqual(code, EXIT_OK, out)
+
+    def test_product_workflow_change_is_red_with_product_relative_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            top = Path(tmp)
+            product = self._init_monorepo(top)
+            _git(top, "checkout", "-b", "cursor/prod")
+            (product / ".github" / "workflows" / "ci.yml").write_text("name: product2\n", encoding="utf-8")
+            code, out = _check(product)
+            self.assertEqual(code, EXIT_CHECK, out)
+            self.assertIn("diff touches .github/workflows/ci.yml", out)
+            self.assertNotIn("services/inventory/.github", out)
+
+
+class SuiteGuardCheckTests(unittest.TestCase):
+    """Agents must not flip status to blocked; humans are recorded."""
+
+    def test_agent_branch_blocking_a_suite_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product_with_suite(root)
+            _git(root, "checkout", "-b", "cursor/block")
+            (root / "suites" / "login" / "suite.yaml").write_text(BLOCKED_SUITE, encoding="utf-8")
+            _git(root, "add", "-A")
+            _git(root, "commit", "-m", "block")
+            code, out = _check(root)
+            self.assertEqual(code, EXIT_CHECK, out)
+            self.assertIn("suite_guard", out)
+            self.assertIn("FAIL", out)
+            self.assertIn("suites/login/suite.yaml", out)
+            self.assertIn("blocked", out)
+            self.assertNotIn("armed", out)
+            self.assertNotIn("reviewed_by", out)
+
+    def test_agent_branch_new_active_suite_is_green(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product_with_suite(root)
+            _git(root, "checkout", "-b", "cursor/new-suite")
+            (root / "suites" / "payment").mkdir()
+            (root / "suites" / "payment" / "suite.yaml").write_text(
+                ACTIVE_SUITE.replace("id: login", "id: payment"), encoding="utf-8"
+            )
+            code, out = _check(root)
+            self.assertEqual(code, EXIT_OK, out)
+            self.assertIn("suite_guard", out)
+            self.assertNotIn("FAIL", out)
+
+    def test_human_branch_blocking_is_recorded_not_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product_with_suite(root)
+            _git(root, "checkout", "-b", "review/block-login")
+            (root / "suites" / "login" / "suite.yaml").write_text(BLOCKED_SUITE, encoding="utf-8")
+            code, out = _check(root)
+            self.assertEqual(code, EXIT_OK, out)
+            self.assertIn("suite_guard", out)
+            self.assertIn("human branch", out)
+
+    def test_detached_head_uses_github_head_ref(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product_with_suite(root)
+            _git(root, "checkout", "-b", "cursor/block")
+            (root / "suites" / "login" / "suite.yaml").write_text(BLOCKED_SUITE, encoding="utf-8")
+            _git(root, "add", "-A")
+            _git(root, "commit", "-m", "block")
+            _git(root, "checkout", "--detach")
+            code, out = _check(root, {"GITHUB_HEAD_REF": "cursor/block"})
+            self.assertEqual(code, EXIT_CHECK, out)
+            self.assertIn("agent branch cursor/block", out)
+
+    def test_already_blocked_on_main_stays_green_for_agent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product_with_suite(root)
+            (root / "suites" / "login" / "suite.yaml").write_text(BLOCKED_SUITE, encoding="utf-8")
+            _git(root, "add", "-A")
+            _git(root, "commit", "-m", "human blocks on main")
+            _git(root, "checkout", "-b", "cursor/touch")
+            (root / "suites" / "login" / "suite.yaml").write_text(
+                BLOCKED_SUITE.replace("OF-12", "OF-12#note"), encoding="utf-8"
+            )
+            code, out = _check(root)
+            self.assertEqual(code, EXIT_OK, out)
+
+    def test_no_suites_dir_skips(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product(root)
+            _git(root, "checkout", "-b", "cursor/none")
+            step = suite_guard_step(root, environ={})
+            self.assertEqual(step.status, "ok")
+            self.assertIn("no suite.yaml", step.detail)
+
+
+class DocsSyncCheckTests(unittest.TestCase):
+    def test_table_miss_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product(root)
+            (root / "forge.yaml").write_text(
+                "schema: forge-config/v1\n"
+                "protect:\n  - main\n"
+                "agent_branch_prefixes:\n  - cursor/\n"
+                "deny_paths:\n  - .github/workflows/ci.yml\n"
+                "docs_sync:\n"
+                "  - paths: [src/**]\n"
+                "    require: [CHANGELOG.md]\n",
+                encoding="utf-8",
+            )
+            _git(root, "add", "-A")
+            _git(root, "commit", "-m", "config")
+            _git(root, "checkout", "-b", "cursor/src")
+            (root / "src").mkdir()
+            (root / "src" / "app.py").write_text("print(1)\n", encoding="utf-8")
+            code, out = _check(root)
+            self.assertEqual(code, EXIT_CHECK, out)
+            self.assertIn("docs_sync", out)
+            self.assertIn("FAIL", out)
+            self.assertIn("CHANGELOG.md", out)
+
+    def test_table_hit_with_require_is_green(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product(root)
+            (root / "forge.yaml").write_text(
+                "schema: forge-config/v1\n"
+                "protect:\n  - main\n"
+                "agent_branch_prefixes:\n  - cursor/\n"
+                "deny_paths:\n  - .github/workflows/ci.yml\n"
+                "docs_sync:\n"
+                "  - paths: [src/**]\n"
+                "    require: [CHANGELOG.md]\n",
+                encoding="utf-8",
+            )
+            (root / "CHANGELOG.md").write_text("## [forge-1.1.0]\n\n- added\n", encoding="utf-8")
+            _git(root, "add", "-A")
+            _git(root, "commit", "-m", "config")
+            _git(root, "checkout", "-b", "cursor/src")
+            (root / "src").mkdir()
+            (root / "src" / "app.py").write_text("print(1)\n", encoding="utf-8")
+            (root / "CHANGELOG.md").write_text("## [forge-1.1.0]\n\n- src\n", encoding="utf-8")
+            code, out = _check(root)
+            self.assertEqual(code, EXIT_OK, out)
+            self.assertIn("docs_sync", out)
+
+    def test_broken_relative_link_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product(root)
+            _git(root, "checkout", "-b", "cursor/docs")
+            (root / "README.md").write_text("see [missing](no-such.md)\n", encoding="utf-8")
+            code, out = _check(root)
+            self.assertEqual(code, EXIT_CHECK, out)
+            self.assertIn("docs_sync", out)
+            self.assertIn("no-such.md", out)
+
+    def test_unregistered_pin_mention_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product(root)
+            _git(root, "checkout", "-b", "cursor/docs")
+            (root / "README.md").write_text("pin overlay-v9.9.9\n", encoding="utf-8")
+            code, out = _check(root)
+            self.assertEqual(code, EXIT_CHECK, out)
+            self.assertIn("overlay-v9.9.9", out)
+
+    def test_changelog_heading_registers_next_pin(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product(root)
+            (root / "CHANGELOG.md").write_text("## [overlay-9.9.9]\n\nnext\n", encoding="utf-8")
+            _git(root, "add", "-A")
+            _git(root, "commit", "-m", "changelog")
+            _git(root, "checkout", "-b", "cursor/docs")
+            (root / "README.md").write_text("pin overlay-v9.9.9\n", encoding="utf-8")
+            code, out = _check(root)
+            self.assertEqual(code, EXIT_OK, out)
 
 
 if __name__ == "__main__":

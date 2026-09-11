@@ -1,0 +1,18 @@
+schema: overlay-config/v1
+product:
+  repo: acme/inventory
+  default_ref: pin-me
+branches:
+  main:
+    run: [functional, regression]
+  dev:
+    run: [functional, regression]
+  default:
+    run: [functional]
+kinds:
+  concurrency: later
+  agent: later
+never_red_statuses:
+  - blocked
+forbid_hosts:
+  - prod.example.com

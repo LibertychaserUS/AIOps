@@ -18,5 +18,4 @@ kinds:
   agent: later
 
 never_red_statuses:
-  - draft
   - blocked

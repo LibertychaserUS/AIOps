@@ -7,9 +7,10 @@ import os
 import re
 import urllib.error
 import urllib.request
+import difflib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 from urllib.parse import urlparse
 
 from forge import (
@@ -20,8 +21,9 @@ from forge import (
     EXIT_OK,
     FORBIDDEN_REPOS,
     RULESET_JSON,
-    RULESET_NAME,
     SCHEMA_ID,
+    TAG_RULESET_NAME,
+    branch_ruleset_name,
 )
 
 UrlOpen = Callable[..., Any]
@@ -32,6 +34,21 @@ DEFAULT_API = "https://api.github.com"
 DEFAULT_PROTECT = ("main",)
 DEFAULT_PREFIXES = ("cursor/", "copilot/")
 DEFAULT_DENY = (".github/workflows/ci.yml",)
+DEFAULT_TAG_PATTERNS = ("overlay-v*", "forge-v*")
+KNOWN_TOP_LEVEL_KEYS = (
+    "schema",
+    "protect",
+    "agent_branch_prefixes",
+    "deny_paths",
+    "required_checks",
+    "review",
+    "ci",
+    "branches",
+    "title",
+    "docs_sync",
+    "forbidden_live_repos",
+    "tag_patterns",
+)
 
 
 class ForgeError(Exception):
@@ -39,6 +56,21 @@ class ForgeError(Exception):
         super().__init__(message)
         self.code = code
         self.message = message
+
+
+@dataclass(frozen=True)
+class BranchRule:
+    name: str
+    required_checks: list[str] = field(default_factory=list)
+    approvals: int = 1
+    code_owners: bool = False
+    promote_from: str | None = None
+
+
+@dataclass(frozen=True)
+class DocsSyncRule:
+    paths: list[str]
+    require: list[str]
 
 
 @dataclass
@@ -50,6 +82,22 @@ class ForgeConfig:
     required_checks: list[str] = field(default_factory=list)
     min_approvals: int = 1
     code_owners: bool = False
+    branches: dict[str, BranchRule] = field(default_factory=dict)
+    title_scopes: str | list[str] | None = None
+    docs_sync: list[DocsSyncRule] = field(default_factory=list)
+    forbidden_live_repos: list[str] = field(default_factory=list)
+    tag_patterns: list[str] = field(default_factory=lambda: list(DEFAULT_TAG_PATTERNS))
+
+    def rule_for(self, branch: str) -> BranchRule:
+        found = self.branches.get(branch)
+        if found is not None:
+            return found
+        return BranchRule(
+            name=branch,
+            required_checks=list(self.required_checks),
+            approvals=self.min_approvals,
+            code_owners=self.code_owners,
+        )
 
 
 def default_urlopen(req: urllib.request.Request, timeout: int = 30) -> Any:
@@ -77,12 +125,38 @@ def parse_repo(repo: str) -> tuple[str, str]:
     return match.group(1), match.group(2)
 
 
-def assert_apply_allowed(owner: str, name: str) -> None:
+def assert_live_repo_allowed(
+    owner: str,
+    name: str,
+    forbidden: Sequence[str] | None = None,
+    *,
+    action: str = "apply",
+) -> None:
+    """Refuse repos listed in forge.yaml.forbidden_live_repos plus the LG hostname."""
+    key = f"{owner}/{name}".lower()
+    listed = {item.lower() for item in (forbidden or ())}
+    if key in listed:
+        raise ForgeError(EXIT_CONFIG, f"refusing to {action} to {owner}/{name}")
+    if "ilovelearningguide" in key:
+        raise ForgeError(EXIT_CONFIG, f"refusing to {action} to {owner}/{name}")
+
+
+def assert_apply_allowed(
+    owner: str,
+    name: str,
+    forbidden: Sequence[str] | None = None,
+) -> None:
+    """Live Ruleset apply: refuses forge.yaml.forbidden_live_repos."""
+    assert_live_repo_allowed(owner, name, forbidden, action="apply")
+
+
+def assert_submit_allowed(owner: str, name: str) -> None:
+    """Dev submit: refuses upstream only; developers do open draft PRs on the fork."""
     key = f"{owner}/{name}".lower()
     if key in FORBIDDEN_REPOS:
-        raise ForgeError(EXIT_CONFIG, f"refusing to apply to {owner}/{name}")
+        raise ForgeError(EXIT_CONFIG, f"refusing to submit to {owner}/{name}")
     if "ilovelearningguide" in key:
-        raise ForgeError(EXIT_CONFIG, f"refusing to apply to {owner}/{name}")
+        raise ForgeError(EXIT_CONFIG, f"refusing to submit to {owner}/{name}")
 
 
 def _strip_comment(line: str) -> str:
@@ -197,6 +271,10 @@ def _parse_list(rows: list[tuple[int, int, str]], i: int, indent: int) -> tuple[
             raise _YamlError(f"line {lineno}: expected a list item")
         rest = content[1:].strip()
         if rest:
+            if ":" in rest and not rest.startswith("[") and not rest.startswith("'") and not rest.startswith('"'):
+                mapping, i = _parse_list_mapping_item(rows, i, indent, rest)
+                result.append(mapping)
+                continue
             result.append(_parse_scalar(rest))
             i += 1
             continue
@@ -207,6 +285,49 @@ def _parse_list(rows: list[tuple[int, int, str]], i: int, indent: int) -> tuple[
         child, i = _parse_block(rows, i + 1, rows[i + 1][1])
         result.append(child)
     return result, i
+
+
+def _parse_list_mapping_item(
+    rows: list[tuple[int, int, str]], i: int, indent: int, rest: str
+) -> tuple[dict[str, Any], int]:
+    """Parse `- key: value` plus sibling keys indented further than the dash."""
+    key, _, value = rest.partition(":")
+    key = key.strip()
+    value = value.strip()
+    mapping: dict[str, Any] = {}
+    _, ind, _ = rows[i]
+    if value:
+        mapping[key] = _parse_scalar(value)
+        i += 1
+    elif i + 1 < len(rows) and rows[i + 1][1] > ind:
+        child, i = _parse_block(rows, i + 1, rows[i + 1][1])
+        mapping[key] = child
+    else:
+        mapping[key] = None
+        i += 1
+    while i < len(rows):
+        lineno2, ind2, content2 = rows[i]
+        if ind2 <= indent:
+            break
+        if content2.startswith("- ") or content2 == "-":
+            break
+        if ":" not in content2:
+            raise _YamlError(f"line {lineno2}: expected key:")
+        k, _, r = content2.partition(":")
+        k, r = k.strip(), r.strip()
+        if not k:
+            raise _YamlError(f"line {lineno2}: empty key")
+        if r:
+            mapping[k] = _parse_scalar(r)
+            i += 1
+            continue
+        if i + 1 >= len(rows) or rows[i + 1][1] <= ind2:
+            mapping[k] = None
+            i += 1
+            continue
+        child, i = _parse_block(rows, i + 1, rows[i + 1][1])
+        mapping[k] = child
+    return mapping, i
 
 
 def _string_list(value: Any, field: str, *, allow_empty: bool) -> list[str]:
@@ -220,7 +341,7 @@ def _string_list(value: Any, field: str, *, allow_empty: bool) -> list[str]:
     for item in value:
         if not isinstance(item, str) or not item.strip():
             raise ForgeError(EXIT_CONFIG, f"illegal {field} item: {item!r}")
-        if ".." in item:
+        if ".." in item.replace("\\", "/").split("/"):
             raise ForgeError(EXIT_CONFIG, f"illegal {field} item: {item!r}")
         out.append(item)
     return out
@@ -233,10 +354,87 @@ def normalize_branch(name: str) -> str:
     return match.group(1)
 
 
+def _unknown_key_message(key: str) -> str:
+    suggestions = difflib.get_close_matches(key, KNOWN_TOP_LEVEL_KEYS, n=1, cutoff=0.5)
+    if suggestions:
+        return f"unknown key {key}; did you mean {suggestions[0]}"
+    return f"unknown key {key}"
+
+
+def _parse_title_scopes(raw: Any) -> str | list[str] | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ForgeError(EXIT_CONFIG, "illegal title: expected a mapping")
+    if "scopes" not in raw:
+        return None
+    scopes = raw["scopes"]
+    if isinstance(scopes, str):
+        if scopes != "any":
+            raise ForgeError(EXIT_CONFIG, f"illegal title.scopes: {scopes!r} (any | list)")
+        return "any"
+    return _string_list(scopes, "title.scopes", allow_empty=False)
+
+
+def _parse_docs_sync(raw: Any) -> list[DocsSyncRule]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ForgeError(EXIT_CONFIG, "illegal docs_sync: expected a list")
+    out: list[DocsSyncRule] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ForgeError(EXIT_CONFIG, "illegal docs_sync item: expected a mapping")
+        paths = _string_list(item.get("paths"), "docs_sync.paths", allow_empty=False)
+        require = _string_list(item.get("require"), "docs_sync.require", allow_empty=False)
+        out.append(DocsSyncRule(paths=paths, require=require))
+    return out
+
+
+def _parse_branch_rule(
+    name: str,
+    raw: Any,
+    *,
+    fallback_checks: list[str],
+    fallback_approvals: int,
+    fallback_owners: bool,
+) -> BranchRule:
+    if not isinstance(raw, dict):
+        raise ForgeError(EXIT_CONFIG, f"illegal branches.{name}: expected a mapping")
+    if "required_checks" in raw:
+        checks = _string_list(raw["required_checks"], f"branches.{name}.required_checks", allow_empty=True)
+    else:
+        checks = list(fallback_checks)
+    approvals = raw.get("approvals", fallback_approvals)
+    if isinstance(approvals, bool) or not isinstance(approvals, int) or approvals < 0:
+        raise ForgeError(EXIT_CONFIG, f"illegal branches.{name}.approvals: {approvals!r}")
+    code_owners = raw.get("code_owners", fallback_owners)
+    if not isinstance(code_owners, bool):
+        raise ForgeError(EXIT_CONFIG, f"illegal branches.{name}.code_owners: {code_owners!r}")
+    promote_from = raw.get("promote_from")
+    if promote_from is None:
+        promote = None
+    elif isinstance(promote_from, str) and promote_from.strip():
+        promote = normalize_branch(promote_from)
+    else:
+        raise ForgeError(EXIT_CONFIG, f"illegal branches.{name}.promote_from: {promote_from!r}")
+    return BranchRule(
+        name=name,
+        required_checks=checks,
+        approvals=approvals,
+        code_owners=code_owners,
+        promote_from=promote,
+    )
+
+
 def validate_config(raw: dict[str, Any]) -> ForgeConfig:
     schema = raw.get("schema", SCHEMA_ID)
     if schema != SCHEMA_ID:
         raise ForgeError(EXIT_CONFIG, f"illegal schema: {schema!r}")
+
+    for key in raw:
+        if key not in KNOWN_TOP_LEVEL_KEYS:
+            raise ForgeError(EXIT_CONFIG, _unknown_key_message(str(key)))
 
     if "protect" in raw:
         protect = [normalize_branch(item) for item in _string_list(raw["protect"], "protect", allow_empty=False)]
@@ -274,6 +472,33 @@ def validate_config(raw: dict[str, Any]) -> ForgeConfig:
     if not isinstance(code_owners, bool):
         raise ForgeError(EXIT_CONFIG, f"illegal review.code_owners: {code_owners!r}")
 
+    branches_raw = raw.get("branches")
+    branches: dict[str, BranchRule] = {}
+    if branches_raw is not None:
+        if not isinstance(branches_raw, dict):
+            raise ForgeError(EXIT_CONFIG, "illegal branches: expected a mapping")
+        for name, item in branches_raw.items():
+            branch = normalize_branch(str(name))
+            branches[branch] = _parse_branch_rule(
+                branch,
+                item,
+                fallback_checks=required_checks,
+                fallback_approvals=min_approvals,
+                fallback_owners=code_owners,
+            )
+
+    if "tag_patterns" in raw:
+        tag_patterns = _string_list(raw["tag_patterns"], "tag_patterns", allow_empty=False)
+    else:
+        tag_patterns = list(DEFAULT_TAG_PATTERNS)
+
+    if "forbidden_live_repos" in raw:
+        forbidden = _string_list(
+            raw["forbidden_live_repos"], "forbidden_live_repos", allow_empty=True
+        )
+    else:
+        forbidden = []
+
     return ForgeConfig(
         schema=SCHEMA_ID,
         protect=protect,
@@ -282,6 +507,11 @@ def validate_config(raw: dict[str, Any]) -> ForgeConfig:
         required_checks=required_checks,
         min_approvals=min_approvals,
         code_owners=code_owners,
+        branches=branches,
+        title_scopes=_parse_title_scopes(raw.get("title")),
+        docs_sync=_parse_docs_sync(raw.get("docs_sync")),
+        forbidden_live_repos=forbidden,
+        tag_patterns=tag_patterns,
     )
 
 
@@ -312,15 +542,16 @@ def load_ruleset_template() -> dict[str, Any]:
     return data
 
 
-def build_payload(config: ForgeConfig, template: dict[str, Any] | None = None) -> dict[str, Any]:
-    payload = json.loads(json.dumps(template if template is not None else load_ruleset_template()))
-    payload["name"] = RULESET_NAME
-    payload["target"] = payload.get("target") or "branch"
+def build_branch_payload(config: ForgeConfig, branch: str) -> dict[str, Any]:
+    rule = config.rule_for(branch)
+    payload = json.loads(json.dumps(load_ruleset_template()))
+    payload["name"] = branch_ruleset_name(branch)
+    payload["target"] = "branch"
     payload["enforcement"] = payload.get("enforcement") or "active"
     payload["bypass_actors"] = []
     payload["conditions"] = {
         "ref_name": {
-            "include": [f"refs/heads/{branch}" for branch in config.protect],
+            "include": [f"refs/heads/{branch}"],
             "exclude": [],
         }
     }
@@ -328,48 +559,127 @@ def build_payload(config: ForgeConfig, template: dict[str, Any] | None = None) -
     if not isinstance(rules, list):
         raise ForgeError(EXIT_CONFIG, "illegal ruleset template: rules must be a list")
     found_pr = False
-    for rule in rules:
-        if not isinstance(rule, dict):
+    for item in rules:
+        if not isinstance(item, dict):
             continue
-        if rule.get("type") == "pull_request":
+        if item.get("type") == "pull_request":
             found_pr = True
-            params = rule.setdefault("parameters", {})
+            params = item.setdefault("parameters", {})
             if not isinstance(params, dict):
                 raise ForgeError(EXIT_CONFIG, "illegal pull_request parameters")
-            params["required_approving_review_count"] = config.min_approvals
-            params["require_code_owner_review"] = config.code_owners
-            params.setdefault("dismiss_stale_reviews_on_push", True)
+            params["required_approving_review_count"] = rule.approvals
+            params["require_code_owner_review"] = rule.code_owners
+            params["dismiss_stale_reviews_on_push"] = True
             params.setdefault("require_last_push_approval", False)
     if not found_pr:
         raise ForgeError(EXIT_CONFIG, "ruleset template is missing pull_request")
-    if config.required_checks:
-        check_rule = {
-            "type": "required_status_checks",
-            "parameters": {
-                "strict_required_status_checks_policy": False,
-                "required_status_checks": [
-                    {"context": name} for name in config.required_checks
-                ],
-            },
-        }
-        replaced = False
-        for index, rule in enumerate(rules):
-            if isinstance(rule, dict) and rule.get("type") == "required_status_checks":
-                rules[index] = check_rule
-                replaced = True
-                break
-        if not replaced:
-            rules.append(check_rule)
-    else:
-        payload["rules"] = [
-            rule
-            for rule in rules
-            if not (isinstance(rule, dict) and rule.get("type") == "required_status_checks")
-        ]
-    types = {rule.get("type") for rule in payload["rules"] if isinstance(rule, dict)}
+    check_rule = {
+        "type": "required_status_checks",
+        "parameters": {
+            "strict_required_status_checks_policy": True,
+            "required_status_checks": [{"context": name} for name in rule.required_checks],
+        },
+    }
+    replaced = False
+    for index, item in enumerate(rules):
+        if isinstance(item, dict) and item.get("type") == "required_status_checks":
+            rules[index] = check_rule
+            replaced = True
+            break
+    if not replaced:
+        rules.append(check_rule)
+    types = {item.get("type") for item in payload["rules"] if isinstance(item, dict)}
     if "deletion" not in types or "non_fast_forward" not in types:
         raise ForgeError(EXIT_CONFIG, "ruleset template is missing deletion/non_fast_forward")
     return payload
+
+
+def build_tag_payload(config: ForgeConfig) -> dict[str, Any]:
+    includes = [f"refs/tags/{pattern}" for pattern in config.tag_patterns]
+    return {
+        "name": TAG_RULESET_NAME,
+        "target": "tag",
+        "enforcement": "active",
+        "bypass_actors": [],
+        "conditions": {"ref_name": {"include": includes, "exclude": []}},
+        "rules": [
+            {"type": "deletion"},
+            {"type": "non_fast_forward"},
+            {"type": "update"},
+        ],
+    }
+
+
+def build_payloads(config: ForgeConfig) -> list[dict[str, Any]]:
+    return [build_branch_payload(config, branch) for branch in config.protect] + [
+        build_tag_payload(config)
+    ]
+
+
+def build_payload(config: ForgeConfig, template: dict[str, Any] | None = None) -> dict[str, Any]:
+    """First protected-branch payload. Prefer build_payloads()."""
+    del template
+    branch = config.protect[0] if config.protect else DEFAULT_PROTECT[0]
+    return build_branch_payload(config, branch)
+
+
+def expected_ruleset_names(config: ForgeConfig) -> list[str]:
+    return [branch_ruleset_name(branch) for branch in config.protect] + [TAG_RULESET_NAME]
+
+
+def ruleset_fingerprint(item: dict[str, Any]) -> dict[str, Any]:
+    """Comparable subset used to detect drift (ignore GitHub ids)."""
+    conditions = item.get("conditions") if isinstance(item.get("conditions"), dict) else {}
+    ref_name = conditions.get("ref_name") if isinstance(conditions, dict) else {}
+    include = list(ref_name.get("include") or []) if isinstance(ref_name, dict) else []
+    rules_out: list[dict[str, Any]] = []
+    for rule in item.get("rules") or []:
+        if not isinstance(rule, dict):
+            continue
+        kind = rule.get("type")
+        params = rule.get("parameters") if isinstance(rule.get("parameters"), dict) else {}
+        if kind == "pull_request":
+            rules_out.append(
+                {
+                    "type": kind,
+                    "required_approving_review_count": params.get("required_approving_review_count"),
+                    "require_code_owner_review": params.get("require_code_owner_review"),
+                    "dismiss_stale_reviews_on_push": params.get("dismiss_stale_reviews_on_push"),
+                }
+            )
+        elif kind == "required_status_checks":
+            contexts = []
+            for check in params.get("required_status_checks") or []:
+                if isinstance(check, dict) and check.get("context"):
+                    contexts.append(check["context"])
+                elif isinstance(check, str):
+                    contexts.append(check)
+            rules_out.append(
+                {
+                    "type": kind,
+                    "strict": params.get("strict_required_status_checks_policy"),
+                    "contexts": contexts,
+                }
+            )
+        else:
+            rules_out.append({"type": kind})
+    rules_out.sort(key=lambda row: str(row.get("type")))
+    return {
+        "name": item.get("name"),
+        "target": item.get("target") or "branch",
+        "include": include,
+        "rules": rules_out,
+    }
+
+
+def classify_ruleset(
+    expected: dict[str, Any], installed: dict[str, Any] | None
+) -> str:
+    if installed is None:
+        return "missing"
+    if ruleset_fingerprint(expected) != ruleset_fingerprint(installed):
+        return "drifted"
+    return "installed"
 
 
 def _as_ruleset_list(payload: Any) -> list[dict[str, Any]]:
@@ -385,7 +695,7 @@ def _as_ruleset_list(payload: Any) -> list[dict[str, Any]]:
     raise ForgeError(EXIT_API, "unexpected ruleset list shape")
 
 
-def find_named_ruleset(items: list[dict[str, Any]], name: str = RULESET_NAME) -> dict[str, Any] | None:
+def find_named_ruleset(items: list[dict[str, Any]], name: str) -> dict[str, Any] | None:
     for item in items:
         if item.get("name") == name:
             return item
@@ -527,13 +837,13 @@ def run_apply(
     err = sys.stderr if stderr is None else stderr
     try:
         owner, name = parse_repo(repo)
-        assert_apply_allowed(owner, name)
         config_path = None if path is None else Path(path)
         config = load_config(config_path)
-        payload = build_payload(config)
+        assert_apply_allowed(owner, name, config.forbidden_live_repos)
+        payloads = build_payloads(config)
         if dry_run:
             print("dry-run", file=out)
-            print(json.dumps(payload, indent=2), file=out)
+            print(json.dumps(payloads, indent=2), file=out)
             print(f"protect: {', '.join(config.protect)}", file=out)
             _print_copy_note(out)
             return EXIT_OK
@@ -542,15 +852,18 @@ def run_apply(
             print("missing FORGE_GITHUB_TOKEN or GITHUB_TOKEN", file=err)
             return EXIT_AUTH
         client = GitHubClient(resolved, urlopen=urlopen, base_url=base_url)
-        existing = find_named_ruleset(client.list_rulesets(owner, name))
-        if existing and existing.get("id") is not None:
-            result = client.update_ruleset(owner, name, int(existing["id"]), payload)
-            action = "updated"
-        else:
-            result = client.create_ruleset(owner, name, payload)
-            action = "created"
-        ruleset_id = result.get("id", existing.get("id") if existing else "?")
-        print(f"{action} ruleset id={ruleset_id} name={RULESET_NAME}", file=out)
+        existing_list = client.list_rulesets(owner, name)
+        for payload in payloads:
+            existing = find_named_ruleset(existing_list, str(payload["name"]))
+            if existing and existing.get("id") is not None:
+                result = client.update_ruleset(owner, name, int(existing["id"]), payload)
+                action = "updated"
+            else:
+                result = client.create_ruleset(owner, name, payload)
+                action = "created"
+                existing_list.append(result)
+            ruleset_id = result.get("id", existing.get("id") if existing else "?")
+            print(f"{action} ruleset id={ruleset_id} name={payload['name']}", file=out)
         print(f"protect: {', '.join(config.protect)}", file=out)
         _print_copy_note(out)
         return EXIT_OK

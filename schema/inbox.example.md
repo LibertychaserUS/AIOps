@@ -30,4 +30,4 @@ What this inbox is asking Overlay to turn into cases.
 # Notes
 
 Pinned `source.ref`. An In scope line may carry an adopter-minted id.
-Do not put `status` or `reviewed_by` here.
+Do not put `status` here.

@@ -17,7 +17,7 @@ generate turns one inbox into a draft suite. The command is specified but not sh
 
 # In scope
 
-- FN-overlay-generate Draft output only; never writes armed; never runs on push.
+- FN-overlay-generate Compiles suites only; never changes `status`; never runs on push.
 
 # Out of scope
 
@@ -26,7 +26,7 @@ generate turns one inbox into a draft suite. The command is specified but not sh
 
 # User cases
 
-1. FN-overlay-generate A future generate over an armed suite refuses unless --force-draft.
+1. FN-overlay-generate A future generate over an existing suite refuses unless --force.
 
 # Notes
 

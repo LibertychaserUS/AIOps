@@ -1,5 +1,6 @@
 # Program-written overlay receipt. Not a Proctor ledger and not model output.
 # select writes selected/dropped. run adds ran / skipped_no_command.
+# ran events record exit, duration_s, and command_sha256.
 # Proctor may ingest a copy locally; it must not write suite.yaml.
 
 schema: overlay-receipt/v1
@@ -11,28 +12,28 @@ at: 2026-09-10T00:00:00Z
 events:
   - type: selected
     suite: checkout-retry
-    status: armed
+    status: active
     kind: functional
     function_id: FN-login-retry
     level: unit
   - type: ran
     suite: checkout-retry
-    status: armed
+    status: active
     function_id: FN-login-retry
     command: python -m unittest
-    exit_code: 0
+    command_sha256: 3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    exit: 0
+    duration_s: 0.12
   - type: dropped
     suite: payment
     status: blocked
     rule: never_red_statuses
+    reason: not ready; see OF-12
   - type: dropped
     suite: login
     status: blocked
     rule: never_red_statuses
 
 evidence:
-  - type: human-review
-    suite: checkout-retry
-    reviewed_by: required-on-disk-in-suite.yaml
   - type: contract
-    rule: missing reviewed_by on blocked|armed is overlay-red
+    rule: blocked requires blocked_reason with a link or register id

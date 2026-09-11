@@ -13,16 +13,16 @@ locale: zh-CN
 
 # Intent
 
-This workshop uses Overlay on itself. Push and pull_request run validate + select + run. Only armed suites are selected; their product_command is the test gate.
+This workshop uses Overlay on itself. Push and pull_request run validate + select + run. Only active suites are selected; their product_command is the test gate.
 
 # In scope
 
-- FN-overlay-select `select --branch main` includes armed functional suites and drops draft/blocked.
+- FN-overlay-select `select --branch main` includes active functional suites and drops blocked.
 
 # Out of scope
 
 - FN-overlay-generate
-- Calling a product Verify workflow.
+- Calling the product's own build workflow via workflow_call.
 
 # User cases
 

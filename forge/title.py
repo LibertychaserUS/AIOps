@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TextIO
 
 from forge import EXIT_OK
@@ -63,8 +64,18 @@ class TitleParts:
     subject: str
 
 
-def lint_title(title: str | None) -> tuple[int, str, TitleParts | None]:
-    """Return (0, '', parts) or (2, reason, None). Never talks to GitHub."""
+def lint_title(
+    title: str | None,
+    *,
+    scopes: str | list[str] | None = None,
+) -> tuple[int, str, TitleParts | None]:
+    """Return (0, '', parts) or (2, reason, None). Never talks to GitHub.
+
+    scopes:
+      None  — current product/actor grammar
+      "any" — Conventional Commits syntax only
+      list  — current grammar, scope must be in the list
+    """
     raw = "" if title is None else title
     if "\n" in raw or "\r" in raw:
         return EXIT_TITLE, "PR title must be a single line", None
@@ -80,6 +91,9 @@ def lint_title(title: str | None) -> tuple[int, str, TitleParts | None]:
             None,
         )
 
+    if scopes == "any":
+        return _lint_any(text)
+
     locked = TITLE_RE.fullmatch(text)
     if locked:
         parts = TitleParts(
@@ -89,6 +103,11 @@ def lint_title(title: str | None) -> tuple[int, str, TitleParts | None]:
             breaking=bool(locked.group("breaking")),
             subject=locked.group("subject"),
         )
+        allowed = scopes if isinstance(scopes, list) else None
+        if allowed is not None:
+            scope = f"{parts.product}/{parts.actor}"
+            if scope not in allowed:
+                return EXIT_TITLE, f"scope {scope!r} is not in title.scopes", None
         return EXIT_OK, "", parts
 
     parsed = _CC_HEADER.fullmatch(text)
@@ -135,11 +154,45 @@ def lint_title(title: str | None) -> tuple[int, str, TitleParts | None]:
         )
     if subject.strip() == "":
         return EXIT_TITLE, "missing subject after ': '", None
+    if isinstance(scopes, list) and f"{product}/{actor_token}" not in scopes:
+        return EXIT_TITLE, f"scope {product}/{actor_token!r} is not in title.scopes", None
     return (
         EXIT_TITLE,
         f"not Conventional Commits: expected {GRAMMAR} (example: {EXAMPLE})",
         None,
     )
+
+
+def _lint_any(text: str) -> tuple[int, str, TitleParts | None]:
+    if len(text) > 72:
+        return EXIT_TITLE, "PR title must be <= 72 characters", None
+    parsed = _CC_HEADER.fullmatch(text)
+    if parsed is None:
+        return (
+            EXIT_TITLE,
+            "not Conventional Commits: expected type(optional-scope): subject",
+            None,
+        )
+    kind = parsed.group("type")
+    subject = parsed.group("subject")
+    if kind.lower() != kind:
+        return EXIT_TITLE, f"type must be lowercase (got {kind!r})", None
+    if kind not in TYPES:
+        return EXIT_TITLE, f"unknown type {kind!r} (use {'|'.join(TYPES)})", None
+    if subject.strip() == "":
+        return EXIT_TITLE, "missing subject after ': '", None
+    if subject.rstrip().endswith("."):
+        return EXIT_TITLE, "subject must not end with a period", None
+    scope = parsed.group("scope") or ""
+    product, _, actor = scope.partition("/") if scope else ("", "", "")
+    parts = TitleParts(
+        type=kind,
+        product=product or "",
+        actor=actor or "",
+        breaking=bool(parsed.group("breaking")),
+        subject=subject,
+    )
+    return EXIT_OK, "", parts
 
 
 def run_pr_title(
@@ -148,15 +201,28 @@ def run_pr_title(
     environ: Mapping[str, str] | None = None,
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
+    root: Path | str | None = None,
+    scopes: str | list[str] | None = None,
 ) -> int:
     """CLI entry. Reads --title or PR_TITLE. Exit 0 pass / 2 fail."""
     import os
     import sys
+    from pathlib import Path
 
     env: Mapping[str, str] = os.environ if environ is None else environ
     err = sys.stderr if stderr is None else stderr
+    resolved_scopes = scopes
+    if resolved_scopes is None and root is not None:
+        yaml_path = Path(root) / "forge.yaml"
+        if yaml_path.is_file():
+            from forge.apply import ForgeError, load_config
+
+            try:
+                resolved_scopes = load_config(yaml_path).title_scopes
+            except ForgeError:
+                resolved_scopes = None
     resolved = title if title is not None else env.get("PR_TITLE")
-    code, message, _parts = lint_title(resolved)
+    code, message, _parts = lint_title(resolved, scopes=resolved_scopes)
     if code != EXIT_OK:
         print(message, file=err)
     return code

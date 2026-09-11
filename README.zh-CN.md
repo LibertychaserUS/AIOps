@@ -2,36 +2,25 @@
 
 [English README](README.md)
 
-这是 Forge 和 Overlay 的**工具仓**，不是 Learning Guide 产品仓，也不是 First-Light 那个空的 `AIOps`。一个仓、两件产品。都不部署。都不替代接入方已有的构建门（Learning Guide 的 Verify 是这条规则的第一个例子）。
+这是 **Forge** 与 **Overlay** 的工具仓：一个仓、两件产品、两条 tag。都不部署。都不替代接入方已有的构建门。不要把 `forge/`、`overlay/`、`schema/`、`prompts/` 拷进产品仓。
 
-**别的 agent：从本文件或 [README.md](README.md) 进。** 只 pin **已经打在 GitHub 上的 tag**。不要 pin 浮动 `main`。不要把 `forge/`、`overlay/`、`schema/`、`prompts/` 拷进产品仓。
+**别的 agent：从本文件进。** 英文 [`README.md`](README.md) 只是一页入口。规则、契约、ADR、CHANGELOG 以中文为准。
 
-| 产品 | 现在能 pin 的 tag | SHA | 管什么 |
-|---|---|---|---|
-| **Overlay** | [`overlay-v1.0.1`](https://github.com/LibertychaserUS/AIOps/tree/overlay-v1.0.1) | `b4afc10ae0be4725e5109030f14a05bb2291fe4a`（与 `forge-v1.0.1` 同一提交） | 需求叶子 → 可审套件。CI 只跑 `armed`。没有 `generate`。 |
-| **Forge** | [`forge-v1.0.1`](https://github.com/LibertychaserUS/AIOps/tree/forge-v1.0.1) | 同一提交 | 本地 `check` 绿之后 `submit` 开 draft PR。人 + Ruleset 才合。Forge 不合入。 |
+需要 CPython **3.12+**。把本仓（或 fork）clone 到产品仓旁边。只 pin **已经存在的 tag 或 SHA**，不要 pin 浮动 `main`。不要 force-move 旧针。
 
-`1.0.1` 是已经 push 的 annotated git tag，**不是** GitHub Release 页面。不要链 `/releases/tag/overlay-v1.0.1`（会 404）。`git checkout overlay-v1.0.1` 即可。旧针 [`overlay-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.0) / [`forge-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.0) 仍停在 `235e514e673fa68b24879c8e139f2a5c6633ebb5`，那两条 Release 在。不要 force-move `1.0.0`。禁止 pin `main`。GitHub 的 Latest 徽章只挂一件产品，不要拿 Latest 当针。
-
-需要：CPython **3.12+**。把本仓（或 fork）clone 到**产品仓旁边**。
+**现状**（pin、保护分支、Ruleset、CI job 名）只看 [`docs/STATE.md`](docs/STATE.md)（`forge status --write` 生成，不要手写「当前 pin」）。CLI 只看 [`docs/cli.md`](docs/cli.md)，不要在别的文档里手抄子命令。
 
 ---
 
 ## 30 秒
 
-1. **Forge** 管谁能推、谁开 PR、哪些路径不能改、哪些 **CI job 名**必须绿。它不合入。
-2. **Overlay** 管需求叶子变成可审套件。CI 只跑 **`armed`**。`draft` / `blocked` 丢掉、不当红。
-3. clone → checkout **已存在的 tag** → `pip install` → `PYTHONPATH` → `forge check` / `overlay validate`。
-4. Agent 可以 `check` / `submit`。Agent **不可以** live-`apply` Ruleset、填 `reviewed_by`、把套件改成 `armed`。
-
----
-
-## 冷启动（产品仓旁边）
+1. **Forge** 管谁能推、谁开 PR、哪些路径不能改、哪些 **CI job 名**必须绿。它不合入。开发侧 `check` → `submit` 到 `protect[0]`（常见为 `dev`）；Ops 用 `promote` 开 `dev`→`main` PR；人批 + CODEOWNERS 后合；`release` 打产品 tag。
+2. **Overlay** 管需求叶子变成可审套件。CI 跑 **`active`**。**`blocked`** 丢掉、不当红，且 `blocked_reason` 必须含链接或登记编号。人签走 PR 批准 + CODEOWNERS。见 [ADR 0002](docs/adr/0002-remove-armed.md)。
+3. clone → checkout 已发布 tag → `pip install` → `PYTHONPATH` → 下面三条命令。
 
 ```text
-git clone https://github.com/LibertychaserUS/AIOps.git /tmp/AIOps
+git clone <本工作本> /tmp/AIOps
 cd /tmp/AIOps
-git checkout overlay-v1.0.1
 python3 -m pip install -r requirements.txt
 export PYTHONPATH=/tmp/AIOps
 
@@ -41,68 +30,62 @@ python3 -m overlay cover --root .
 python3 -m forge check --root .
 ```
 
-`overlay-v1.0.1` 和 `forge-v1.0.1` 是同一提交。checkout 哪一条都行。
+升级 1.0.x：[`docs/migration-v2.md`](docs/migration-v2.md)。设计：[`docs/design.md`](docs/design.md)。决定：[`docs/adr/`](docs/adr/)。变更：[`CHANGELOG.md`](CHANGELOG.md)。
 
-`python -m forge` 现有子命令：`apply` `status` `check` `submit` `pr-title`/`title` `sop-lock` `ci-select` `ops-review` `bounce` `release`。没有 `brief`、`credential`、`ops-chain`、`revoke`。
-
-| 动作 | 谁做 |
-|---|---|
-| `forge check` | Agent 可以 |
-| `forge submit` | Agent 可以，且必须有 `FORGE_SUBMIT_TOKEN`（见 [`docs/submit-credential.md`](docs/submit-credential.md)） |
-| live `forge apply` | **不可以**（Ops；[`skills/manage-repo/SKILL.md`](skills/manage-repo/SKILL.md)）。Learning Guide **现在不做** |
-| 写 `reviewed_by` / 改 `armed` | **不可以**（人审） |
-
-开发冷启动六步：[`skills/use-forge/SKILL.md`](skills/use-forge/SKILL.md)。Overlay 契约：[`skills/use-overlay/SKILL.md`](skills/use-overlay/SKILL.md)、[`skills/design-cases/SKILL.md`](skills/design-cases/SKILL.md)。
-
-**第一次 vs 之后默认跑。** Forge 是开发完成后的全栈 GitHub 落地（`check` → `submit`），不是测试工具。不要为了接 Forge 去改 Overlay / Verify。接入方如果已有 `gh pr create`、husky、直推 main、只走 Verify、或自己的分支名：先提醒对照新旧（不合入、不 live-apply、不 arm、不改 Verify），等人明确同意再写 `forge.yaml` / 贴政策。同意过一次——或仓里已有 `forge.yaml` 且他们说过「同意」——之后只再问一次，说「之后默认按 Forge 落地」，然后默认跑 `check` / `submit`。不要每次存盘都问。初始化同意 ≠ 可以 live-apply 或 arm Overlay。
-
-别的 agent 装 skill（只 pin **已发布的 tag**；host id：`codex` / `cursor` / `claude-code` / `github-copilot`）：
-
-```text
-gh skill install LibertychaserUS/AIOps --agent codex --pin overlay-v1.0.1 --all
-gh skill install LibertychaserUS/AIOps --agent cursor --pin overlay-v1.0.1 --all
-gh skill install LibertychaserUS/AIOps --agent claude-code --pin overlay-v1.0.1 --all
-```
-
-或在产品仓把 `skills/*` symlink 到 `.agents/skills` / `.cursor/skills` / `.claude/skills`。`overlay-v1.0.1` 上的 `$use-forge` 是六步冷启动；live `apply` 只在 `manage-repo`。
+Agent 可以 `check` / `submit`。Agent **不可以** live-`apply` Ruleset、自合、自批、改 `deny_paths`、把套件改成 `blocked`。
 
 ---
 
-## Overlay 契约（避免 `forge check` 假红）
+## 冷启动
 
-`cases.md` 叶子必须是：
+开发：[`skills/use-forge/SKILL.md`](skills/use-forge/SKILL.md)（合入后为 v1.1：dev/main、`promote`、STATE、docs_sync）。Overlay：[`skills/use-overlay/SKILL.md`](skills/use-overlay/SKILL.md)。用例：[`skills/design-cases/SKILL.md`](skills/design-cases/SKILL.md)。
+
+装 skill（host id：`codex` / `cursor` / `claude-code` / `github-copilot`）：
+
+```text
+gh skill install <owner>/<workshop> --agent cursor --pin overlay-v2.0.0 --all
+```
+
+或把 `skills/*` symlink 到 `.agents/skills` / `.cursor/skills` / `.claude/skills`。
+
+**第一次 vs 之后默认跑。** Forge 是开发完成后的 GitHub 落地（`check` → `submit`），不是测试工具。接入方若已有自己的落地方式：先对照新旧（不合入、不 live-apply、不改构建门），等人明确同意再写 `forge.yaml`。同意过一次之后默认跑 `check` / `submit`。初始化同意 ≠ 可以 live-apply。
+
+代推密钥：[`docs/submit-credential.md`](docs/submit-credential.md)。必须持有 `FORGE_SUBMIT_TOKEN`。`gh auth login` / `GH_TOKEN` / extraheader / `GITHUB_TOKEN` 都不够。Forge 不保管密钥。Overlay 的 `OPENAI_API_KEY` 是另一把（仅 generate）。
+
+---
+
+## Overlay 契约（避免假红）
+
+叶子：
 
 ```markdown
-## AUTH-01
+## INV-01
 ### Functional
 ### Negative
 ### Edge
 ```
 
-- `###` 技法名只能是 **Functional / Negative / Edge**（大小写不敏感）。不要写 `### Depth`。
-- 不要用 `## Specified / not tested now` 当标题：`##` 的第一个无空白词会被当成 `function_id`。
-- `function_id` 在整个 overlay root **全局唯一**，不要跨套件复用。
-- `invariants.yaml` 的 `function_ids` 必须对上某篇 `cases.md` 的 `##` 标题；invariant id 必须在某篇 `cases.md` 里作为独立 token 出现。
-- 本工作本 fixture 里 login/payment 是 **blocked**。Learning Guide 产品仓可能已经 **armed**。不要把 fixture 状态抄到产品上。
+- 技法名只能是 Functional / Negative / Edge。不要写 `### Depth`。不要用散文 `##` 当标题。
+- `function_id` 在 overlay root **全局唯一**。
+- `invariants.yaml` 必须对上 `##` 标题。
+- `status` 只有 `active` | `blocked`。隔离未就绪用 `blocked` + 带链接的 `blocked_reason`。人签走 PR 批准 + CODEOWNERS。见 [ADR 0002](docs/adr/0002-remove-armed.md)。
 
-产品仓 CI：可以 `uses: LibertychaserUS/AIOps/.github/workflows/overlay.yml@overlay-v1.0.1`，也可以自己写 inline `overlay-check.yml`（checkout pin 再跑 CLI）。**产品仓已经有能跑的 inline，就不要再抄 reusable。**
+产品仓 CI：`uses: <workshop>/.github/workflows/overlay.yml@overlay-v2.0.0`，需要产品工具链就传 `setup_command`。**已经有能跑的 inline caller，不要换形状。**
 
-`required_checks` 填 **GitHub 上显示的 check / job 名**，不要抄 workflow 的 `name:`，除非两个字符串本来就一样。例子里的 `Verify` 只是例子。Learning Guide 是 `Typecheck` / `Lint` / `Build and test` / `overlay-check`。
+`required_checks` 填 GitHub 上显示的 job 名。最小接入示例：[`examples/acme-python/`](examples/acme-python/)。
 
 ---
 
 ## 禁止
 
-- 不要 vendor `forge/` / `overlay/` / `schema/` / `prompts/`
-- 不要 pin `main`，不要 force-move `1.0.0`
-- 不要改 Learning Guide Verify，不要把 `test:io` 塞进 Verify
-- 不要 live-apply Forge 到 LearningGuidePortal
-- 不要打 `ilovelearningguide.com`
-- 不要代签 `reviewed_by` / `armed`
+- 不要 vendor 工具包
+- 不要 pin `main`，不要 force-move 旧 tag
+- 不要改接入方构建 workflow，不要把旁路测试塞进构建门
+- 不要 live-apply 到 `forbidden_live_repos` 里的仓
+- 不要打接入方生产域名（`forbid_hosts` 只是字符串匹配，不是安全边界）
+- 不要代签用例；不要把套件改成 `blocked`（agent 分支上 `suite_guard` 会红）
 - 不要 push 时 `generate`
 - 不要自 merge、自 Approve
-- 不要把 Harness MCP 的 pipeline skill 当成这套 Forge
+- 不要把手抄 CLI 清单写进 skill；看 [`docs/cli.md`](docs/cli.md)
 
-细设计在 [`docs/design.md`](docs/design.md)，不要把那一篇整篇搬进产品仓。
-
-`1.0.1` 的 annotated tag 已在 `b4afc10ae0be4725e5109030f14a05bb2291fe4a`。发版是 Human/Ops（`forge release` 或 Actions `release`）。GitHub Release 对象可能还没有——不要把 `/releases/tag/overlay-v1.0.1` 当成已发布证明。不要 force-move `1.0.0` / `1.0.1`。下一版 Release / semver 归 Ops。
+工作本入口：[`AGENTS.md`](AGENTS.md)。SOP 索引：[`docs/sop.md`](docs/sop.md)。

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import io
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Callable, Mapping, Sequence
@@ -17,6 +18,7 @@ from typing import TextIO
 from forge import EXIT_OK
 from forge.apply import ForgeError, load_config
 from forge.brief import brief_spec_exists, lint_pr_body
+from forge.status import state_is_fresh
 from forge.title import run_pr_title
 
 EXIT_CHECK = 2
@@ -36,6 +38,14 @@ class Step:
     name: str
     status: str  # ok | fail | skip
     detail: str = ""
+
+
+def overlay_package_exists(root: Path) -> bool:
+    return (root / "overlay" / "__init__.py").is_file()
+
+
+def is_workshop_root(root: Path) -> bool:
+    return overlay_package_exists(root)
 
 
 def overlay_yaml_exists(root: Path) -> bool:
@@ -84,12 +94,13 @@ def current_branch(root: Path) -> str | None:
 
 
 def resolve_protect_ref(root: Path, protect: Sequence[str]) -> str | None:
+    """The PR base is the remote protect branch; a stale local copy must not win."""
     for name in protect:
         for candidate in (
+            f"refs/remotes/origin/{name}",
+            f"origin/{name}",
             f"refs/heads/{name}",
             name,
-            f"origin/{name}",
-            f"refs/remotes/origin/{name}",
         ):
             proc = _git(root, "rev-parse", "--verify", "--quiet", candidate)
             if proc.returncode == 0:
@@ -120,7 +131,12 @@ def path_is_denied(path: str, deny_paths: Sequence[str]) -> bool:
 
 
 def list_changed_paths(root: Path, base_ref: str | None) -> list[str] | None:
-    """Changed paths vs protect merge-base (or HEAD). None if not a git work tree."""
+    """Changed paths under root vs protect merge-base (or HEAD), relative to root.
+
+    --relative keeps a monorepo product's deny_paths meaningful when --root is a
+    subdirectory; untracked files from ls-files are already cwd-relative.
+    None if not a git work tree.
+    """
     if not is_git_work_tree(root):
         return None
     paths: set[str] = set()
@@ -128,16 +144,16 @@ def list_changed_paths(root: Path, base_ref: str | None) -> list[str] | None:
         merge = _git(root, "merge-base", "HEAD", base_ref)
         base = merge.stdout.strip() if merge.returncode == 0 and merge.stdout.strip() else base_ref
         for args in (
-            ("diff", "--name-only", "--no-renames", base),
-            ("diff", "--name-only", "--no-renames", "--cached", base),
+            ("diff", "--name-only", "--no-renames", "--relative", base),
+            ("diff", "--name-only", "--no-renames", "--relative", "--cached", base),
         ):
             proc = _git(root, *args)
             if proc.returncode == 0:
                 paths.update(normalize_repo_path(line) for line in proc.stdout.splitlines() if line.strip())
     else:
         for args in (
-            ("diff", "--name-only", "--no-renames", "HEAD"),
-            ("diff", "--name-only", "--no-renames", "--cached"),
+            ("diff", "--name-only", "--no-renames", "--relative", "HEAD"),
+            ("diff", "--name-only", "--no-renames", "--relative", "--cached"),
         ):
             proc = _git(root, *args)
             if proc.returncode == 0:
@@ -157,7 +173,7 @@ def matching_agent_prefix(branch: str | None, prefixes: Sequence[str]) -> str | 
     return None
 
 
-def deny_paths_step(root: Path) -> Step:
+def deny_paths_step(root: Path, environ: Mapping[str, str] | None = None) -> Step:
     """Fail when the local diff touches forge.yaml deny_paths. No GitHub write.
 
     agent_branch_prefixes are recorded (design 3.5.2: human branches stay allowed).
@@ -177,7 +193,7 @@ def deny_paths_step(root: Path) -> Step:
     if changed is None:
         return Step("deny_paths", "skip", "no git work tree")
     hits = [path for path in changed if path_is_denied(path, config.deny_paths)]
-    branch = current_branch(root)
+    branch = resolve_branch(root, environ)
     prefix = matching_agent_prefix(branch, config.agent_branch_prefixes)
     suffix = f"; agent branch {branch}" if prefix and branch else ""
     if hits:
@@ -186,6 +202,222 @@ def deny_paths_step(root: Path) -> Step:
     if base:
         return Step("deny_paths", "ok", f"vs {base}{suffix}")
     return Step("deny_paths", "ok", f"no protect ref{suffix}")
+
+
+def resolve_branch(root: Path, environ: Mapping[str, str] | None = None) -> str | None:
+    """Branch name locally, or the PR head branch on a detached CI checkout."""
+    name = current_branch(root)
+    if name:
+        return name
+    env = os.environ if environ is None else environ
+    for key in ("GITHUB_HEAD_REF", "GITHUB_REF_NAME"):
+        value = (env.get(key) or "").strip()
+        if value:
+            return value
+    return None
+
+
+def resolve_base_commit(root: Path, protect: Sequence[str]) -> str | None:
+    base_ref = resolve_protect_ref(root, protect)
+    if not base_ref:
+        return None
+    merge = _git(root, "merge-base", "HEAD", base_ref)
+    if merge.returncode == 0 and merge.stdout.strip():
+        return merge.stdout.strip()
+    return base_ref
+
+
+def is_suite_yaml(path: str) -> bool:
+    rel = normalize_repo_path(path)
+    return rel.startswith("suites/") and rel.endswith("/suite.yaml")
+
+
+def _suite_status(text: str | None) -> str:
+    """status from suite.yaml text; blank when absent."""
+    if not text:
+        return ""
+    try:
+        import yaml
+
+        data = yaml.safe_load(text)
+    except Exception:
+        return ""
+    if not isinstance(data, dict):
+        return ""
+    return str(data.get("status") or "").strip()
+
+
+def _show_at(root: Path, base: str, rel: str) -> str | None:
+    # ./ makes the path relative to --root even when root is a repo subdirectory.
+    proc = _git(root, "show", f"{base}:./{rel}")
+    return proc.stdout if proc.returncode == 0 else None
+
+
+def suite_guard_step(root: Path, environ: Mapping[str, str] | None = None) -> Step:
+    """Agent branches must not flip suite status to blocked. Humans are recorded."""
+    forge_yaml = root / "forge.yaml"
+    if not forge_yaml.is_file():
+        return Step("suite_guard", "skip", "no forge.yaml")
+    try:
+        config = load_config(forge_yaml)
+    except ForgeError as exc:
+        return Step("suite_guard", "fail", exc.message)
+    if not is_git_work_tree(root):
+        return Step("suite_guard", "skip", "no git work tree")
+    branch = resolve_branch(root, environ)
+    prefix = matching_agent_prefix(branch, config.agent_branch_prefixes)
+    if not prefix:
+        shown = branch or "detached HEAD"
+        return Step("suite_guard", "ok", f"human branch {shown}; status changes are reviewed, not blocked")
+    base = resolve_base_commit(root, config.protect)
+    changed = list_changed_paths(root, resolve_protect_ref(root, config.protect)) or []
+    suites = [path for path in changed if is_suite_yaml(path)]
+    if not suites:
+        return Step("suite_guard", "ok", f"no suite.yaml changed; agent branch {branch}")
+    hits: list[str] = []
+    for rel in suites:
+        new_path = root / rel
+        new_text = new_path.read_text(encoding="utf-8") if new_path.is_file() else None
+        old_text = _show_at(root, base, rel) if base else None
+        new_status = _suite_status(new_text)
+        old_status = _suite_status(old_text)
+        if new_status == "blocked" and old_status != "blocked":
+            hits.append(f"{rel} (status {old_status or 'none'} -> blocked)")
+    if hits:
+        return Step(
+            "suite_guard",
+            "fail",
+            f"agent branch {branch} must not set status blocked: {', '.join(hits)}; a human writes blocked",
+        )
+    return Step("suite_guard", "ok", f"suite.yaml edits do not introduce blocked; agent branch {branch}")
+
+
+def path_matches_glob(path: str, pattern: str) -> bool:
+    from fnmatch import fnmatch
+
+    rel = normalize_repo_path(path)
+    pat = normalize_repo_path(pattern)
+    if pat.endswith("/**"):
+        prefix = pat[:-3]
+        return rel == prefix or rel.startswith(prefix + "/")
+    if pat.endswith("/"):
+        return rel == pat[:-1] or rel.startswith(pat)
+    return rel == pat or rel.startswith(pat + "/") or fnmatch(rel, pat)
+
+
+def _git_tags(root: Path) -> set[str]:
+    proc = _git(root, "tag", "-l")
+    if proc.returncode != 0:
+        return set()
+    return {line.strip() for line in proc.stdout.splitlines() if line.strip()}
+
+
+def _changelog_headings(root: Path) -> set[str]:
+    path = root / "CHANGELOG.md"
+    if not path.is_file():
+        return set()
+    headings: set[str] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("## ["):
+            inner = stripped[4:]
+            if "]" in inner:
+                headings.add(inner.split("]", 1)[0])
+    return headings
+
+
+def _relative_link_failures(root: Path) -> list[str]:
+    import re
+
+    link_re = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+    failures: list[str] = []
+    for path in sorted(root.rglob("*.md")):
+        if ".git" in path.parts:
+            continue
+        try:
+            rel = path.relative_to(root)
+        except ValueError:
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for match in link_re.finditer(text):
+            target = match.group(1).strip()
+            if not target or target.startswith(("http://", "https://", "mailto:", "#", "<")):
+                continue
+            path_part = target.split("#", 1)[0].split("?", 1)[0]
+            if not path_part:
+                continue
+            if path_part.startswith("/"):
+                dest = (root / path_part.lstrip("/")).resolve()
+            else:
+                dest = (path.parent / path_part).resolve()
+            try:
+                dest.relative_to(root.resolve())
+            except ValueError:
+                failures.append(f"{rel.as_posix()} -> {target}")
+                continue
+            if not dest.exists():
+                failures.append(f"{rel.as_posix()} -> {target}")
+    return failures
+
+
+TAG_MENTION_RE = re.compile(r"(overlay|forge)-v(\d+\.\d+\.\d+)")
+
+
+def _pin_mention_failures(root: Path) -> list[str]:
+    tags = _git_tags(root)
+    headings = _changelog_headings(root)
+    failures: list[str] = []
+    for path in sorted(root.rglob("*.md")):
+        if ".git" in path.parts:
+            continue
+        try:
+            rel = path.relative_to(root).as_posix()
+        except ValueError:
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for match in TAG_MENTION_RE.finditer(text):
+            tag = match.group(0)
+            product, version = match.group(1), match.group(2)
+            heading = f"{product}-{version}"
+            if tag in tags or heading in headings:
+                continue
+            failures.append(f"{rel} mentions {tag} (not a git tag and not ## [{heading}] in CHANGELOG.md)")
+    return failures
+
+
+def docs_sync_step(root: Path, environ: Mapping[str, str] | None = None) -> Step:
+    del environ
+    forge_yaml = root / "forge.yaml"
+    if not forge_yaml.is_file():
+        return Step("docs_sync", "skip", "no forge.yaml")
+    try:
+        config = load_config(forge_yaml)
+    except ForgeError as exc:
+        return Step("docs_sync", "fail", exc.message)
+    misses: list[str] = []
+    if is_git_work_tree(root):
+        changed = list_changed_paths(root, resolve_protect_ref(root, config.protect)) or []
+        for rule in config.docs_sync:
+            if any(path_matches_glob(path, pattern) for path in changed for pattern in rule.paths):
+                if not any(normalize_repo_path(req) in changed for req in rule.require):
+                    misses.append(
+                        "changed "
+                        + ", ".join(rule.paths)
+                        + " but missing "
+                        + ", ".join(rule.require)
+                    )
+    misses.extend(_relative_link_failures(root))
+    misses.extend(_pin_mention_failures(root))
+    state_path = root / "docs" / "STATE.md"
+    if state_path.is_file():
+        ok, message = state_is_fresh(root, config, state_path.read_text(encoding="utf-8"))
+        if not ok:
+            misses.append(message)
+    if misses:
+        shown = "; ".join(misses[:8])
+        extra = f" (+{len(misses) - 8} more)" if len(misses) > 8 else ""
+        return Step("docs_sync", "fail", shown + extra)
+    return Step("docs_sync", "ok", "table + links + pins")
 
 
 def _print_captured(text: str, stream: TextIO) -> None:
@@ -323,7 +555,13 @@ def run_check(
 
     if resolved_title is not None:
         buf_err = io.StringIO()
-        code = run_pr_title(title=resolved_title, environ=env, stdout=out, stderr=buf_err)
+        code = run_pr_title(
+            title=resolved_title,
+            environ=env,
+            stdout=out,
+            stderr=buf_err,
+            root=root,
+        )
         _print_captured(buf_err.getvalue(), err)
         if code != EXIT_OK:
             steps.append(Step("pr-title", "fail", buf_err.getvalue().strip() or f"exit {code}"))
@@ -344,50 +582,52 @@ def run_check(
     else:
         steps.append(Step("pr-body", "skip", "no docs/pr-brief.md"))
 
-    if schema_check_exists(root):
-        schema_fn = _default_schema_runner if schema_runner is None else schema_runner
+    steps.append(deny_paths_step(root, env))
+    steps.append(suite_guard_step(root, env))
+    steps.append(docs_sync_step(root, env))
+
+    workshop = is_workshop_root(root)
+    if workshop:
+        from forge.sop_lock import run_sop_lock
+
         buf_out = io.StringIO()
         buf_err = io.StringIO()
-        code = schema_fn(root, buf_out, buf_err)
+        code = run_sop_lock(root, stdout=buf_out, stderr=buf_err)
         _print_captured(buf_err.getvalue(), err)
         if code != EXIT_OK:
-            steps.append(Step("schema/check.py", "fail", f"exit {code}"))
+            steps.append(Step("sop-lock", "fail", _last_line(buf_err.getvalue()) or f"exit {code}"))
         else:
-            steps.append(Step("schema/check.py", "ok", _last_line(buf_out.getvalue())))
-    else:
-        steps.append(Step("schema/check.py", "skip", "no schema/ (adopter product root)"))
+            steps.append(Step("sop-lock", "ok", _last_line(buf_out.getvalue())))
 
-    from forge.sop_lock import run_sop_lock
+        if schema_check_exists(root):
+            schema_fn = _default_schema_runner if schema_runner is None else schema_runner
+            buf_out = io.StringIO()
+            buf_err = io.StringIO()
+            code = schema_fn(root, buf_out, buf_err)
+            _print_captured(buf_err.getvalue(), err)
+            if code != EXIT_OK:
+                steps.append(Step("schema/check.py", "fail", f"exit {code}"))
+            else:
+                steps.append(Step("schema/check.py", "ok", _last_line(buf_out.getvalue())))
 
-    buf_out = io.StringIO()
-    buf_err = io.StringIO()
-    code = run_sop_lock(root, stdout=buf_out, stderr=buf_err)
-    _print_captured(buf_err.getvalue(), err)
-    if code != EXIT_OK:
-        steps.append(Step("sop-lock", "fail", _last_line(buf_err.getvalue()) or f"exit {code}"))
-    else:
-        steps.append(Step("sop-lock", "ok", _last_line(buf_out.getvalue())))
-
-    steps.append(deny_paths_step(root))
-
-    nested = bool(env.get(CHECK_ENV)) or bool(os.environ.get(CHECK_ENV))
-    modules = workshop_fast_test_modules(root)
-    if not run_unittests:
-        steps.append(Step("unittest (fast)", "skip", "disabled"))
-    elif nested:
-        steps.append(Step("unittest (fast)", "skip", "already inside forge check"))
-    elif not modules:
-        steps.append(Step("unittest (fast)", "skip", "no workshop tests/"))
-    else:
-        unit_fn = _default_unittest_runner if unittest_runner is None else unittest_runner
-        buf_out = io.StringIO()
-        buf_err = io.StringIO()
-        code = unit_fn(root, modules, buf_out, buf_err)
-        _print_captured(buf_err.getvalue(), err)
-        if code != EXIT_OK:
-            steps.append(Step("unittest (fast)", "fail", f"exit {code}"))
+        nested = bool(env.get(CHECK_ENV)) or bool(os.environ.get(CHECK_ENV))
+        modules = workshop_fast_test_modules(root)
+        if not run_unittests:
+            steps.append(Step("unittest (fast)", "skip", "disabled"))
+        elif nested:
+            steps.append(Step("unittest (fast)", "skip", "already inside forge check"))
+        elif not modules:
+            steps.append(Step("unittest (fast)", "skip", "no workshop tests/"))
         else:
-            steps.append(Step("unittest (fast)", "ok", " ".join(modules)))
+            unit_fn = _default_unittest_runner if unittest_runner is None else unittest_runner
+            buf_out = io.StringIO()
+            buf_err = io.StringIO()
+            code = unit_fn(root, modules, buf_out, buf_err)
+            _print_captured(buf_err.getvalue(), err)
+            if code != EXIT_OK:
+                steps.append(Step("unittest (fast)", "fail", f"exit {code}"))
+            else:
+                steps.append(Step("unittest (fast)", "ok", " ".join(modules)))
 
     _print_checklist(steps, out)
     failed = [step for step in steps if step.status == "fail"]

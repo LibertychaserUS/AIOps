@@ -30,4 +30,4 @@ Payment and entitlements. Cases may exist; the suite must stay `blocked` so the 
 
 # Notes
 
-`readiness: not-ready` is a hint only. After review, humans mark the suite `blocked`, never `armed`. Excerpt only; do not vendor the docx.
+`readiness: not-ready` is a hint only. After review, humans mark the suite `blocked`, never `active` until the path can gate. Excerpt only; do not vendor the docx.

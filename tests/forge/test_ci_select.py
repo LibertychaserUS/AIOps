@@ -43,10 +43,12 @@ class WorkshopSelectorConfigTests(unittest.TestCase):
         self.assertIn("overlay/", config.products["overlay"].paths)
         self.assertIn("forge/", config.products["forge"].paths)
         apply_cfg = load_config(ROOT / "forge.yaml")
-        self.assertIn("overlay-check", apply_cfg.required_checks)
-        self.assertIn("forge-check", apply_cfg.required_checks)
-        self.assertIn("pr-title", apply_cfg.required_checks)
-        self.assertIn("sop-lock", apply_cfg.required_checks)
+        main_checks = apply_cfg.rule_for("main").required_checks
+        self.assertIn("overlay-check", main_checks)
+        self.assertIn("forge-check", main_checks)
+        self.assertIn("pr-title", main_checks)
+        self.assertIn("sop-lock", main_checks)
+        self.assertIn("unittest", main_checks)
 
 
 class TitleFacetTests(unittest.TestCase):

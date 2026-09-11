@@ -1,124 +1,68 @@
 ---
 name: manage-repo
 description: >-
-  Act as 管理端 (repo admin / maintainer) on GitHub-native review and merge.
-  Ops only reviews required checks (合入锁) and merges when green.
-  Local python -m forge check is the 开发侧 代推锁 — Ops does not run it for developers.
-  Use when applying a Forge Ruleset, setting required checks, writing CODEOWNERS,
-  merging a green+approved PR, rejecting a PR that fails pr-title or lacks the
-  six headings (docs/pr-brief.md), or arming/blocking an Overlay suite
-  (`reviewed_by`). Do not push or forge submit for developers (use dev-pr).
-  Do not invent branch, workflow, or skill prefixes. Product install SOP stays
-  in use-forge and use-overlay.
+  Human maintainer actions — review Overlay suites (status blocked with reason),
+  merge when required checks are green, promote dev to main, write STATE.md.
+  Do not forge submit for developers (use dev-pr). Agents must not use this
+  skill to apply Rulesets or merge.
 metadata:
-  short-description: Admin Ruleset, merge, Overlay arm/block
+  short-description: Human review, merge, promote; live apply is Ops
 ---
 
 # Manage Repo（管理端）
 
-Review and merge live on **GitHub**. You are the human who installs the cage and writes Overlay receipts of review. There is no admin portal. RBAC: [`docs/rbac.md`](../../docs/rbac.md). Product SOP: [`../use-forge/SKILL.md`](../use-forge/SKILL.md), [`../use-overlay/SKILL.md`](../use-overlay/SKILL.md). PR 标题必须过检查 **`pr-title`**（`python -m forge pr-title`，Conventional Commits）：[`docs/pr-brief.md`](../../docs/pr-brief.md)。标题 `actor` 不是权限。模板：[`.github/PULL_REQUEST_TEMPLATE.md`](../../.github/PULL_REQUEST_TEMPLATE.md)。
+审和合在 **GitHub**。Agent 不得用本 skill 合 PR 或 live-apply Ruleset。路径：[`docs/dev-main-flow.md`](../../docs/dev-main-flow.md)。配置：[`docs/forge-config.md`](../../docs/forge-config.md)。
 
 ## Instructions
 
-Stay imperative. Do not invent a second permission database.
-
-### Reuse — keep the tool out of the product commit repo
-
-Do not vendor `forge/`, `overlay/`, `schema/`, or `prompts/` into the adopter product git. 不要把工具上传到接入方要提交、推送的产品仓. Full reuse steps: `$use-forge`, `$use-overlay`. Product repo: thin `forge.yaml` / `overlay.yaml` + inbox/suites + a workflow that `uses:` this repo at a **tag or SHA**. Local CLI: `PYTHONPATH` to a sibling checkout of this workshop or a fork.
-
-### GitHub — the only merge control plane
-
-1. **Apply Forge with an admin token**, never from Overlay CI, never to `First-Light-TechHK/LearningGuidePortal`.
+1. **Apply Forge with an admin token**，不要从 Overlay CI 跑 live apply。
    ```text
    PYTHONPATH=../AIOps python3 -m forge apply --repo OWNER/NAME --path forge.yaml --dry-run
    PYTHONPATH=../AIOps python3 -m forge apply --repo OWNER/NAME --path forge.yaml
-   PYTHONPATH=../AIOps python3 -m forge status --repo OWNER/NAME
+   PYTHONPATH=../AIOps python3 -m forge status --repo OWNER/NAME --root . --write docs/STATE.md
    ```
-   Token: `FORGE_GITHUB_TOKEN` or `GITHUB_TOKEN`, Administration: write. Humans run live apply. Agents do not. This apply token is **not** the submit path. Submit requires `FORGE_SUBMIT_TOKEN`. Do not live-apply Forge Rulesets from an agent.
-2. **Set required checks in the GitHub Ruleset UI** (or the payload Forge applied). Use the adopter’s **CI job / check names as they appear on a PR**, not the workflow `name:` unless those strings match. This workshop lists `overlay-check`, `pr-title`, `forge-check`, and `sop-lock`. Learning Guide lists `Typecheck`, `Lint`, `Build and test`, `overlay-check`. The example `Verify` is only for repos whose job is actually called Verify. Forge does not create those jobs. CodeRabbit may be a check; it must **not** be the only merge gate. Do not live-apply to Learning Guide.
-3. **Paste CODEOWNERS / team names.** Copy wording from [`forge/CODEOWNERS.example`](../../forge/CODEOWNERS.example) into the product `.github/CODEOWNERS`. Put people in **GitHub org teams**. Do not build a local ACL file that GitHub will not enforce.
-4. **Paste agent policy text** from [`forge/agent-policy.md`](../../forge/agent-policy.md) into the adopter `AGENTS.md`. Do not vendor `forge/`.
-5. **Refuse a PR** whose **title** fails `python -m forge pr-title` or whose body lacks any of the six 解说规格 headings ([`docs/pr-brief.md`](../../docs/pr-brief.md)). The title `actor` is the only 分工 label; do not ask authors to rename branches, workflows, or skills. Body **分工** is who reviews/merges ([`docs/rbac.md`](../../docs/rbac.md)), not the title actor.
-6. **Merge on GitHub** when required checks are green and the Ruleset approval count is met (default 1). Default landing is **squash**（封顶再压）。After squash, the next branch starts from the new `main` SHA（换底）. Do not merge a PR whose base is another unmerged `cursor/` head. Overlay Ops order on a selected PR is already: spec → CodeRabbit/Copilot comments → full Overlay CI. You only click merge after that chain is green. If spec/CI is red or merge fails, the PR is **打回** (`bounce` comment); open the run’s `overlay-ops-debug` / receipts artifacts and debug — do not invent a second tracker. **Do not merge if `overlay-check`, `pr-title`, `forge-check`, or `sop-lock` is red.** Do not let an agent merge. Do not self-approve an agent PR you prompted if you are the only reviewer and the Ruleset needs a second human — get another person. **Do not `forge submit` or push a developer’s branch for them** — that is `$dev-pr`. The title `actor` is not who may merge. If **you** open an admin/docs PR, title it `feat(forge/admin): …` or `docs(docs/admin): …` and run `python -m forge pr-title --title "…"`. Leave `cursor/…` / `copilot/` alone.
-7. **Do not open a second constitution.** No SaaS admin, no OAuth app, no RBAC API. Bypass stays empty in the default Ruleset; if you add bypass, do it in the GitHub UI, not in Overlay.
+   Token：`FORGE_GITHUB_TOKEN` 或 `GITHUB_TOKEN`。这把钥匙不是 `FORGE_SUBMIT_TOKEN`。每个保护分支一条 `forge-protected-<branch>`，另加 `forge-protected-tags`。
+2. **Required checks** 是 PR 上的 **CI job 名**。本工作本：`overlay-check`、`pr-title`、`forge-check`、`sop-lock`、`unittest`。`dev` 无人批；`main` 要 1 个 approvals + CODEOWNERS（见 `branches:`）。**通用检查 ≠ 产品门。**
+3. **Merge** 只在那些检查绿、审批够。默认 squash：**封顶**再压，压完**换底**。不要让 agent merge。不要替开发 `forge submit`（那是 `$dev-pr`）。
+4. **Promote：** `dev` → `main` 由 `forge promote --repo O/N --from dev --to main` 开 PR。人批 + 合。命令本身永不 merge。
+5. **Overlay `blocked`** 是人手改 yaml。Agent 不得在 agent 分支上做（`suite_guard` 红）。`blocked` 必须有带链接或编号的 `blocked_reason`。不要写已删除的旧字段。改完：`python -m overlay validate --root .`。
+6. **发布：** `python -m forge release --repo OWNER/NAME --products overlay --version 2.0.0 --dry-run` 与 `--products forge --version 1.1.0` 分两次（`--products both` 要求两产品 `__version__` 相同）。CHANGELOG 必须有 `## [overlay-2.0.0]` / `## [forge-1.1.0]`。不要 force-move 已有针。
 
-### Overlay — humans arm or block
+## Never
 
-8. **Write `reviewed_by` yourself.** Agents must not. CI must not. Forge must not.
-9. **This slice’s review CLI refuses writes.** Even with `--i-am HUMAN`:
-   ```text
-   PYTHONPATH=../AIOps python3 -m overlay review --suite ID --status armed --i-am YOUR-HANDLE --reason TEXT
-   ```
-   It records that you are human and exits non-zero without editing yaml. **Hand-edit** `suites/<id>/suite.yaml`:
-   - `status: armed` or `blocked`
-   - non-empty `reviewed_by` + ISO-8601 `reviewed_at`
-   - `armed_reason` if armed; `blocked_reason` if blocked
-10. **Arm** only when the leaf is reviewed and claimed testable (`product_command` if it should gate). **Block** when reviewed but the feature is not ready (payment/login fixtures). `draft` stays unreviewed.
-11. Validate after the edit (`PYTHONPATH` to the tool checkout). `blocked` / `draft` must not redden overlay-check.
-
-### Never
-
-- Do not vendor the tool into the product commit repo.
-- Do not invent role prefixes on branches, workflows, or skill names. 分工 = GitHub PR 标题 `actor` only.
-- Do not invent a private `[开发][Overlay]` title language.
-- Do not merge when `overlay-check`, `pr-title`, `forge-check`, or `sop-lock` is red.
-- Do not live-apply Forge in Overlay CI or to LearningGuidePortal.
-- Do not change LearningGuidePortal Verify. Do not attach / run / gate intern-workspace Proctor. Do not edit Deepseek3. Do not press `ilovelearningguide.com`.
-- Do not let CodeRabbit be the only required merge check.
-- Do not let agents write `reviewed_by`, receipts, or `status: armed`.
-- Do not generate on push. Do not implement a portal.
-- Do not merge a PR that fails `pr-title` or lacks the six headings.
-- Do not `forge submit` or push on behalf of 开发端. Ops = checks + merge only.
-- Do not add mandatory husky / npm as the merge lock.
+- 不要 vendor 工具。
+- 不要让 agent 合 PR 或 live-apply。
+- 不要 `forge submit` 替开发。
+- 不要把 CodeRabbit 当唯一合入门。
+- 不要合 `pr-title` / `sop-lock` / `overlay-check` / `forge-check` / `unittest` 红的 PR。
 
 ## Examples
 
 ```text
-# Install the cage (admin machine, sibling tool checkout)
 PYTHONPATH=../AIOps python3 -m forge apply --repo OWNER/PRODUCT --path forge.yaml --dry-run
-# Then live apply with an admin token (not Learning Guide). Then in GitHub: required checks = the real job names (not a copied "Verify").
-# If you open a PR for the yaml/docs: title feat(forge/admin): apply protected-default ruleset
-# Local: python3 -m forge pr-title --title "feat(forge/admin): apply protected-default ruleset"
-
-# Overlay arm (hand yaml; review CLI does not write yet)
-# suites/my-slice/suite.yaml → status: armed, reviewed_by: alice, reviewed_at: 2026-09-10T12:00:00Z, armed_reason: landing page ships
-PYTHONPATH=../AIOps python3 -m overlay validate --root .
+PYTHONPATH=../AIOps python3 -m forge promote --repo OWNER/PRODUCT --from dev --to main --dry-run
+PYTHONPATH=../AIOps python3 -m forge status --repo OWNER/PRODUCT --root . --write docs/STATE.md
 ```
 
-Merge: GitHub PR page, squash, after the brief is present, checks green (`overlay-check`、`pr-title`、`forge-check`、`sop-lock`), and approval. 封顶再压，压完换底. Not Overlay. Not a custom 管理端.
-
-After a capstone lands on `main`, publish **two** product tags (not production CD):
-
-```text
-PYTHONPATH=../AIOps python3 -m forge release --repo LibertychaserUS/AIOps --version X.Y.Z --dry-run
-PYTHONPATH=../AIOps python3 -m forge release --repo LibertychaserUS/AIOps --version X.Y.Z
-```
-
-Or Actions workflow `release` → Run workflow (`workflow_dispatch` only). Spec: [`docs/release.md`](../../docs/release.md).
+合入：GitHub PR 页，squash，检查绿（`overlay-check`、`pr-title`、`forge-check`、`sop-lock`、`unittest`），人批。封顶再压，压完换底。
 
 ## Performance Notes
 
-`forge apply` is one GET + one POST/PUT. Title lint is a regex. Overlay arm is a yaml edit + local `validate`. No model. Token only on explicit apply.
+`forge apply` 是按名 GET + POST/PUT。Overlay `blocked` 是 yaml 编辑 + 本地 validate。无模型。
 
 ## Troubleshooting
 
 | 现象 | 处理 |
 |---|---|
-| 想替开发 push / `forge submit` / `forge check` | 停。开发侧自己 check + 持有非空 `FORGE_SUBMIT_TOKEN` 再 submit。Ops 只审合入检查 + merge。合入权限不是那把提交密钥。 |
-| 想做管理端网页管 merge | 停。GitHub Ruleset + 人点 merge。见 [`docs/rbac.md`](../../docs/rbac.md)。 |
-| `overlay review` 不改文件 | 这一刀拒绝写盘。手改 `suite.yaml`。 |
-| 想在 overlay-check 里 `forge apply` | 停。admin token 只在人本机或受保护的 dispatch。 |
-| CodeRabbit 绿了就想当唯一门 | 停。勾接入方构建 check；Overlay 若已装再勾 overlay-check；Forge CI 已装再勾 `forge-check`；标题 workflow 已装再勾 `pr-title`；SOP workflow 已装再勾 `sop-lock`。 |
-| `pr-title` 红了还想合 | 停。拒收。让作者改 PR 名。见 [`docs/pr-brief.md`](../../docs/pr-brief.md)。 |
-| Agent 开的 PR 没人 Approve | 人审。Agent 不得自 Approve、不得自 merge。 |
-| 想用 `管理/` 当分支前缀 | 停。分工只写 PR 标题 actor。分支仍 `cursor/` 或人的习惯名。 |
-| 标题是 `[管理][Forge] …` | 拒收。改成 `feat(forge/admin): …`。 |
-| 想把 `forge/` 拷进产品仓 | 停。`$use-forge`。 |
-| 想对 LearningGuidePortal live apply | 停。fixture，不是试验场。 |
-| 正文缺「做了什么」等六节 | 拒收。用 [`.github/PULL_REQUEST_TEMPLATE.md`](../../.github/PULL_REQUEST_TEMPLATE.md)。 |
+| 想替开发 push / submit / check | 停。开发自己 check + 持 `FORGE_SUBMIT_TOKEN`。Ops 只审**合入** + merge。 |
+| `promote` 想顺手 merge | 停。命令永不 merge。 |
+| Agent 代写 `blocked` | 拒收。自己写 reason 链接。 |
+| required_checks 抄了别人的 workflow 名 | 改回本仓 job 名。 |
+| STATE 不新鲜 | `forge status --write docs/STATE.md`。 |
+| 想发下一版 tag | CHANGELOG 先有对应 `## [product-X.Y.Z]`，再 `release --dry-run`。不要 force-move。 |
 
 ## Lock（不绿不能合）
 
 原则：[`docs/sop-lock.md`](../../docs/sop-lock.md)。只锁可机器判定的子集。
 
-本工作本 Ruleset 必须勾：`overlay-check`、`pr-title`、`forge-check`、`sop-lock`（`forge.yaml` `required_checks`）。这些是 **合入锁**。**通用检查 ≠ 产品门。** `pr-title` / `sop-lock` 永远跑；产品门按 `forge.yaml` `ci` 选跑或跳过成功。Overlay Ops PR 链（选中时）：规格 → CodeRabbit/Copilot 评论 → 全量 Overlay CI → 人合；红则 `bounce` 打回并留 `ops-debug`。红则不能合。开发侧提交前的本地门是 `python -m forge check` 绿 **并且** 持有 `FORGE_SUBMIT_TOKEN`（**代推锁**；`gh auth` 不够）；Ops 不替开发跑 check / submit。进 `main` 默认 squash：PR 必须是整段工作的**封顶**；合完**换底**。不要从即将被压掉的旧头再叠。CodeRabbit 不能当唯一门。人审：谁点 merge；GitHub UI 是否把 base 指到未合的 `cursor/` 枝。不绿不能合。不 live-apply Rulesets。
+本工作本 Ruleset 必须勾：`overlay-check`、`pr-title`、`forge-check`、`sop-lock`、`unittest`。这些是 **合入锁**。**通用检查 ≠ 产品门。** 开发侧提交前的本地门是 `python -m forge check` 绿 **并且** 持有 `FORGE_SUBMIT_TOKEN`（**代推锁**）。进保护分支默认 squash：**封顶**再压，压完**换底**。不绿不能合。不 live-apply Rulesets（除非 Ops 明确对非禁仓执行）。

@@ -4,50 +4,45 @@
 
 | 名 | 锁什么 |
 |---|---|
-| **通用检查 ≠ 产品门** | 哪个检查**跑**。通用永远跑；产品门必启动，再按 `forge.yaml` `ci` skip-success |
-| **产品前缀分治**（English: **product-prefix partition**） | 哪个 **workflow 文件** 住哪个 job。一句锁：**同前缀可合，跨产品不合。** |
+| **通用检查 ≠ 产品门** | 哪个检查**跑**。通用永远跑；产品门必启动，再按 `forge.yaml` 写成 success 或真跑 |
+| **产品前缀分治** | 哪个 **workflow 文件** 住哪个 job。一句：**同前缀可合，跨产品不合。** |
 
-不要发明第三个名字。标题语法 `type(product/actor)` 的 `product`（`forge`\|`overlay`\|`ci`\|`docs`）就是这套前缀，不要另造第二种分治语法。
+不要发明第三个名字。标题里的产品前缀（`forge` / `overlay` / `ci` / `docs`）就是这套前缀。
 
-程序锁：[`sop-lock.md`](sop-lock.md)。选择器：`python -m forge ci-select`。标题：[`pr-brief.md`](pr-brief.md)。索引：[`sop.md`](sop.md)。
+程序锁：[`sop-lock.md`](sop-lock.md)。选择器与子命令：[`cli.md`](cli.md)。标题：[`pr-brief.md`](pr-brief.md)。索引：[`sop.md`](sop.md)。现状（job 名、required checks）：[`STATE.md`](STATE.md)。
 
 ---
 
 ## 通用检查 ≠ 产品门
 
-锁的是**跑不跑**。不是两个产品各搞一套对等 CI。
-
 | 类 | 检查名 | 何时跑 |
 |---|---|---|
-| 通用（`ci` 前缀） | `pr-title`、`sop-lock` | 永远跑。`pr-title` 只在 `pull_request` |
-| 产品门 | `forge-check`、`overlay-check` | workflow 必启动；跳过由 `python -m forge ci-select` / `forge.yaml` `ci` 写成 success，不靠 `on.paths` |
+| 通用 | `pr-title`、`sop-lock` | 永远跑。`pr-title` 只在 `pull_request` |
+| 工作本单测 | `unittest` | **永远跑**，不走 ci-select。命令：`python3 -m unittest discover -s tests -t . -q` |
+| 产品门 | `forge-check`、`overlay-check` | workflow 必启动；跳过由 `ci-select` 写成 success，不靠 `on.paths` |
 
-标题 `product` 选产品门：`overlay` → `overlay-check`；`forge` → `forge-check`；`ci` → 两门都跑；`docs` → 只跑通用。通用层不跳过。未声明的检查名 skip（`unknown-check-skip`），不当红。
+标题 `product` 选产品门：`overlay` → `overlay-check`；`forge` → `forge-check`；`ci` → 两门都跑；`docs` → 只跑通用。通用层与 `unittest` 不跳过。未声明的检查名 skip，不当红。
 
-本工作本 Ruleset 勾的**检查名**不变：`pr-title`、`sop-lock`、`forge-check`、`overlay-check`。改文件归属不改 check 名。
+接入方不要拷本工作本 `ci.yml`。Overlay 接入方 pin reusable `overlay.yml`。`required_checks` 填真实 **CI job 名**。按分支规则见合入后的 `forge-config.md` 与 [ADR 0004](adr/0004-per-branch-rulesets.md)。
+
+`sop-lock` 放行 `ci.yml` 里的 `unittest` job（不得把旁路 unittest 写进 Overlay push workflow 来绕过 select）。
+
+`forge-check` 另跑 `forge status --check-state`（校验 STATE 新鲜）。
 
 ---
 
 ## 产品前缀分治
 
-锁的是**文件归属**。一句：**同前缀可合，跨产品不合。**
+| 前缀 | 住哪个文件 |
+|---|---|
+| `ci`（通用 + 工作本 `unittest`） | `.github/workflows/ci.yml` |
+| `forge-*` | `forge-check.yml` |
+| `overlay-*` | 工作本门 `overlay-check.yml`；接入方复用 `overlay.yml` |
+| 发布 | `release.yml`（**不是 CI**。人点 `workflow_dispatch`） |
 
-| 前缀 | 住哪个文件 | 可合 |
-|---|---|---|
-| `ci`（通用检查） | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) only | `pr-title` + `sop-lock` 可同文件。不混进产品门 |
-| `forge-*` | [`.github/workflows/forge-check.yml`](../.github/workflows/forge-check.yml) | 同 Forge 前缀可合。不进 Overlay / `ci.yml` |
-| `overlay-*` | 工作本门：[`.github/workflows/overlay-check.yml`](../.github/workflows/overlay-check.yml)。接入方复用：[`.github/workflows/overlay.yml`](../.github/workflows/overlay.yml) | 同 Overlay 前缀可合。不进 Forge / `ci.yml` |
-| 发布 | [`.github/workflows/release.yml`](../.github/workflows/release.yml) | **不是 CI**。人点 `workflow_dispatch` 打产品 tag |
+禁止：跨产品合文件；把 `pr-title` / `sop-lock` 混进产品门；把 `release.yml` 当 CI；用 `on.paths` 让检查根本不启动。残留的 `pr-title.yml` / `sop-lock.yml` 会让 `sop-lock` 红。
 
-接入方 pin reusable `overlay.yml`（**tag 或 SHA**，不要浮动 `main`），不要拷本工作本 `ci.yml`。残留的 `pr-title.yml` / `sop-lock.yml` 会让 `sop-lock` 红。
-
-禁止：
-
-- 把 `forge-*` job 写进 Overlay workflow，或反过来
-- 把 `pr-title` / `sop-lock` 混进产品门文件
-- 再做一个 mega mixed file 装两件产品
-- 把 `release.yml` 当 CI
-- 另造第二种分治语法（路径前缀、角色前缀、第二套标题）
+接入方 pin reusable `overlay.yml`（tag 或 SHA）。`setup_command` 在 run job 装产品工具链。`--branch` 缺省 `github.base_ref` / `github.ref_name`。Node / Python / Go / Java 的 `runtime_setup` 示例见合入后的 `overlay-ci.md`。
 
 ---
 
@@ -55,22 +50,15 @@
 
 ```text
 .github/workflows/
-  ci.yml              # 通用：pr-title + sop-lock（检查名不变）
-  forge-check.yml     # Forge 产品门：unit + apply --dry-run；ci-select 可 skip
+  ci.yml              # 通用：pr-title + sop-lock；另 job unittest 永远跑
+  forge-check.yml     # Forge 产品门
   overlay-check.yml   # Overlay 产品门 + Ops DAG
   overlay.yml         # reusable；接入方 pin
-  release.yml         # 人点发布两条产品 tag；不是 CI
+  release.yml         # 人点发布两条产品 tag
 ```
-
-不要恢复 `pr-title.yml` / `sop-lock.yml`。不要把两件产品塞进同一个 workflow。
 
 ---
 
 ## 本地
 
-```text
-python3 -m forge ci-select --check overlay-check --title "feat(overlay/dev): …"
-python3 -m forge sop-lock --root .
-```
-
-`sop-lock` 锁：`ci.yml` 有通用两 job 且无 `ci-select` skip；产品门文件各自 `ci-select`；残留拆文件红。不绿不能合。
+见 [`cli.md`](cli.md)。`sop-lock` 不绿不能合。

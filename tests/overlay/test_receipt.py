@@ -51,12 +51,10 @@ class ReceiptTests(unittest.TestCase):
             dropped = {event["suite"]: event["rule"] for event in data["events"] if event["type"] == "dropped"}
             self.assertEqual(dropped.get("payment"), "never_red_statuses")
             self.assertEqual(dropped.get("login"), "never_red_statuses")
-            reviewers = {
-                item["suite"]: item["reviewed_by"]
-                for item in data["evidence"]
-                if item.get("type") == "human-review"
-            }
-            self.assertEqual(reviewers.get("my-learning"), "fixture")
+            self.assertFalse(
+                any(item.get("type") == "human-review" for item in data["evidence"]),
+                data["evidence"],
+            )
 
     def test_build_receipt_rejects_model(self) -> None:
         with self.assertRaises(ReceiptError):

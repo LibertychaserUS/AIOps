@@ -31,7 +31,7 @@ class CoverTests(unittest.TestCase):
         self.assertIn("ML-FR-004", result.stdout)
         self.assertNotIn("interaction hints", result.stdout)
 
-    def test_armed_missing_edge_is_exit_2(self) -> None:
+    def test_active_missing_edge_is_exit_2(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = write_generic_root(Path(tmp))
             cases = root / "suites" / "checkout-retry" / "cases.md"
@@ -44,15 +44,13 @@ class CoverTests(unittest.TestCase):
             self.assertIn("missing techniques", result.stderr)
             self.assertIn("edge", result.stderr)
 
-    def test_draft_missing_edge_is_green(self) -> None:
+    def test_blocked_missing_edge_is_green(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = write_generic_root(Path(tmp))
             suite = root / "suites" / "checkout-retry" / "suite.yaml"
             data = yaml.safe_load(suite.read_text(encoding="utf-8"))
-            data["status"] = "draft"
-            data["reviewed_by"] = None
-            data["reviewed_at"] = None
-            data["armed_reason"] = None
+            data["status"] = "blocked"
+            data["blocked_reason"] = "not ready; see https://example.invalid/of"
             suite.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
             cases = root / "suites" / "checkout-retry" / "cases.md"
             cases.write_text(
@@ -82,7 +80,7 @@ items:
             self.assertEqual(result.returncode, EXIT_CONTRACT, result.stderr)
             self.assertIn("INV-one-charge", result.stderr)
 
-    def test_armed_siblings_without_interaction_print_hint(self) -> None:
+    def test_active_siblings_without_interaction_print_hint(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = copy_lg(Path(tmp))
             cases = root / "suites" / "my-learning" / "cases.md"

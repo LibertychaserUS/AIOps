@@ -66,9 +66,9 @@ def sibling_hints(inboxes: list[InboxDoc], suites: list[SuiteDoc]) -> list[str]:
             for other in leaves
             if other != fid
         )
-        if not coupled and suite.status == "armed":
+        if not coupled and suite.status in {"active", ""}:
             hints.append(
-                f"{suite.suite_id}: armed leaves {leaves} share one inbox; "
+                f"{suite.suite_id}: active leaves {leaves} share one inbox; "
                 f"add an interaction case or trace.relates (span=interaction)"
             )
     return hints
@@ -90,7 +90,7 @@ def format_cover_report(
             )
             lines.append(f"- {fid} suite={suite.suite_id} status={suite.status} {marks}")
             missing = sorted(REQUIRED_TECHNIQUES - have)
-            if missing and suite.status != "armed":
+            if missing and suite.status != "active":
                 lines.append(f"  hint: missing {', '.join(missing)} (not gated while {suite.status})")
     if not any(suite.function_ids for suite in suites):
         lines.append("- (none)")

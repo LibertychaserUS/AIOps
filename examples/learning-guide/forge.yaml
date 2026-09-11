@@ -1,13 +1,38 @@
 schema: forge-config/v1
+# Example adopter: a Next.js product with dev → main promotion.
+# required_checks are the CI job names as they appear on a PR (not workflow names).
 protect:
+  - dev
   - main
 agent_branch_prefixes:
   - cursor/
   - copilot/
+  - agent/
 deny_paths:
-  - .github/workflows/ci.yml
-required_checks:
-  - Verify
-review:
-  min_approvals: 1
-  code_owners: false
+  - .github/workflows/
+branches:
+  dev:
+    required_checks:
+      - Typecheck
+      - Lint
+      - Build and test
+      - overlay-check
+      - forge-check
+    approvals: 0
+    code_owners: false
+  main:
+    required_checks:
+      - Typecheck
+      - Lint
+      - Build and test
+      - overlay-check
+      - forge-check
+    approvals: 1
+    code_owners: true
+    promote_from: dev
+title:
+  scopes: any
+docs_sync:
+  - paths: [suites/**, inbox/**, invariants.yaml]
+    require: [docs/phase1/overlay-forge-brief.md]
+forbidden_live_repos: []

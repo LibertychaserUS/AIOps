@@ -1,8 +1,8 @@
-"""Overlay: reviewable suites; select only armed. Not a product plugin."""
+"""Overlay: reviewable suites; select only active. Not a product plugin."""
 
 from __future__ import annotations
 
-__version__ = "1.0.1"
+__version__ = "2.0.0"
 
 EXIT_OK = 0
 EXIT_CONTRACT = 2

@@ -1,0 +1,31 @@
+schema: forge-config/v1
+protect:
+  - dev
+  - main
+agent_branch_prefixes:
+  - cursor/
+  - copilot/
+  - agent/
+deny_paths:
+  - .github/workflows/
+branches:
+  dev:
+    required_checks:
+      - unit
+      - lint
+      - overlay-check
+    approvals: 0
+    code_owners: false
+  main:
+    required_checks:
+      - unit
+      - lint
+      - overlay-check
+      - forge-check
+    approvals: 1
+    code_owners: true
+    promote_from: dev
+title:
+  scopes: any
+docs_sync: []
+forbidden_live_repos: []

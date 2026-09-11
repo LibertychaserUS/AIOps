@@ -19,7 +19,7 @@ from forge import EXIT_OK
 
 EXIT_SOP = 2
 
-WORKSHOP_REQUIRED_CHECKS = ("overlay-check", "pr-title", "forge-check", "sop-lock")
+WORKSHOP_REQUIRED_CHECKS = ("overlay-check", "pr-title", "forge-check", "sop-lock", "unittest")
 COMMON_CHECKS = ("pr-title", "sop-lock")
 LOCK_HEADING_RE = re.compile(r"^## Lock\b", re.MULTILINE)
 GENERATE_RUN_RE = re.compile(
@@ -116,15 +116,16 @@ def _collect_env_keys(node: Any) -> list[str]:
 
 
 def _is_forge_unit_layer(path: Path, data: dict[str, Any], script: str) -> bool:
-    """Forge product CI may discover tests/forge. That is not an Overlay select bypass.
-
-    ci.yml is the workshop common-check file (pr-title + sop-lock), not this layer.
-    """
+    """Forge product CI may discover tests/forge. That is not an Overlay select bypass."""
     name = str(data.get("name") or "")
     filename = path.name
     forge_file = filename in {"forge-check.yml", "forge-check.yaml"}
     forge_named = name == "forge-check"
     return (forge_file or forge_named) and bool(FORGE_UNITTEST_RE.search(script))
+
+
+def _is_ci_unittest_job(path: Path, job_id: str) -> bool:
+    return path.name in {"ci.yml", "ci.yaml"} and job_id == "unittest"
 
 
 def _job_ids(data: dict[str, Any]) -> list[str]:
@@ -170,18 +171,25 @@ def check_workflows(root: Path) -> list[Issue]:
                 "OPENAI_API_KEY" in script for script in runs
             ):
                 issues.append(Issue(rel, "push workflow must not set OPENAI_API_KEY"))
-            bypass = [
-                script
-                for script in runs
-                if UNITTEST_RE.search(script) and not _is_forge_unit_layer(path, data, script)
-            ]
+            bypass: list[str] = []
+            jobs = data.get("jobs")
+            if isinstance(jobs, dict):
+                for job_id, job in jobs.items():
+                    for script in _job_runs(job):
+                        if not UNITTEST_RE.search(script):
+                            continue
+                        if _is_forge_unit_layer(path, data, script):
+                            continue
+                        if _is_ci_unittest_job(path, str(job_id)):
+                            continue
+                        bypass.append(script)
             if bypass:
                 issues.append(
                     Issue(
                         rel,
                         "do not add a unittest workflow that bypasses Overlay select "
-                        "(Overlay tests stay in an Overlay armed product_command; "
-                        "Forge tests stay on forge-check)",
+                        "(Overlay tests stay in an Overlay product_command; "
+                        "Forge tests stay on forge-check; workshop full discover is ci.yml job unittest)",
                     )
                 )
         for ref in uses:
@@ -293,7 +301,7 @@ def _check_workshop_ci(root: Path) -> list[Issue]:
                 )
             )
     if not path.is_file():
-        issues.append(Issue(rel, "missing ci.yml for common checks (jobs pr-title + sop-lock)"))
+        issues.append(Issue(rel, "missing ci.yml for common checks (jobs pr-title + sop-lock + unittest)"))
         return issues
     text = path.read_text(encoding="utf-8")
     data = _load_workflow(path)
@@ -330,6 +338,15 @@ def _check_workshop_ci(root: Path) -> list[Issue]:
             issues.append(Issue(rel, "sop-lock job must run python -m forge sop-lock"))
         if any(CI_SELECT_RE.search(script) for script in runs):
             issues.append(Issue(rel, "common sop-lock must always run (no ci-select skip)"))
+    unit_job = jobs.get("unittest")
+    if not isinstance(unit_job, dict):
+        issues.append(Issue(rel, "must have job unittest"))
+    else:
+        runs = _job_runs(unit_job)
+        if not any(UNITTEST_RE.search(script) for script in runs):
+            issues.append(Issue(rel, "unittest job must run python3 -m unittest discover"))
+        if any(CI_SELECT_RE.search(script) for script in runs):
+            issues.append(Issue(rel, "common unittest must always run (no ci-select skip)"))
     if SUBMIT_RUN_RE.search(text):
         issues.append(Issue(rel, "must not call forge submit"))
     if GENERATE_RUN_RE.search(text):
@@ -446,6 +463,10 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
             )
         if "forge apply" not in text or "--dry-run" not in text:
             issues.append(Issue(_rel(root, forge_check), "must run forge apply --dry-run"))
+        if "forge status" not in text or "--check-state" not in text:
+            issues.append(
+                Issue(_rel(root, forge_check), "must run forge status --check-state")
+            )
         if "python -m forge sop-lock" in text:
             issues.append(
                 Issue(_rel(root, forge_check), "sop-lock is common; do not own it on forge-check")
