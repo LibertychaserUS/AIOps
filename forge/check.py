@@ -326,14 +326,28 @@ def _changelog_headings(root: Path) -> set[str]:
     return headings
 
 
+def _markdown_files(root: Path) -> list[Path]:
+    """Tracked + unignored *.md under root (git ls-files); falls back to rglob outside git."""
+    if is_git_work_tree(root):
+        proc = _git(root, "ls-files", "--cached", "--others", "--exclude-standard", "--", "*.md", "**/*.md")
+        if proc.returncode == 0:
+            seen: set[str] = set()
+            out: list[Path] = []
+            for line in proc.stdout.splitlines():
+                rel = line.strip()
+                if rel and rel not in seen and (root / rel).is_file():
+                    seen.add(rel)
+                    out.append(root / rel)
+            return sorted(out)
+    return sorted(p for p in root.rglob("*.md") if ".git" not in p.parts)
+
+
 def _relative_link_failures(root: Path) -> list[str]:
     import re
 
     link_re = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
     failures: list[str] = []
-    for path in sorted(root.rglob("*.md")):
-        if ".git" in path.parts:
-            continue
+    for path in _markdown_files(root):
         try:
             rel = path.relative_to(root)
         except ValueError:
@@ -341,15 +355,13 @@ def _relative_link_failures(root: Path) -> list[str]:
         text = path.read_text(encoding="utf-8", errors="replace")
         for match in link_re.finditer(text):
             target = match.group(1).strip()
-            if not target or target.startswith(("http://", "https://", "mailto:", "#", "<")):
+            if not target or target.startswith(("http://", "https://", "mailto:", "#", "<", "/")):
+                # "/x" is a site-root web path (served from public/), not a repo path.
                 continue
             path_part = target.split("#", 1)[0].split("?", 1)[0]
             if not path_part:
                 continue
-            if path_part.startswith("/"):
-                dest = (root / path_part.lstrip("/")).resolve()
-            else:
-                dest = (path.parent / path_part).resolve()
+            dest = (path.parent / path_part).resolve()
             try:
                 dest.relative_to(root.resolve())
             except ValueError:
@@ -367,9 +379,7 @@ def _pin_mention_failures(root: Path) -> list[str]:
     tags = _git_tags(root)
     headings = _changelog_headings(root)
     failures: list[str] = []
-    for path in sorted(root.rglob("*.md")):
-        if ".git" in path.parts:
-            continue
+    for path in _markdown_files(root):
         try:
             rel = path.relative_to(root).as_posix()
         except ValueError:

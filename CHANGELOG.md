@@ -4,6 +4,16 @@
 
 产品分两条线：`overlay-X.Y.Z` 与 `forge-X.Y.Z`。对应 git tag 为 `overlay-vX.Y.Z` / `forge-vX.Y.Z`。未发布的段写在下面，打 tag 时由 `forge release` 引用。
 
+## [forge-1.1.1]
+
+### Fixed
+
+- `docs_sync` 只扫 git 跟踪且未忽略的 `*.md`；`node_modules/` 等不再被当成仓内文档。
+- `docs_sync` 把以 `/` 开头的链接视为站点根路径（Web 产品 `public/`），不再当仓内相对路径报错。
+- `status --check-state` 不再比对 pin / 最近 tag（发布提交先带 STATE 再打 tag 会自相矛盾），改为比对 CI job 名。
+- `status` 的 CI job 名只取 `jobs.<id>.name`（或 job id），不再把 workflow `name:` 和 step `- name:` 算进去。
+- `check` 在 `--root` 为 git 子目录（monorepo）时，diff 路径相对 `--root`，`deny_paths` 与 `suite_guard` 才对得上。
+
 ## [overlay-2.0.0]
 
 ### Added

@@ -597,6 +597,34 @@ class DocsSyncCheckTests(unittest.TestCase):
             self.assertIn("docs_sync", out)
             self.assertIn("no-such.md", out)
 
+    def test_ignored_and_untracked_markdown_is_not_scanned(self) -> None:
+        # node_modules / build output carry thousands of foreign READMEs with
+        # relative links and pin-like strings; only tracked files are ours.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product(root)
+            (root / ".gitignore").write_text("node_modules/\n", encoding="utf-8")
+            _git(root, "add", ".gitignore")
+            _git(root, "commit", "-m", "ignore")
+            _git(root, "checkout", "-b", "cursor/docs")
+            (root / "node_modules" / "dep").mkdir(parents=True)
+            (root / "node_modules" / "dep" / "README.md").write_text(
+                "[x](../nope.md) overlay-v9.9.9\n", encoding="utf-8"
+            )
+            code, out = _check(root)
+            self.assertEqual(code, EXIT_OK, out)
+
+    def test_site_root_links_are_web_paths_not_repo_paths(self) -> None:
+        # A web app links /diagram.svg meaning public/diagram.svg served at the
+        # site root; that is not a repository-relative markdown link.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product(root)
+            _git(root, "checkout", "-b", "cursor/docs")
+            (root / "README.md").write_text("![d](/diagrams/energy.svg)\n", encoding="utf-8")
+            code, out = _check(root)
+            self.assertEqual(code, EXIT_OK, out)
+
     def test_unregistered_pin_mention_is_red(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
