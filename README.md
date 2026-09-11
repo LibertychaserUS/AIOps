@@ -202,6 +202,8 @@ Skill (read next): [`skills/use-forge/SKILL.md`](skills/use-forge/SKILL.md).
 - **Dev:** `python -m forge check` must be green **and** `FORGE_SUBMIT_TOKEN` must be set, then `python -m forge submit` pushes a feature branch and opens/updates a **draft** PR. Host `gh auth` / `GH_TOKEN` is not enough. Missing token fails even `--dry-run`. Forge never merges.
 - **Ops:** `python -m forge apply` installs a Ruleset from `forge.yaml` (`required_checks` → `required_status_checks`). Humans merge after required checks. No live apply to LearningGuidePortal from this workshop.
 
+**First run vs default-run.** Forge is full-stack post-dev GitHub landing (`check` → `submit`), not a test tool. Do not change Overlay or Verify norms. If the adopter already lands with `gh pr create`, husky, push-to-main, Verify-only, or their own branch names: remind them, contrast old vs new (Forge will not merge, live-apply, arm Overlay, or rewrite Verify), and wait for an explicit yes before writing `forge.yaml` or pasting policy. After one yes — or when `forge.yaml` already exists and they said 同意 — ask once, say 「之后默认按 Forge 落地」, then default-run `check` / `submit`. Do not re-ask on every save. Init confirm is not permission to live-apply or arm. Full rule: [`skills/use-forge/SKILL.md`](skills/use-forge/SKILL.md).
+
 ### In this workshop (smoke)
 
 ```text

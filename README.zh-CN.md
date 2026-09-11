@@ -54,6 +54,8 @@ python3 -m forge check --root .
 
 开发冷启动六步：[`skills/use-forge/SKILL.md`](skills/use-forge/SKILL.md)。Overlay 契约：[`skills/use-overlay/SKILL.md`](skills/use-overlay/SKILL.md)、[`skills/design-cases/SKILL.md`](skills/design-cases/SKILL.md)。
 
+**第一次 vs 之后默认跑。** Forge 是开发完成后的全栈 GitHub 落地（`check` → `submit`），不是测试工具。不要为了接 Forge 去改 Overlay / Verify。接入方如果已有 `gh pr create`、husky、直推 main、只走 Verify、或自己的分支名：先提醒对照新旧（不合入、不 live-apply、不 arm、不改 Verify），等人明确同意再写 `forge.yaml` / 贴政策。同意过一次——或仓里已有 `forge.yaml` 且他们说过「同意」——之后只再问一次，说「之后默认按 Forge 落地」，然后默认跑 `check` / `submit`。不要每次存盘都问。初始化同意 ≠ 可以 live-apply 或 arm Overlay。
+
 别的 agent 装 skill（只 pin **已存在的 tag**；`gh skill` 没有 `--agent copilot`）：
 
 ```text
