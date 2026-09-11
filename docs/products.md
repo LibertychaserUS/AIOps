@@ -203,4 +203,4 @@ examples/learning-guide/   # 第一个接入方 fixture，不是核心
   release.yml           # 人点发布两条产品 tag；不是 CI
 ```
 
-版本：两个产品两个 tag，不要看成一个 Latest。接入方现在必须 pin 已发布的 [`overlay-v1.0.1`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.1) 与 [`forge-v1.0.1`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.1)（同一提交）。旧针 `overlay-v1.0.0` / `forge-v1.0.0` 仍在 `235e514…`，不要 force-move。下一版用 `python -m forge release` 或 Actions `release` `workflow_dispatch`（见 [`release.md`](release.md)）。不 pin `main`。起步：仓库根 [`README.md`](../README.md) / [`README.zh-CN.md`](../README.zh-CN.md)。
+版本：两个产品两个 tag，不要看成一个 Latest。接入方现在必须 pin git tag [`overlay-v1.0.1`](https://github.com/LibertychaserUS/AIOps/tree/overlay-v1.0.1) 与 [`forge-v1.0.1`](https://github.com/LibertychaserUS/AIOps/tree/forge-v1.0.1)（同一提交 `b4afc10ae0be4725e5109030f14a05bb2291fe4a`）。`1.0.1` 没有 GitHub Release 页面，不要链 `/releases/tag/`。旧针 `overlay-v1.0.0` / `forge-v1.0.0` 仍在 `235e514…`，不要 force-move。下一版用 `python -m forge release` 或 Actions `release` `workflow_dispatch`（见 [`release.md`](release.md)）。不 pin `main`。起步：仓库根 [`README.md`](../README.md) / [`README.zh-CN.md`](../README.zh-CN.md)。

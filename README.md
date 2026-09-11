@@ -8,10 +8,10 @@ Public workshop for two reusable GitHub products: **Forge** (who may push / merg
 
 | Product | Pin this tag | SHA | Job |
 |---|---|---|---|
-| **Overlay** | [`overlay-v1.0.1`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.1) | this tag (same commit as `forge-v1.0.1`) | Inbox → reviewable suites. Push runs only `armed`. No `generate`. |
-| **Forge** | [`forge-v1.0.1`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.1) | same commit | Local `check` then `submit` opens a draft PR. Humans + Ruleset merge. Never auto-merges. |
+| **Overlay** | [`overlay-v1.0.1`](https://github.com/LibertychaserUS/AIOps/tree/overlay-v1.0.1) | `b4afc10ae0be4725e5109030f14a05bb2291fe4a` (same commit as `forge-v1.0.1`) | Inbox → reviewable suites. Push runs only `armed`. No `generate`. |
+| **Forge** | [`forge-v1.0.1`](https://github.com/LibertychaserUS/AIOps/tree/forge-v1.0.1) | same commit | Local `check` then `submit` opens a draft PR. Humans + Ruleset merge. Never auto-merges. |
 
-Older pin [`overlay-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.0) / [`forge-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.0) stays at `235e514e673fa68b24879c8e139f2a5c6633ebb5`. Do not force-move `1.0.0`. Do not pin floating `main`. GitHub Latest is one badge; pin the two product tags, not Latest.
+`1.0.1` is an annotated git tag, **not** a GitHub Release page. Do not link `/releases/tag/overlay-v1.0.1` (404). `git checkout overlay-v1.0.1` is the pin. Older pin [`overlay-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.0) / [`forge-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.0) stays at `235e514e673fa68b24879c8e139f2a5c6633ebb5` — those Release objects exist. Do not force-move `1.0.0`. Do not pin floating `main`. GitHub Latest is one badge; pin the two product tags, not Latest.
 
 Need: CPython **3.12+**. Clone this repo (or your fork) **beside** the product repo.
 

@@ -8,7 +8,7 @@
 | Overlay | `overlay-vX.Y.Z` | `overlay-v1.0.1` |
 | Forge | `forge-vX.Y.Z` | `forge-v1.0.1` |
 
-接入方 pin **已经存在的 tag 或 SHA**，不要 pin 浮动 `main`。当前官方针是 [`overlay-v1.0.1`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.1) / [`forge-v1.0.1`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.1)。旧针 [`overlay-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.0) / [`forge-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.0) 不要 force-move。不要让 README 指向还不存在的下一版 tag。GitHub 每个仓只有一个 Latest 徽章；两条 tag 都在，Latest 不代表另一条没发。
+接入方 pin **已经存在的 tag 或 SHA**，不要 pin 浮动 `main`。当前官方针是 git tag [`overlay-v1.0.1`](https://github.com/LibertychaserUS/AIOps/tree/overlay-v1.0.1) / [`forge-v1.0.1`](https://github.com/LibertychaserUS/AIOps/tree/forge-v1.0.1)（`b4afc10ae0be4725e5109030f14a05bb2291fe4a`）。`1.0.1` 的 GitHub Release 对象还没建，不要链 `/releases/tag/overlay-v1.0.1`。旧针 [`overlay-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.0) / [`forge-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.0) 不要 force-move。不要让 README 指向还不存在的下一版 tag。GitHub 每个仓只有一个 Latest 徽章；两条 `1.0.1` tag 都在，Latest 仍挂 `1.0.0`。
 
 ---
 
