@@ -91,7 +91,7 @@ If you forked the workshop, `uses:` **your fork** at a pin and pass `tool_reposi
 
 ### CI — same gate as the tests
 
-7. Wire Overlay CI. Reusable `uses: LibertychaserUS/AIOps/.github/workflows/overlay.yml@overlay-v1.0.0` is valid. An **inline** product job that checkouts the same pin and runs `overlay validate` / `run` is also valid. Learning Guide already uses inline — do not replace it. This workshop’s `overlay-check.yml` is for this workshop, not a package to vendor. Do not copy this workshop’s `ci.yml` (common checks only).
+7. Wire Overlay CI. Reusable `uses: LibertychaserUS/AIOps/.github/workflows/overlay.yml@overlay-v1.0.0` is valid. An **inline** product job that checkouts the same pin and runs `overlay validate` / `run` is also valid. Learning Guide already uses the reusable caller plus a wrapper job named `overlay-check` — do not replace that working file. If another product already has a working **inline** job, do not replace it with reusable either. This workshop’s `overlay-check.yml` is for this workshop, not a package to vendor. Do not copy this workshop’s `ci.yml` (common checks only).
 8. Push runs **validate + select + run**. On **pull_request** (when selected) Overlay Ops is: **spec (`pr-title`) → review-bots (CodeRabbit + Copilot comments, advisory) → full Overlay CI on this checkout → human merge**. Red spec/CI: `python -m forge bounce` 打回 the PR and keeps `overlay-ops-debug` + receipts. `run` executes each selected suite’s `product_command` in the **caller (product) checkout**. It does not clone a foreign product repo (Learning Guide Portal is never checked out from here). It **does** checkout the tool repo when `overlay/` is not local. No generate. No token spend on push. Do not wait for CodeRabbit to be a required check.
 9. Local equivalent (tool next door):
    ```text
@@ -175,4 +175,4 @@ validate / select are local YAML. `run` is local subprocess in the caller checko
 | `### Depth` / `## Specified` | 契约红。改成 `### Edge`；Specified 改成普通段落或注释，不要用 `##`。 |
 | 跨套件重复 `function_id` | 契约红。全局唯一。 |
 | invariant 写了不存在的 `## ML-FR-011` | 契约红。先改 `##` 标题或改 invariant。 |
-| 产品已有 inline overlay-check 还去抄 reusable | 停。两边都合法；已有的不要换。 |
+| 产品已有能跑的 overlay-check 还去改成另一种形状 | 停。reusable 和 inline 都合法；已有的不要换。 |

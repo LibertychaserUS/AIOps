@@ -54,6 +54,16 @@ python3 -m forge check --root .
 
 开发冷启动六步：[`skills/use-forge/SKILL.md`](skills/use-forge/SKILL.md)。Overlay 契约：[`skills/use-overlay/SKILL.md`](skills/use-overlay/SKILL.md)、[`skills/design-cases/SKILL.md`](skills/design-cases/SKILL.md)。
 
+别的 agent 装 skill（只 pin **已存在的 tag**；`gh skill` 没有 `--agent copilot`）：
+
+```text
+gh skill install LibertychaserUS/AIOps --agent codex --pin overlay-v1.0.0 --all
+gh skill install LibertychaserUS/AIOps --agent cursor --pin overlay-v1.0.0 --all
+gh skill install LibertychaserUS/AIOps --agent claude-code --pin overlay-v1.0.0 --all
+```
+
+或在产品仓把 `skills/*` symlink 到 `.agents/skills` / `.cursor/skills` / `.claude/skills`。`overlay-v1.0.0` 上的 `use-forge` 仍把 `apply` 写进安装步骤；冷启动以本 README / 本仓更新后的 `use-forge` 六步为准，live `apply` 只在 `manage-repo`。
+
 ---
 
 ## Overlay 契约（避免 `forge check` 假红）

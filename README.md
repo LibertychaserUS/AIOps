@@ -48,21 +48,24 @@ Spec: [Codex Agent Skills](https://developers.openai.com/codex/skills). Codex sc
 | Your machine (all repos) | `~/.agents/skills/<name>/SKILL.md` |
 
 ```text
-# other product repo — Codex project path
+# other product repo — Codex project path (all five skills)
 mkdir -p .agents/skills
-ln -s ../../AIOps/skills/use-forge .agents/skills/use-forge
-ln -s ../../AIOps/skills/use-overlay .agents/skills/use-overlay
+for s in use-forge use-overlay design-cases dev-pr manage-repo; do
+  ln -s ../../AIOps/skills/$s .agents/skills/$s
+done
 
 # or all repos on this machine
 mkdir -p ~/.agents/skills
-ln -s /abs/path/to/AIOps/skills/use-forge ~/.agents/skills/use-forge
-ln -s /abs/path/to/AIOps/skills/use-overlay ~/.agents/skills/use-overlay
+for s in use-forge use-overlay design-cases dev-pr manage-repo; do
+  ln -s /abs/path/to/AIOps/skills/$s ~/.agents/skills/$s
+done
 
-# or GitHub CLI into Codex’s shared project dir
-gh skill install LibertychaserUS/AIOps --agent copilot --pin overlay-v1.0.0
+# GitHub CLI — Codex host id is `codex` (not `copilot`).
+# `--agent github-copilot` also writes `.agents/skills` at project scope.
+gh skill install LibertychaserUS/AIOps --agent codex --pin overlay-v1.0.0 --all
 ```
 
-(`gh skill install --agent copilot` writes `.agents/skills`, which Codex and several other hosts share.)
+(`gh skill` host ids: `codex`, `cursor`, `claude-code`, `github-copilot`. There is no `--agent copilot`. Several hosts share `.agents/skills` at project scope.)
 
 ### Cursor
 
@@ -77,15 +80,17 @@ Spec: [Cursor Agent Skills](https://cursor.com/docs/skills). Prefer `.cursor/ski
 ```text
 # other product repo — Cursor project path
 mkdir -p .cursor/skills
-ln -s ../../AIOps/skills/use-forge .cursor/skills/use-forge
-ln -s ../../AIOps/skills/use-overlay .cursor/skills/use-overlay
+for s in use-forge use-overlay design-cases dev-pr manage-repo; do
+  ln -s ../../AIOps/skills/$s .cursor/skills/$s
+done
 
 # or all local workspaces
 mkdir -p ~/.cursor/skills
-ln -s /abs/path/to/AIOps/skills/use-forge ~/.cursor/skills/use-forge
-ln -s /abs/path/to/AIOps/skills/use-overlay ~/.cursor/skills/use-overlay
+for s in use-forge use-overlay design-cases dev-pr manage-repo; do
+  ln -s /abs/path/to/AIOps/skills/$s ~/.cursor/skills/$s
+done
 
-gh skill install LibertychaserUS/AIOps --agent cursor --pin overlay-v1.0.0
+gh skill install LibertychaserUS/AIOps --agent cursor --pin overlay-v1.0.0 --all
 ```
 
 Cloud Agents only see **project** skills in the repo, or `~/.cursor/skills` if you turn on Sync Skills. UI: Customize → Skills, or add this GitHub repo as a remote skill source.
@@ -103,15 +108,17 @@ Spec: project `.claude/skills/<name>/SKILL.md`, user `~/.claude/skills/<name>/SK
 ```text
 # other product repo — Claude Code project path
 mkdir -p .claude/skills
-ln -s ../../AIOps/skills/use-forge .claude/skills/use-forge
-ln -s ../../AIOps/skills/use-overlay .claude/skills/use-overlay
+for s in use-forge use-overlay design-cases dev-pr manage-repo; do
+  ln -s ../../AIOps/skills/$s .claude/skills/$s
+done
 
 # or all repos on this machine
 mkdir -p ~/.claude/skills
-ln -s /abs/path/to/AIOps/skills/use-forge ~/.claude/skills/use-forge
-ln -s /abs/path/to/AIOps/skills/use-overlay ~/.claude/skills/use-overlay
+for s in use-forge use-overlay design-cases dev-pr manage-repo; do
+  ln -s /abs/path/to/AIOps/skills/$s ~/.claude/skills/$s
+done
 
-gh skill install LibertychaserUS/AIOps --agent claude-code --pin overlay-v1.0.0
+gh skill install LibertychaserUS/AIOps --agent claude-code --pin overlay-v1.0.0 --all
 ```
 
 Restart the agent after adding paths. Then `/use-forge` or `/use-overlay`, or let it pick from the description.
