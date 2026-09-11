@@ -52,13 +52,22 @@ Linked notes (same method, old path): [`docs/agents/case-design.md`](../../docs/
 
 ### 2. 叶子三技法（本地标准化）
 
-每个 `function_id` 一节 `##`，下面三类都要有（`armed` 必齐）：
+每个 `function_id` 一节 `## <id>`，下面三类 **`###` 标题必须原样是这三个词**（`armed` 必齐；大小写不敏感）：
 
-| 技法 | 问什么 |
-|---|---|
-| Functional | 声称可做的事做成了 |
-| Negative | 禁止、未授权、未就绪、明确失败 |
-| Edge | 重复、空、已完成、刚好越界、顺序颠倒 |
+```markdown
+## AUTH-01
+### Functional
+### Negative
+### Edge
+```
+
+| 技法 | `###` 标题 | 问什么 |
+|---|---|---|
+| Functional | `### Functional` | 声称可做的事做成了 |
+| Negative | `### Negative` | 禁止、未授权、未就绪、明确失败 |
+| Edge | `### Edge` | 重复、空、已完成、刚好越界、顺序颠倒 |
+
+**不要**写 `### Depth`（契约不认，armed 会缺 Edge）。**不要**写 `## Specified / not tested now`（第一个词会变成 `function_id`）。`function_id` 在整个 overlay root 全局唯一。`invariants.yaml` 的 `function_ids` 必须对上已有 `##` 标题。
 
 标题 / 步骤 / 期望。不要贴 PRD 验收原文交差。
 
@@ -133,6 +142,9 @@ Learning Guide fixture 的 `PAY-01` 可以有齐全技法，但 suite 是 `block
 | 总觉得还有没想到的角 | 先列 invariant，再写叶子。角是性质，不是更多章节。 |
 | 想对所有 function_id 两两组合 | 停。没有耦合就不是测试项。 |
 | 想用覆盖率 agent 证明跟了 PRD | 停。那不是 Overlay 的完成定义。 |
-| armed 缺 Edge | 契约红。补技法，不要改成 draft 躲。 |
+| armed 缺 Edge | 契约红。补 `### Edge`，不要改成 draft 躲，不要用 `### Depth` 顶替。 |
+| 写了 `## Specified` | 契约红。改成段落。 |
+| 跨套件重复 function_id | 契约红。换一个稳定唯一的 id。 |
+| invariant 点了不存在的 `##` | 契约红。先对齐标题。 |
 | 不知道 invariant 写哪 | 设计非目标、状态机、跨产品禁令。没有就先不建 `invariants.yaml`。 |
 | 想给全局用例一个新号族 | 停。挂在已有 `function_id` 上，用 `span` + `relates`。 |

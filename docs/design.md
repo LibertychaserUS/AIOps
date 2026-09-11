@@ -168,8 +168,13 @@ python -m forge check  --root . [--title T] [--body B]
 python -m forge submit --repo OWNER/NAME [--title T] [--dry-run]
 python -m forge pr-title --title "feat(overlay/dev): subject"
 python -m forge ci-select --check overlay-check --title "feat(overlay/dev): subject"
-python -m forge revoke --repo OWNER/NAME --name forge-protected-default
+python -m forge sop-lock --root .
+python -m forge ops-review …
+python -m forge bounce …
+python -m forge release --repo OWNER/NAME --version X.Y.Z [--dry-run]
 ```
+
+`python -m forge` 现有子命令只有这些：`apply` `status` `check` `submit` `pr-title`/`title` `sop-lock` `ci-select` `ops-review` `bounce` `release`。没有 `brief`、`credential`、`ops-chain`、`revoke`。卸 Ruleset 在 GitHub UI，不走 CLI。
 
 `check`（开发侧提交前本地门，不写 GitHub）：
 

@@ -26,7 +26,7 @@ Do not vendor `forge/`, `overlay/`, `schema/`, or `prompts/` into the adopter pr
    PYTHONPATH=../AIOps python3 -m forge status --repo OWNER/NAME
    ```
    Token: `FORGE_GITHUB_TOKEN` or `GITHUB_TOKEN`, Administration: write. Humans run live apply. Agents do not. This apply token is **not** the submit path. Submit requires `FORGE_SUBMIT_TOKEN`. Do not live-apply Forge Rulesets from an agent.
-2. **Set required checks in the GitHub Ruleset UI** (or the payload Forge applied). Use the adopter’s own job names (their build job, plus `overlay-check` only if they installed Overlay, plus `pr-title` if they installed the title workflow, plus `sop-lock` if they installed the SOP workflow). This workshop lists `overlay-check`, `pr-title`, `forge-check`, and `sop-lock` in `forge.yaml`. Forge does not create those jobs. CodeRabbit may be a check; it must **not** be the only merge gate.
+2. **Set required checks in the GitHub Ruleset UI** (or the payload Forge applied). Use the adopter’s **CI job / check names as they appear on a PR**, not the workflow `name:` unless those strings match. This workshop lists `overlay-check`, `pr-title`, `forge-check`, and `sop-lock`. Learning Guide lists `Typecheck`, `Lint`, `Build and test`, `overlay-check`. The example `Verify` is only for repos whose job is actually called Verify. Forge does not create those jobs. CodeRabbit may be a check; it must **not** be the only merge gate. Do not live-apply to Learning Guide.
 3. **Paste CODEOWNERS / team names.** Copy wording from [`forge/CODEOWNERS.example`](../../forge/CODEOWNERS.example) into the product `.github/CODEOWNERS`. Put people in **GitHub org teams**. Do not build a local ACL file that GitHub will not enforce.
 4. **Paste agent policy text** from [`forge/agent-policy.md`](../../forge/agent-policy.md) into the adopter `AGENTS.md`. Do not vendor `forge/`.
 5. **Refuse a PR** whose **title** fails `python -m forge pr-title` or whose body lacks any of the six 解说规格 headings ([`docs/pr-brief.md`](../../docs/pr-brief.md)). The title `actor` is the only 分工 label; do not ask authors to rename branches, workflows, or skills. Body **分工** is who reviews/merges ([`docs/rbac.md`](../../docs/rbac.md)), not the title actor.
@@ -67,7 +67,7 @@ Do not vendor `forge/`, `overlay/`, `schema/`, or `prompts/` into the adopter pr
 ```text
 # Install the cage (admin machine, sibling tool checkout)
 PYTHONPATH=../AIOps python3 -m forge apply --repo OWNER/PRODUCT --path forge.yaml --dry-run
-# Then live apply with an admin token. Then in GitHub: required checks = Verify + overlay-check + pr-title + forge-check + sop-lock (if installed).
+# Then live apply with an admin token (not Learning Guide). Then in GitHub: required checks = the real job names (not a copied "Verify").
 # If you open a PR for the yaml/docs: title feat(forge/admin): apply protected-default ruleset
 # Local: python3 -m forge pr-title --title "feat(forge/admin): apply protected-default ruleset"
 

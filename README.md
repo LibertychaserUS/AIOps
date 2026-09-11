@@ -1,17 +1,28 @@
 # AIOps
 
-Public workshop for two reusable GitHub products: **Forge** (ordered PRs) and **Overlay** (reviewable tests; CI runs only `armed` suites). Not the empty First-Light `AIOps` repo. Learning Guide is a fixture, not the product. Neither deploys. Neither replaces an adopter’s existing build gate (Learning Guide Verify is the first example of that rule).
+[中文说明](README.zh-CN.md)
 
-**Other agents: start in this file.** Pin the two product tags. Do not pin floating `main`. Do not copy `forge/`, `overlay/`, `schema/`, or `prompts/` into a product git repo.
+Public workshop for two reusable GitHub products: **Forge** (who may push / merge) and **Overlay** (reviewable tests; CI runs only `armed` suites). Not the empty First-Light `AIOps` repo. Learning Guide is a fixture, not the product. Neither deploys. Neither replaces an adopter’s existing build gate (Learning Guide Verify is the first example of that rule).
 
-| Product | Pin this tag | Release | Job |
+**Other agents: start in this file, or [README.zh-CN.md](README.zh-CN.md).** Pin **published** tags only. Do not pin floating `main`. Do not copy `forge/`, `overlay/`, `schema/`, or `prompts/` into a product git repo.
+
+| Product | Pin this tag | SHA | Job |
 |---|---|---|---|
-| **Overlay** | `overlay-v1.0.1` | published after this slice lands on `main` | Inbox → reviewable suites. Push runs only `armed`. No `generate`. |
-| **Forge** | `forge-v1.0.1` | published after this slice lands on `main` | Local `check` then `submit` opens a draft PR. Humans + Ruleset merge. Never auto-merges. |
+| **Overlay** | [`overlay-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.0) | `235e514e673fa68b24879c8e139f2a5c6633ebb5` | Inbox → reviewable suites. Push runs only `armed`. No `generate`. |
+| **Forge** | [`forge-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.0) | same SHA | Local `check` then `submit` opens a draft PR. Humans + Ruleset merge. Never auto-merges. |
 
-Still on GitHub today: [`overlay-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/overlay-v1.0.0) and [`forge-v1.0.0`](https://github.com/LibertychaserUS/AIOps/releases/tag/forge-v1.0.0) (same old SHA). After this PR merges, a human publishes **1.0.1** on the new `main` SHA — see [Publish](#8-publish-after-merge-not-production-cd). GitHub Latest is one badge; pin the two tags, not `main`.
+`main` may already contain unreleased `1.0.1` code (`pyproject.toml`). **Tags `overlay-v1.0.1` / `forge-v1.0.1` do not exist until a human publishes them** ([`docs/release.md`](docs/release.md)). Agents must pin **v1.0.0**. Do not `git checkout overlay-v1.0.1`. Do not pin `main`. GitHub Latest is one badge; pin the two tags, not Latest.
 
 Need: CPython **3.12+**. Clone this repo (or your fork) **beside** the product repo.
+
+---
+
+## 30 seconds
+
+1. **Forge** decides who can push / open a PR, which paths are denied, and which **CI job names** must be green. It does not merge.
+2. **Overlay** decides which requirement leaves become reviewable suites. CI runs only **`armed`**. `draft` / `blocked` are not red.
+3. Clone this repo next to the product, `git checkout overlay-v1.0.0` (or `forge-v1.0.0` — same commit), `python3 -m pip install -r requirements.txt`, set `PYTHONPATH`, then `python -m forge check` and `python -m overlay validate`.
+4. Agents may `check` / `submit`. Agents must **not** live-`apply` Rulesets, fill `reviewed_by`, or flip a suite to `armed`.
 
 ```text
 ../AIOps/        # this workshop or your fork — tool source stays here
@@ -48,7 +59,7 @@ ln -s /abs/path/to/AIOps/skills/use-forge ~/.agents/skills/use-forge
 ln -s /abs/path/to/AIOps/skills/use-overlay ~/.agents/skills/use-overlay
 
 # or GitHub CLI into Codex’s shared project dir
-gh skill install LibertychaserUS/AIOps --agent copilot --pin overlay-v1.0.1
+gh skill install LibertychaserUS/AIOps --agent copilot --pin overlay-v1.0.0
 ```
 
 (`gh skill install --agent copilot` writes `.agents/skills`, which Codex and several other hosts share.)
@@ -74,7 +85,7 @@ mkdir -p ~/.cursor/skills
 ln -s /abs/path/to/AIOps/skills/use-forge ~/.cursor/skills/use-forge
 ln -s /abs/path/to/AIOps/skills/use-overlay ~/.cursor/skills/use-overlay
 
-gh skill install LibertychaserUS/AIOps --agent cursor --pin overlay-v1.0.1
+gh skill install LibertychaserUS/AIOps --agent cursor --pin overlay-v1.0.0
 ```
 
 Cloud Agents only see **project** skills in the repo, or `~/.cursor/skills` if you turn on Sync Skills. UI: Customize → Skills, or add this GitHub repo as a remote skill source.
@@ -100,7 +111,7 @@ mkdir -p ~/.claude/skills
 ln -s /abs/path/to/AIOps/skills/use-forge ~/.claude/skills/use-forge
 ln -s /abs/path/to/AIOps/skills/use-overlay ~/.claude/skills/use-overlay
 
-gh skill install LibertychaserUS/AIOps --agent claude-code --pin overlay-v1.0.1
+gh skill install LibertychaserUS/AIOps --agent claude-code --pin overlay-v1.0.0
 ```
 
 Restart the agent after adding paths. Then `/use-forge` or `/use-overlay`, or let it pick from the description.
@@ -113,7 +124,7 @@ Restart the agent after adding paths. Then `/use-forge` or `/use-overlay`, or le
 |---|---|
 | `forge/`, `overlay/`, `schema/`, `prompts/` | `forge.yaml` and/or `overlay.yaml` |
 | reusable `.github/workflows/overlay.yml` | `inbox/`, `suites/`, optional `invariants.yaml` |
-| skills and docs | one thin workflow: `uses: LibertychaserUS/AIOps/.github/workflows/overlay.yml@overlay-v1.0.1` |
+| skills and docs | reusable: `uses: LibertychaserUS/AIOps/.github/workflows/overlay.yml@overlay-v1.0.0`. If the product already has an inline `overlay-check.yml`, keep it — do not replace a working inline job with the reusable workflow. |
 
 Local CLI: `PYTHONPATH=../AIOps`. Do not `git add` the tool tree so imports work. When the product repo has no `overlay/__init__.py`, the reusable workflow checkouts `tool_repository` (default `LibertychaserUS/AIOps`) into `_aiops`. That checkout is the correct reuse path.
 
@@ -123,14 +134,15 @@ Local CLI: `PYTHONPATH=../AIOps`. Do not `git add` the tool tree so imports work
 
 Skill (read next): [`skills/use-overlay/SKILL.md`](skills/use-overlay/SKILL.md).
 
-States: `draft` (AI/human draft, not run) · `blocked` (reviewed, not ready — payment/login stay here) · `armed` (reviewed and claimed testable). Agents never write `reviewed_by` and never arm. CI never auto-arms. No generate on push.
+States: `draft` (AI/human draft, not run) · `blocked` (reviewed, not ready) · `armed` (reviewed and claimed testable). Agents never write `reviewed_by` and never arm. CI never auto-arms. No generate on push. This workshop’s Learning Guide **fixture** keeps login/payment `blocked`. A real product may already have those suites `armed` — copy the product’s `suite.yaml`, not the fixture status.
 
 ### In this workshop (smoke)
 
 ```text
 git clone https://github.com/LibertychaserUS/AIOps.git
 cd AIOps
-git checkout overlay-v1.0.1
+git checkout overlay-v1.0.0
+python3 -m pip install -r requirements.txt
 python3 -m overlay validate --root .
 python3 -m overlay cover --root .
 python3 -m overlay select --branch main --root .
@@ -141,7 +153,7 @@ Use `-t .` so `tests/overlay` does not shadow the `overlay` package.
 
 ### In a product repo (first hour)
 
-1. Checkout this workshop next door. `git checkout overlay-v1.0.1`.
+1. Checkout this workshop next door. `git checkout overlay-v1.0.0`.
 2. In the product repo add `overlay.yaml` (copy shape from this workshop’s [`overlay.yaml`](overlay.yaml); set `product.repo` to **that** product).
 3. Add one `inbox/<id>.md` (one slice, one id). Contract: [`docs/inbox.md`](docs/inbox.md). `function_id` is whatever stable unique string the adopter docs already use — do not invent `REQ-n`.
 4. Hand-write `suites/<id>/` (`suite.yaml` starts `draft`). 1.0.x has **no** `generate`. Cover method: [`skills/design-cases/SKILL.md`](skills/design-cases/SKILL.md).
@@ -161,14 +173,14 @@ name: overlay-check
 on: [push, pull_request]
 jobs:
   overlay:
-    uses: LibertychaserUS/AIOps/.github/workflows/overlay.yml@overlay-v1.0.1
+    uses: LibertychaserUS/AIOps/.github/workflows/overlay.yml@overlay-v1.0.0
     with:
       enable_run: true
       tool_repository: LibertychaserUS/AIOps
-      tool_ref: overlay-v1.0.1
+      tool_ref: overlay-v1.0.0
 ```
 
-If you forked the workshop, point `uses:`, `tool_repository`, and `tool_ref` at **your fork** and a pin. Never checkout `First-Light-TechHK/LearningGuidePortal`. Never `workflow_call` a product Verify job.
+If the product already has an **inline** `overlay-check.yml` (checkout the pin, then `python -m overlay …`), keep it. Do not replace a working inline job with this reusable caller. If you forked the workshop, point `uses:`, `tool_repository`, and `tool_ref` at **your fork** and a pin. Never checkout `First-Light-TechHK/LearningGuidePortal`. Never `workflow_call` a product Verify job.
 
 Worked fixture (not something to vendor): [`examples/learning-guide/`](examples/learning-guide/).
 
@@ -184,7 +196,7 @@ Skill (read next): [`skills/use-forge/SKILL.md`](skills/use-forge/SKILL.md).
 ### In this workshop (smoke)
 
 ```text
-git checkout forge-v1.0.1
+git checkout forge-v1.0.0
 python3 -m forge check --root . --title "docs(docs/agent): example title" --body "$(cat .github/PULL_REQUEST_TEMPLATE.md)"
 python3 -m forge sop-lock --root .
 python3 -m unittest discover -s tests/forge -t . -q
@@ -193,17 +205,17 @@ python3 -m forge apply --repo LibertychaserUS/AIOps --dry-run
 
 ### In a product repo (first hour)
 
-1. Copy [`forge/forge.example.yaml`](forge/forge.example.yaml) → product `forge.yaml`. Set `protect`, `deny_paths` (the adopter’s **existing** build workflow name).
+1. Copy [`forge/forge.example.yaml`](forge/forge.example.yaml) → product `forge.yaml`. Set `protect`, `deny_paths`, and `required_checks` to the adopter’s **actual GitHub check / job names** (the names that appear on a PR). The example lists `Verify` only because this workshop’s example job is called that. Learning Guide uses `Typecheck` / `Lint` / `Build and test` / `overlay-check`. Do not copy `Verify` unless that is the real job name.
 2. Paste policy **text** from [`forge/agent-policy.md`](forge/agent-policy.md) into the product `AGENTS.md`. Do not copy the `forge/` directory.
-3. Dry-run apply from the product cwd:
+3. From the product cwd, after `pip install -r requirements.txt` in the tool checkout:
 
 ```text
 cd my-product
-PYTHONPATH=../AIOps python3 -m forge apply --repo OWNER/NAME --path forge.yaml --dry-run
+PYTHONPATH=../AIOps python3 -m forge check --root .
 ```
 
-4. A human with Administration runs live `apply`. Agents do not.
-5. Land code: green `forge check` + `FORGE_SUBMIT_TOKEN` + `forge submit`. PR title: `type(product/actor): subject` (see below).
+4. Live `forge apply` is **Ops only** ([`skills/manage-repo/SKILL.md`](skills/manage-repo/SKILL.md)). Agents may `--dry-run` if a human asked; they never live-apply. Learning Guide does not live-apply.
+5. Land code: green `forge check` + `FORGE_SUBMIT_TOKEN` + `forge submit`. Token details: [`docs/submit-credential.md`](docs/submit-credential.md). PR title: `type(product/actor): subject` (see below).
 
 ---
 
@@ -230,7 +242,7 @@ PRs into `main` are a capstone: squash, then start the next branch from the **ne
 | Read this | When |
 |---|---|
 | [`skills/use-overlay/SKILL.md`](skills/use-overlay/SKILL.md) | Adopt Overlay, write inbox/suites, wire overlay CI |
-| [`skills/use-forge/SKILL.md`](skills/use-forge/SKILL.md) | Adopt Forge, check / submit / apply |
+| [`skills/use-forge/SKILL.md`](skills/use-forge/SKILL.md) | Adopt Forge — six-step cold start, then `check` / `submit`. Live `apply` is `$manage-repo` only. |
 | [`skills/design-cases/SKILL.md`](skills/design-cases/SKILL.md) | Case cover (triad + invariants) |
 | [`skills/dev-pr/SKILL.md`](skills/dev-pr/SKILL.md) | Agent/developer lands a PR |
 | [`skills/manage-repo/SKILL.md`](skills/manage-repo/SKILL.md) | Humans: Ruleset, merge, arm/block |
@@ -255,9 +267,9 @@ Codex also loads `.agents/skills/` (symlinks to `skills/`).
 
 ---
 
-## 7. What 1.0.1 does not include
+## 7. What the published 1.0.0 pin does not include
 
-Overlay `generate` is not shipped. There is no “drop a PRD, get reviewed cases today” loop yet — hand-write suites. Forge `apply` is live only when a human runs it with an admin token; this workshop’s CI is dry-run only. Guard workflow is a later slice. Tags `overlay-v1.0.1` / `forge-v1.0.1` are created **after** this slice is on `main` (human `forge release` / Actions `release`).
+Overlay `generate` is not shipped. There is no “drop a PRD, get reviewed cases today” loop yet — hand-write suites. Forge `apply` is live only when a human runs it with an admin token; this workshop’s CI is dry-run only. Guard workflow is a later slice. Unreleased `main` may already say 1.0.1 in `pyproject.toml`. **Do not checkout tags that are not on GitHub.** A human publishes `overlay-v1.0.1` / `forge-v1.0.1` later (`forge release` / Actions `release`). Until those tags exist, pin **v1.0.0**.
 
 ## 8. Publish after merge (not production CD)
 

@@ -6,6 +6,10 @@ agent_branch_prefixes:
   - copilot/
 deny_paths:
   - .github/workflows/ci.yml
+# required_checks = GitHub check / job names as they appear on a PR, not the
+# workflow `name:` unless those strings are identical. This example uses
+# `Verify` because the sample job is called that. Learning Guide uses
+# `Typecheck`, `Lint`, `Build and test`, `overlay-check`.
 required_checks:
   - Verify
 review:

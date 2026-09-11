@@ -1,131 +1,134 @@
 ---
 name: use-forge
-description: Install and operate Forge (开发侧 python -m forge check then submit 代推 PR; Ops apply/status + required checks + human merge) without vendoring the tool into a product repo. This skill should be used when adopting Forge, writing forge.yaml, running forge check/submit/apply/status, pasting agent policy, or asking how people and agents land code. Do not use for Overlay inbox or suites (use use-overlay). Do not auto-merge. Do not submit when local check is red.
+description: Developer cold start for Forge — pin a published tag, pip install, write thin forge.yaml, run python -m forge check, then submit a draft PR. Live apply and Rulesets belong to manage-repo. Do not use for Overlay inbox or suites (use use-overlay). Do not auto-merge. Do not submit when local check is red.
 metadata:
-  short-description: Install Forge without vendoring the tool
+  short-description: Six-step Forge cold start; no live apply
 ---
 
 # Use Forge
 
-Forge is a standard part: 开发侧 `check`（提交前本地门）+ `submit`（代推 draft PR）+ Ops Ruleset / `apply` + optional guard. It does not generate tests, must not edit Overlay `status`, and **does not merge**. `submit` 不绿不 push。
+Forge is the developer gate: local `check`, then `submit` (draft PR). It does not generate tests, must not edit Overlay `status`, and **does not merge**.
 
-**Who reviews and merges:** GitHub humans + Ruleset, not Overlay, not a portal. RBAC: [`docs/rbac.md`](../../docs/rbac.md). **管理端** (apply, required checks, CODEOWNERS, merge, Overlay arm/block; do not push for developers): [`../manage-repo/SKILL.md`](../manage-repo/SKILL.md). **开发端** (`forge check` then `forge submit`, fix armed-red, no live apply, no self-merge): [`../dev-pr/SKILL.md`](../dev-pr/SKILL.md). Agents: this SOP + [`forge/agent-policy.md`](../../forge/agent-policy.md) — no self-merge, no self-approve.
+**Who reviews and merges:** GitHub humans + Ruleset. RBAC: [`docs/rbac.md`](../../docs/rbac.md). **开发端** after this skill: [`../dev-pr/SKILL.md`](../dev-pr/SKILL.md). **管理端** (live `apply`, required checks, merge, Overlay arm/block): [`../manage-repo/SKILL.md`](../manage-repo/SKILL.md). Agents: [`forge/agent-policy.md`](../../forge/agent-policy.md) — no self-merge, no self-approve.
+
+Pin **published** tags only: `overlay-v1.0.0` / `forge-v1.0.0` (same SHA `235e514…`). Do not pin `main`. Do not checkout `v1.0.1` until those tags exist on GitHub. Start: [`../../README.md`](../../README.md) / [`../../README.zh-CN.md`](../../README.zh-CN.md).
+
+## Real CLI
+
+`python -m forge --help` today:
+
+`apply` `status` `check` `submit` `pr-title`/`title` `sop-lock` `ci-select` `ops-review` `bounce` `release`
+
+There is **no** `brief`, `credential`, `ops-chain`, or `revoke` subcommand. Do not invent them. Token rules: [`docs/submit-credential.md`](../../docs/submit-credential.md).
+
+| Action | Agent | Human / Ops |
+|---|---|---|
+| `forge check` | yes | — |
+| `forge submit` | yes, with `FORGE_SUBMIT_TOKEN` | — |
+| live `forge apply` | **no** | Ops (`$manage-repo`). Learning Guide **does not** live-apply |
+| write `reviewed_by` / `armed` | **no** | human review |
+
+`FORGE_SUBMIT_TOKEN` is the submit key. Ops `FORGE_GITHUB_TOKEN` is the Ruleset key. Do not mix them. `gh auth` / `GITHUB_TOKEN` are not enough.
 
 ## Lock / 不绿不能合
 
-原则：[`docs/sop-lock.md`](../../docs/sop-lock.md)。skill 里能机器判的标准，程序不绿不能合。只锁可机器判定的子集，不 NLP 扫散文。
+原则：[`docs/sop-lock.md`](../../docs/sop-lock.md)。只锁可机器判定的子集。
 
-- **代推锁（提交前）：** `python -m forge check` 必须绿 **并且** 持有非空 `FORGE_SUBMIT_TOKEN`（PAT / fine-grained / GitHub App token）。缺密钥或 check 红：`submit`（含 `--dry-run`）退出 2，不 push、不开 PR。不回落 `GITHUB_TOKEN`、`FORGE_GITHUB_TOKEN`、本机 `gh auth`。Ops merge 用另一套权限，不是这把提交密钥。Overlay「token 只在 generate」说的是**模型密钥**，不是这把 GitHub 凭据。`submit`（含 `--dry-run`）必须有 `FORGE_SUBMIT_TOKEN`；缺则退出 2。Live 用真 PAT；CI dry-run 用假值、不 push。
-- LearningGuidePortal apply/submit 拒绝、dry-run 不写 API：`python -m forge apply --dry-run` + Forge 单测 → CI **`forge-check`**（合入锁）。overlay / pr-title / sop-lock / forge-check workflow **不得**调用 `forge submit`。
-- PR 标题：`python -m forge pr-title` → CI **`pr-title`**（合入锁）。进 `main` 默认 squash：封顶再压，压完换底。`submit` base 是 `protect`，不叠即将被压掉的旧头。
-- 仓级 SOP（若已装）：`python -m forge sop-lock` → **`sop-lock`**（**通用**合入锁，永远跑；不是 forge-check 的一层）
-- 本工作本 Forge **产品门**：**`forge-check`**（unit + apply --dry-run；`forge.yaml` `ci` 选跑或跳过成功）。`submit` 必须持有 `FORGE_SUBMIT_TOKEN`。`gh auth` / `GH_TOKEN` / extraheader 都不够。
-- GitHub required checks 锁合入，不锁提交。本地 `forge check` + `FORGE_SUBMIT_TOKEN` 锁代推。**通用检查 ≠ 产品门。** 不绿不能提交。不绿不能合。人审：谁合、要不要 live apply、别的仓有没有 vendor 工具。
+- **代推锁：** `python -m forge check` 必须绿 **并且** 持有非空 `FORGE_SUBMIT_TOKEN`。缺密钥或 check 红：`submit`（含 `--dry-run`）退出 2。细节只看 [`docs/submit-credential.md`](../../docs/submit-credential.md)。
+- GitHub required checks 锁合入，不锁提交。`required_checks` 必须是 **CI job / check 名**（PR 页面上看到的字符串），不是 workflow `name:`，除非两者相同。
+- **通用检查 ≠ 产品门。** `pr-title` / `sop-lock` 是通用检查；`overlay-check` / `forge-check` 是产品门。
+- 进 `main` 默认 squash：**封顶**再压，压完**换底**。`submit` base 是 `protect`。
+- 不绿不能提交。不绿不能合。Agent 不 live-apply。
 
 ## Instructions
 
-Follow these steps. Stay imperative. Do not invent a second constitution.
+Stay imperative. Six cold-start steps. Live apply is **not** in this list.
 
-### Reuse — keep the tool out of the product commit repo
-
-Do not upload or vendor the tool into the adopter's product git repo (the repo they commit and push). 不要把工具上传到接入方要提交、推送的产品仓。
-
-| Keep here | Never `git add` into the product tree |
-|---|---|
-| This workshop `LibertychaserUS/AIOps`, **or** the adopter's **fork** of this workshop | `forge/`, `overlay/`, `schema/`, `prompts/`, this workshop's Python packages |
-
-The product repo commits **only** thin files:
-
-- `forge.yaml` (copy from `forge/forge.example.yaml`, then edit `protect` / `deny_paths`)
-- a thin workflow that `uses:` the reusable workflow from the **tool** repo — pin a **tag or commit SHA**, not floating `main`
-- optional: pasted policy text in `AGENTS.md`, `.github/CODEOWNERS` from the examples
-
-Local CLI: checkout the tool repo or fork **beside** the product. Set `PYTHONPATH` to that checkout. Do **not** copy `forge/` into the product tree so imports work, and do not submodule-vendor the packages.
+### 1. Checkout a published pin beside the product
 
 ```text
-# sibling checkouts — product git must not contain the tool tree
-../AIOps/          # LibertychaserUS/AIOps or your fork
-./my-product/      # adopter product repo (only thin files)
-
-cd my-product
-PYTHONPATH=../AIOps python3 -m forge apply --repo OWNER/NAME --path forge.yaml --dry-run
+git clone https://github.com/LibertychaserUS/AIOps.git /tmp/AIOps
+cd /tmp/AIOps
+git checkout overlay-v1.0.0
 ```
 
-CI reuse path: `uses: LibertychaserUS/AIOps/.github/workflows/forge-guard.yml@<tag-or-sha>` (guard is a later slice). If you forked the workshop, `uses:` **your fork** at a pin. Never pin floating `main`.
+`forge-v1.0.0` is the same commit. Need CPython **3.12+**. Do not vendor `forge/` into the product git repo.
 
-### Install / apply
+### 2. Install Python deps
 
-1. **Read the adopter repo first.** Add only `forge.yaml` (from `forge/forge.example.yaml`). Set `protect`, `agent_branch_prefixes`, `deny_paths` (the existing build workflow; never invent a product Verify name unless the adopter already has one).
-2. **Paste policy text**, do not invent a second constitution, and do not vendor `forge/`. Copy the wording from [`forge/agent-policy.md`](../../forge/agent-policy.md) into the adopter `AGENTS.md`.
-3. **Dry-run before write.** Run from the product cwd with `PYTHONPATH` pointing at the tool checkout (see above).
-   ```text
-   PYTHONPATH=../AIOps python3 -m forge apply --repo OWNER/NAME --path forge.yaml --dry-run
-   ```
-   Must print the payload and `copy these files`. Exit 0. No API write. "Copy these files" means paste policy / CODEOWNERS **text**, not `git add forge/`.
-4. **Apply only with an admin token** (`FORGE_GITHUB_TOKEN` or `GITHUB_TOKEN`, Administration: write). Never apply to `First-Light-TechHK/LearningGuidePortal` from this workshop. Never apply in Overlay CI. Humans run apply; agents do not live-apply. That human is **管理端** (`$manage-repo`).
-   ```text
-   PYTHONPATH=../AIOps python3 -m forge apply --repo OWNER/NAME --path forge.yaml
-   PYTHONPATH=../AIOps python3 -m forge status --repo OWNER/NAME
-   ```
-5. **Humans and agents land the same way:** first `python -m forge check --root . --title T`（必须绿），then hold `FORGE_SUBMIT_TOKEN`, then `python -m forge submit --repo OWNER/NAME [--title T] [--dry-run]`. `submit` 先跑 check；红则拒绝。缺 `FORGE_SUBMIT_TOKEN` 也拒绝，**包括 `--dry-run`（fail closed）**。必须设置 `FORGE_SUBMIT_TOKEN`，不回落 CI `GITHUB_TOKEN`，不用 Ops `FORGE_GITHUB_TOKEN` 冒充代推。Check 绿且密钥在时，dry-run 打印计划 + `would require FORGE_SUBMIT_TOKEN`，不 push。永不打印 token。永不 merge / approve / arm / apply Ruleset。No push to protected branches. Developers follow `$dev-pr`. Merge is a GitHub click after checks are green — `$manage-repo`，另一套写权限，不是这把提交密钥。Aligns with [`gh pr create`](https://cli.github.com/manual/gh_pr_create) **consuming `FORGE_SUBMIT_TOKEN`**, not “just git + gh”. GitHub required checks lock **merge**; local check + `FORGE_SUBMIT_TOKEN` lock **submit**.
-6. **Do not touch Overlay gates.** Forge must not write `reviewed_by`, receipts, or `status: armed`. Agents must not arm.
-7. **Required checks** stay the adopter’s names (their build job, plus `overlay-check` only if they installed Overlay, plus `pr-title` if they installed the title workflow, plus `forge-check` if they installed Forge CI, plus `sop-lock` if they installed the SOP workflow). This workshop lists `overlay-check`, `pr-title`, `forge-check`, and `sop-lock`. Workflows stay separate; merge law can require both products. Title lock: `python -m forge pr-title` — [`../../docs/pr-brief.md`](../../docs/pr-brief.md). SOP lock: `python -m forge sop-lock` — [`../../docs/sop-lock.md`](../../docs/sop-lock.md).
+```text
+python3 -m pip install -r requirements.txt
+export PYTHONPATH=/tmp/AIOps
+```
 
-Guard workflow is later. First slice is Ruleset + policy + CLI.
+### 3. Write thin `forge.yaml` — job names, not workflow names
 
-### Never
+Copy [`forge/forge.example.yaml`](../../forge/forge.example.yaml). Set `protect`, `agent_branch_prefixes`, `deny_paths`.
 
-- Do not vendor `forge/` / `overlay/` / `schema/` / `prompts/` into the product commit repo.
-- Do not apply live to Learning Guide Portal. Do not press production (`ilovelearningguide.com`).
-- Do not change LearningGuidePortal Verify. Do not attach / run / gate intern-workspace Proctor. Do not edit Deepseek3.
-- Do not generate on push. Do not arm as an agent. Do not write receipts / `reviewed_by`.
-- CI only; no production CD. Publish tags with `$manage-repo` `python -m forge release` after merge (see [`docs/release.md`](../../docs/release.md)). Two products stay independent: Forge does not write Overlay `status`.
-- Do not build an admin Web or a second RBAC database. Review/merge stay on GitHub (`$manage-repo`).
-- Do not skip `FORGE_SUBMIT_TOKEN`. Ambient `gh auth` is not enough. CI `GITHUB_TOKEN` is 合入锁, not 代推.
+`required_checks` = the adopter’s **actual GitHub check / job names**:
+
+| Repo | `required_checks` |
+|---|---|
+| This workshop | `overlay-check` / `pr-title` / `forge-check` / `sop-lock` |
+| Learning Guide | `Typecheck` / `Lint` / `Build and test` / `overlay-check` |
+| Example file | `Verify` — only if that is the real job name |
+
+Do not copy `Verify` into Learning Guide. Do not invent a product Verify name.
+
+### 4. Paste policy text; do not copy `forge/`
+
+Copy wording from [`forge/agent-policy.md`](../../forge/agent-policy.md) into the product `AGENTS.md`. “Copy these files” means **text**, not `git add forge/`.
+
+### 5. `python -m forge check` from the product cwd
+
+```text
+cd /path/to/product
+PYTHONPATH=/tmp/AIOps python3 -m forge check --root .
+```
+
+If the product has `overlay.yaml`, check also runs `overlay validate` + `overlay cover`. Red → stop. Do not push. Do not submit.
+
+Overlay contract that turns this red: [`../use-overlay/SKILL.md`](../use-overlay/SKILL.md) (triad headings, unique `function_id`, invariants cite `##` titles).
+
+### 6. Submit a draft PR only when check is green
+
+Hold `FORGE_SUBMIT_TOKEN`. Then [`../dev-pr/SKILL.md`](../dev-pr/SKILL.md):
+
+```text
+PYTHONPATH=/tmp/AIOps python3 -m forge submit --repo OWNER/NAME --title "feat(forge/dev): subject" --dry-run
+PYTHONPATH=/tmp/AIOps python3 -m forge submit --repo OWNER/NAME --title "feat(forge/dev): subject"
+```
+
+Never merge. Never approve. Never arm. Never live-apply.
+
+If a human asked you to **diagnose** a Ruleset, `--dry-run` apply is allowed. Live apply is `$manage-repo` only. Never apply to `First-Light-TechHK/LearningGuidePortal`. Learning Guide Ops does not live-apply in Phase 1.
+
+Guard workflow is later. Overlay CI: if the product already has an inline `overlay-check.yml`, keep it — do not replace it with a reusable `uses:` caller.
 
 ## Examples
 
 ```text
-# This workshop (it IS the tool repo — local forge/ is correct here only)
-python3 -m forge apply --repo LibertychaserUS/AIOps --path forge.yaml --dry-run
-python3 -m forge check --root . --title "feat(forge/dev): add submit"
-# submit requires `FORGE_SUBMIT_TOKEN` even on --dry-run
-python3 -m forge submit --repo LibertychaserUS/AIOps --title "feat(forge/dev): add submit" --dry-run
-
-# Another product (tool stays next door)
-PYTHONPATH=../AIOps python3 -m forge apply --repo OWNER/PRODUCT --path forge.yaml --dry-run
-PYTHONPATH=../AIOps python3 -m forge check --root . --title "feat(overlay/dev): fix armed select"
-PYTHONPATH=../AIOps python3 -m forge submit --repo OWNER/PRODUCT --title "feat(overlay/dev): fix armed select" --dry-run
+# Product cwd, tool at /tmp/AIOps @ overlay-v1.0.0
+PYTHONPATH=/tmp/AIOps python3 -m forge check --root . --title "feat(overlay/dev): fix armed select"
+# submit requires FORGE_SUBMIT_TOKEN even on --dry-run
+PYTHONPATH=/tmp/AIOps python3 -m forge submit --repo OWNER/PRODUCT --title "feat(overlay/dev): fix armed select" --dry-run
 ```
 
-Product workflow (when guard exists), pin a tag or SHA:
-
-```yaml
-# .github/workflows/forge-guard.yml  — thin caller only
-name: forge-guard
-on: pull_request
-jobs:
-  guard:
-    uses: LibertychaserUS/AIOps/.github/workflows/forge-guard.yml@<tag-or-sha>
-```
-
-Illegal: `apply --repo First-Light-TechHK/LearningGuidePortal`. Illegal: apply on `on: push` Overlay jobs. Illegal: `git add forge/` inside the product repo. Illegal: overlay-check calling `forge submit` or Forge unittests as the Overlay product gate.
+Illegal: `git checkout overlay-v1.0.1` while that tag is missing. Illegal: `git add forge/` in the product repo. Illegal: live `forge apply` as an agent. Illegal: `python -m forge revoke` / `brief` / `credential` / `ops-chain`. Illegal: `required_checks: [Verify]` on a repo whose jobs are `Typecheck` / `Lint` / `Build and test`.
 
 ## Performance Notes
 
-Dry-run apply is local JSON. Live apply is one GET + one POST or PUT. No model. No production CD. Overlay 模型 token 只在人点的 `generate`，不在 push。Forge 代推是另一把钥匙：`FORGE_SUBMIT_TOKEN`，缺则红（含 dry-run）。合入后发版：`python -m forge release`（人点，不是 push）。
+`check` is local. `submit` is one push + one draft PR. No model. Token details stay in [`docs/submit-credential.md`](../../docs/submit-credential.md). Humans publish tags with `$manage-repo` `python -m forge release` ([`docs/release.md`](../../docs/release.md)) — agents do not invent tags.
 
 ## Troubleshooting
 
 | 现象 | 处理 |
 |---|---|
-| 想把 `forge/` 拷进产品仓好 import | 停。工具留在本工作本或 fork；产品仓只留 `forge.yaml` + 薄 workflow。本地用 `PYTHONPATH`。 |
-| 退出码 2 | 缺 `FORGE_SUBMIT_TOKEN`，或本机 `forge check` 红。不要部分写入。不要用 `GITHUB_TOKEN` / `gh auth` 凑。 |
-| 退出码 3 | `forge.yaml` 非法。对照 example。 |
-| 退出码 4 | GitHub API 失败。看权限，不要改 Ruleset JSON 结构凑合。 |
-| 想直推 main 省事 | 停。先 `python -m forge check`，再 `forge submit`。`$dev-pr`。 |
-| `forge check` 红了还想 submit | 停。不 push、不开 PR。 |
-| 缺 `FORGE_SUBMIT_TOKEN` 还想 dry-run submit | 停。fail closed。先持有提交密钥。 |
-| 想让 Forge 把 suite 标 armed | 停。那是人审 Overlay。`$manage-repo`。 |
-| 谁来 merge | GitHub 上的人 + Ruleset。见 [`docs/rbac.md`](../../docs/rbac.md)。 |
-| 想对 LearningGuidePortal live apply | 停。fixture，不是试验场。 |
+| 想把 `forge/` 拷进产品仓好 import | 停。工具留在 `/tmp/AIOps` 或 fork；产品仓只留 `forge.yaml`。本地用 `PYTHONPATH`。 |
+| checkout `overlay-v1.0.1` 失败 | tag 还不存在。改 pin `overlay-v1.0.0`。 |
+| 退出码 2 | 缺 `FORGE_SUBMIT_TOKEN`，或本机 `forge check` 红。不要用 `GITHUB_TOKEN` / `gh auth` 凑。 |
+| `forge check` 因 Overlay 契约红 | 叶子必须 `### Functional` / `### Negative` / `### Edge`。不要 `### Depth`。不要 `## Specified`。`$use-overlay`。 |
+| 抄了 `required_checks: Verify` 但对不上 CI | 改成 PR 上真实的 job 名。 |
+| 想 live apply / 直推 main | 停。`$manage-repo` / `$dev-pr`。Learning Guide 现在不 apply。 |
+| 想让 Forge 把 suite 标 armed | 停。人审 Overlay。`$manage-repo`。 |
+| 把 `FORGE_SUBMIT_TOKEN` 和 Ops 钥匙搅在一起 | 停。代推看 [`docs/submit-credential.md`](../../docs/submit-credential.md)。 |
