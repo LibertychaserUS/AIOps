@@ -123,6 +123,8 @@ gh skill install LibertychaserUS/AIOps --agent claude-code --pin overlay-v1.0.0 
 
 Restart the agent after adding paths. Then `/use-forge` or `/use-overlay`, or let it pick from the description.
 
+`gh skill install --pin overlay-v1.0.0` installs the **published tag** skills. That tag’s `use-forge` still lists `apply` in its older install steps. Follow **this** README / the six-step `$use-forge` on current `main` (after this docs PR) for the split: agents `check` / `submit`; live `apply` is `$manage-repo` only. Do not pin `main` for the Python checkout. After a human publishes `overlay-v1.0.1`, pin that tag instead.
+
 ---
 
 ## 1. What you are allowed to change
