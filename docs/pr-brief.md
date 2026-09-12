@@ -59,6 +59,8 @@ feat(overlay/agent): adopt Overlay CI and Conventional Commit PR titles
 
 `python -m forge submit` 的 base 是 `forge.yaml` `protect[0]`（常见为 `dev`），`--base` 必须在 `protect`。不开到另一条功能枝。GitHub 合入默认 squash。merge commit / rebase 也能用，但不改变这条：封顶再压，压完换底。
 
+封顶之后，这一单装什么按**层配对**，不是「文档 + 代码 + workflow 每次都齐」。碰哪一层带哪一组；没碰的层不要塞。workflow 是独立的 Ops 包（产品仓常在 `deny_paths`），不要塞进功能切片。见表与五种包：[`forge-config.md`](forge-config.md)「内容包」、[ADR 0007](adr/0007-content-package-layers.md)。
+
 非法：#3 squash 之后还拿旧架构枝开 #4 / #5。合法：#5 squash 进 `main`，下一单从新的 `main` 头开。
 
 没有单独的 ISO / RFC 叫「封顶换底」。行业权威锁的是**进主干的那颗提交**，拓扑后果写在平台文档里：

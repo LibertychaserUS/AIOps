@@ -13,6 +13,10 @@
 - 夹具：新叶子 `FN-forge-pr-title` + `INV-pr-spec-event-states`。`ci-select` 在 push 空 `PR_TITLE` 时用提交标题的产品面。
 - 冷启动说明只 pin **已存在**的 tag（`overlay-v2.0.0` / `forge-v1.1.2`）。`use-forge` 收成开发六步；live apply 只在 `manage-repo`。仓顶 README / README.zh-CN 的 30 秒命令带 `git checkout`，不再默认落到浮动 `main`。不自动打下一针。
 
+### Added
+
+- 提交内容包按层配对（[ADR 0007](docs/adr/0007-content-package-layers.md)）：碰哪一层带哪一组配对物。不是每个 PR 都交文档 + 代码 + workflow。升针是独立 Ops 包，不塞进功能切片。
+
 ## [forge-1.1.2]
 
 ### Fixed
