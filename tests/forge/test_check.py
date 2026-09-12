@@ -96,13 +96,10 @@ class TitleStepTests(unittest.TestCase):
         )
         self.assertEqual(code, EXIT_OK, stderr.getvalue())
         self.assertIn("skip", stdout.getvalue())
-        self.assertIn("no --title", stdout.getvalue())
-        self.assertIn("CI lints PR_TITLE", stdout.getvalue())
+        self.assertIn("no spec", stdout.getvalue())
         self.assertIn("pr-body", stdout.getvalue())
-        self.assertIn("CI lints PR_BODY", stdout.getvalue())
 
-    def test_blank_env_pr_title_skips_like_omitted(self) -> None:
-        # GitHub Actions sets PR_TITLE to "" on push (no pull_request payload).
+    def test_push_blank_pr_title_lints_head_commit(self) -> None:
         stdout = io.StringIO()
         stderr = io.StringIO()
         code = run_check(
@@ -110,7 +107,7 @@ class TitleStepTests(unittest.TestCase):
             title=None,
             stdout=stdout,
             stderr=stderr,
-            environ={"PR_TITLE": "", "PR_BODY": "  "},
+            environ={"PR_TITLE": "", "PR_BODY": "  ", "GITHUB_EVENT_NAME": "push"},
             run_unittests=False,
             overlay_validate=_ok,
             overlay_cover=_ok,
@@ -118,21 +115,64 @@ class TitleStepTests(unittest.TestCase):
         )
         self.assertEqual(code, EXIT_OK, stderr.getvalue())
         self.assertNotIn("FAIL", stdout.getvalue())
-        self.assertIn("no --title", stdout.getvalue())
-        self.assertIn("CI lints PR_BODY", stdout.getvalue())
+        self.assertIn("commit:", stdout.getvalue())
 
-    def test_cli_blank_env_pr_title_skips(self) -> None:
+    def test_pull_request_blank_pr_title_is_red(self) -> None:
         stdout = io.StringIO()
         stderr = io.StringIO()
-        code = main(
-            ["check", "--root", str(ROOT)],
+        code = run_check(
+            ROOT,
+            title=None,
             stdout=stdout,
             stderr=stderr,
-            environ={"PR_TITLE": ""},
+            environ={"PR_TITLE": "", "GITHUB_EVENT_NAME": "pull_request"},
+            run_unittests=False,
+            overlay_validate=_ok,
+            overlay_cover=_ok,
+            schema_runner=_ok,
+        )
+        self.assertEqual(code, EXIT_CHECK)
+        self.assertIn("empty", stderr.getvalue())
+        self.assertNotIn("no spec", stdout.getvalue())
+
+    def test_pull_request_blank_body_is_red(self) -> None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        code = run_check(
+            ROOT,
+            title=EXAMPLE,
+            body=None,
+            stdout=stdout,
+            stderr=stderr,
+            environ={"PR_BODY": "", "GITHUB_EVENT_NAME": "pull_request"},
+            run_unittests=False,
+            overlay_validate=_ok,
+            overlay_cover=_ok,
+            schema_runner=_ok,
+        )
+        self.assertEqual(code, EXIT_CHECK)
+        self.assertIn("pr-body", stdout.getvalue())
+        self.assertIn("FAIL", stdout.getvalue())
+
+    def test_push_blank_body_skips_pr_body(self) -> None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        code = run_check(
+            ROOT,
+            title=EXAMPLE,
+            body=None,
+            stdout=stdout,
+            stderr=stderr,
+            environ={"PR_BODY": "", "GITHUB_EVENT_NAME": "push"},
+            run_unittests=False,
+            overlay_validate=_ok,
+            overlay_cover=_ok,
+            schema_runner=_ok,
         )
         self.assertEqual(code, EXIT_OK, stderr.getvalue())
-        self.assertIn("no --title", stdout.getvalue())
-        self.assertNotIn("empty PR title", stderr.getvalue())
+        self.assertIn("pr-body", stdout.getvalue())
+        self.assertIn("no spec", stdout.getvalue())
+        self.assertNotIn("FAIL", stdout.getvalue())
 
     def test_explicit_empty_title_is_still_red(self) -> None:
         stdout = io.StringIO()

@@ -73,4 +73,4 @@ GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge
 
 ## 本地
 
-见 [`cli.md`](cli.md)。`forge check` 在有 `overlay.yaml` 时跑 validate + cover；有非空 `--title` / `PR_TITLE` 时跑 `pr-title`；有 `docs/pr-brief.md` 且有非空 `--body` / `PR_BODY` 时 lint 正文；工具仓有 `schema/` 时跑 `schema/check.py`；并跑 `sop-lock`。省略或空白标题/正文会 skip，并写明 CI 会 lint `PR_TITLE` / `PR_BODY`——本地绿 ≠ CI 已过同一把锁。退出 2 则 `submit` 拒绝。
+见 [`cli.md`](cli.md)。`forge check` 在有 `overlay.yaml` 时跑 validate + cover；pr-title / pr-body 按[事件 × 来源](forge-config.md#titlescopes)取值（`pull_request` 空白红，`push` lint 提交 subject，本地未设才 skip）；工具仓有 `schema/` 时跑 `schema/check.py`；并跑 `sop-lock`。退出 2 则 `submit` 拒绝。不要把空白 `PR_TITLE` 当成跳过标题锁。

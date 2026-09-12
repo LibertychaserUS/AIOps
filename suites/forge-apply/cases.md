@@ -78,6 +78,54 @@
 - Steps: temp product root; title provided; no schema/
 - Expected: overlay validate/cover skip; schema skip; pr-title runs; exit 0 if title ok
 
+## FN-forge-pr-title Event × source states
+
+Old fixtures only locked a good `--title`, `--title ""`, and a missing actor. They did not lock `GITHUB_EVENT_NAME`, Actions-empty `PR_TITLE`, or `forge check` embedding pr-title on `push`. Skipping a blank env is a hole, not coverage.
+
+### Functional
+- Title: explicit conventional `--title` passes
+- Steps: `python -m forge pr-title --title "feat(overlay/dev): add cover triad and invariants"`
+- Expected: exit 0; source is arg
+- Title: non-blank `PR_TITLE` on pull_request passes
+- Steps: env `PR_TITLE=<good>` `GITHUB_EVENT_NAME=pull_request`; `python -m forge pr-title --root .`
+- Expected: exit 0; source is env
+- Title: push with Actions-empty `PR_TITLE` lints HEAD commit
+- INV-pr-spec-event-states
+- Steps: env `PR_TITLE=` `GITHUB_EVENT_NAME=push`; event JSON `head_commit.message` first line is a conventional title; `python -m forge check --root .`
+- Expected: pr-title ok with `commit: <subject>`; not skip; exit 0 when the subject lints
+- Title: local omit skips
+- Steps: no `--title`, no `PR_TITLE`, no `GITHUB_EVENT_NAME`; `python -m forge check --root .`
+- Expected: pr-title skip `no spec`; exit 0 if other steps ok
+
+### Negative
+- Title: explicit empty `--title ""` fails
+- Steps: `python -m forge pr-title --title ""`
+- Expected: exit 2; `empty PR title`
+- Title: pull_request + blank or unset `PR_TITLE` fails
+- INV-pr-spec-event-states
+- Steps: `GITHUB_EVENT_NAME=pull_request` with `PR_TITLE=` or with the key absent; `python -m forge pr-title --root .` and `forge check`
+- Expected: exit 2; empty PR title; not skip
+- Title: pull_request + blank `PR_BODY` fails six headings
+- Steps: workshop root (has `docs/pr-brief.md`); good title; `PR_BODY=` `GITHUB_EVENT_NAME=pull_request`; `python -m forge check --root .`
+- Expected: pr-body FAIL missing headings; exit 2
+- Title: push with empty `PR_TITLE` and no readable commit fails
+- Steps: temp root without git and without `GITHUB_EVENT_PATH`; `PR_TITLE=` `GITHUB_EVENT_NAME=push`
+- Expected: empty PR title; exit 2; not skip
+
+### Edge
+- Title: Actions-empty `PR_TITLE` without event name still lints HEAD
+- Steps: env `PR_TITLE=` only (no `GITHUB_EVENT_NAME`); workshop git HEAD
+- Expected: source is commit; lint that subject. This is the Actions `env:` empty-string state.
+- Title: whitespace `PR_TITLE` on pull_request is empty, not a title
+- Steps: `PR_TITLE="  \n"` `GITHUB_EVENT_NAME=pull_request`
+- Expected: source env; text empty; lint fails
+- Title: push + blank `PR_BODY` skips body; title still locks
+- Steps: good `--title` or commit; `PR_BODY=` `GITHUB_EVENT_NAME=push`; workshop `docs/pr-brief.md` exists
+- Expected: pr-body skip; pr-title still runs against arg or commit
+- Title: `ci-select` on push with empty `PR_TITLE` uses the commit product facet
+- Steps: `PR_TITLE=` `GITHUB_EVENT_NAME=push`; event JSON subject `feat(forge/dev): …`; `python -m forge ci-select --check forge-check`
+- Expected: run true; reason `title:forge`. Empty env does not drop the title facet.
+
 ## FN-forge-sop-lock Decidable SOP is program-locked
 
 ### Functional

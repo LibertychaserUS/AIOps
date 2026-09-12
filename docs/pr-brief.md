@@ -17,7 +17,21 @@ python -m forge check --root . --title "feat(overlay/dev): add cover triad and i
 python -m forge pr-title --title "feat(overlay/dev): add cover triad and invariants"
 ```
 
-退出 `0` 绿、`2` 红。CI 同名检查 **`pr-title`**（只跑 `pull_request`）。工作本实际勾哪些 checks 见 [`STATE.md`](STATE.md)。代推前 `python -m forge check` 红则不能提交；缺 `FORGE_SUBMIT_TOKEN` 也不能提交（含 `--dry-run`）。不要 live `forge apply`。不要用 husky/npm 挡 `git commit`。子命令见 [`cli.md`](cli.md)。
+退出 `0` 绿、`2` 红。CI job **`pr-title`** 只挂 `pull_request`（读 `PR_TITLE` / `PR_BODY`）。`forge check` 在 `push` 上另锁 HEAD 提交第一行，见下节。工作本实际勾哪些 checks 见 [`STATE.md`](STATE.md)。代推前 `python -m forge check` 红则不能提交；缺 `FORGE_SUBMIT_TOKEN` 也不能提交（含 `--dry-run`）。不要 live `forge apply`。不要用 husky/npm 挡 `git commit`。子命令见 [`cli.md`](cli.md)。
+
+## 事件与标题来源
+
+旧夹具只锁「好 `--title` / `--title ""` / 缺 actor」。没锁到 `push` 对 `pull_request.title` 的空串、也没锁 `forge check` 把 pr-title 嵌进 push。把空白环境变量当成省略是绕过，不是覆盖。
+
+| 状态 | 来源 | 结果 |
+|---|---|---|
+| `--title` / `--body` 已给（含 `""`） | 参数 | lint；空参数仍红 |
+| 非空 `PR_TITLE` / `PR_BODY` | 环境 | lint |
+| `pull_request` + 空白或未设 | 空规格 | 标题红；有本文件时正文缺六个 `##` 也红 |
+| `push` 或 Actions 空串（环境已设、不是 `pull_request`） | HEAD 提交第一行 | lint 该 subject |
+| 本地、无事件、环境未设 | 省略 | `forge check` 该步 skip |
+
+`ci-select` 在 push 且 `PR_TITLE` 为空时，用提交标题的产品面，不把空串当成「无标题 → 只看路径」。程序锁：`FN-forge-pr-title`，`INV-pr-spec-event-states`。详表见 [`forge-config.md`](forge-config.md)。
 
 本仓 PR #3 的 GitHub 标题已由人在 UI 定为（不要再改，除非完全不准）：
 
@@ -139,7 +153,7 @@ type(product/actor): subject
 | `Forge Ruleset` | 装了或改了保护分支 / required checks / CODEOWNERS |
 | `none` | 没动门 |
 
-不要为未知分支另开 workflow 文件。见下节。这不是分工命名。`pr-title` 只跑 `pull_request`，不要挂进 `overlay-check`（push 没有 PR 标题，不能把 overlay-check 染红）。
+不要为未知分支另开 workflow 文件。见下节。这不是分工命名。CI job `pr-title` 只挂 `pull_request`。不要把 job `pr-title` 挂进 `overlay-check` 的 push 路径；push 上的标题锁由 `forge check` / `python -m forge pr-title` 对 HEAD 提交执行，不是把 overlay-check 当标题门。
 
 ### 怎么验
 
@@ -166,6 +180,6 @@ python3 -m forge sop-lock --root .
 
 ## 未知分支
 
-不要为每个 feature 分支新建 Overlay workflow。Overlay CI 仍走**同一条** `overlay-check` 家族。某分支跑哪些 `kind` 写在接入方 `overlay.yaml` 的 `branches:`（git-chain）。未知分支回落 `branches.default` 再到 `main`。产品门按 `forge.yaml` `branches:` 选跑或跳过成功。标题检查是通用层，只在 PR 上跑，永不 skip。
+不要为每个 feature 分支新建 Overlay workflow。Overlay CI 仍走**同一条** `overlay-check` 家族。某分支跑哪些 `kind` 写在接入方 `overlay.yaml` 的 `branches:`（git-chain）。未知分支回落 `branches.default` 再到 `main`。产品门按 `forge.yaml` `branches:` 选跑或跳过成功。通用 job `pr-title` 只在 `pull_request` 上跑且不 skip；`forge check` 在 `push` 上锁的是提交 subject，同样不因空 `PR_TITLE` 卸锁。
 
 这与 PR 名分工无关：不要把 `cursor/…-6842` 改成角色前缀，也不要为角色改 workflow 名或 skill 名。

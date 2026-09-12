@@ -21,7 +21,7 @@ metadata:
 PYTHONPATH=../AIOps python3 -m forge check --root . --title "feat(overlay/agent): add cover triad"
 ```
 
-有 `overlay.yaml` 时跑 validate + cover；有 `--title` 时跑 `pr-title`；`docs_sync` / `suite_guard` / `deny_paths` 总会跑。工作本才跑 `sop-lock` / `schema` / 快单测。
+有 `overlay.yaml` 时跑 validate + cover；pr-title 按事件取值（本地未设才 skip；`pull_request` 空白红；`push` lint HEAD 提交）；`docs_sync` / `suite_guard` / `deny_paths` 总会跑。工作本才跑 `sop-lock` / `schema` / 快单测。
 
 2. **Open a draft PR onto `protect[0]`**（通常 `dev`）。`forge submit` 即使 `--dry-run` 也要 `FORGE_SUBMIT_TOKEN`。不要推保护分支。不要 merge。`--base` 必须在 `protect`。
 3. **Do not live `forge apply`.** 不要改 Ruleset、required checks、产品仓已有的构建 workflow。

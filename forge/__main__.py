@@ -16,7 +16,7 @@ from forge.brief import brief_spec_exists, lint_pr_body
 from forge.check import run_check
 from forge.status import run_status
 from forge.submit import run_submit
-from forge.title import resolve_arg_or_env, run_pr_title
+from forge.title import resolve_spec_body, resolve_spec_title, run_pr_title
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -63,12 +63,18 @@ def _parser() -> argparse.ArgumentParser:
     check_p.add_argument(
         "--title",
         default=None,
-        help="PR title to lint (same as pr-title). Default: env PR_TITLE. Skip if omitted or blank.",
+        help=(
+            "PR title to lint (same as pr-title). Default: env PR_TITLE. "
+            "Local omit skips. pull_request + blank fails. push lints HEAD commit."
+        ),
     )
     check_p.add_argument(
         "--body",
         default=None,
-        help="PR body to lint when docs/pr-brief.md exists. Default: env PR_BODY. Skip if omitted or blank.",
+        help=(
+            "PR body to lint when docs/pr-brief.md exists. Default: env PR_BODY. "
+            "Local omit skips. pull_request + blank fails the six headings."
+        ),
     )
 
     submit_p = sub.add_parser(
@@ -110,12 +116,18 @@ def _parser() -> argparse.ArgumentParser:
     title_p.add_argument(
         "--title",
         default=None,
-        help='PR title, e.g. "feat(overlay/dev): add cover triad". Default: env PR_TITLE. Skip if omitted or blank.',
+        help=(
+            'PR title, e.g. "feat(overlay/dev): add cover triad". Default: env PR_TITLE. '
+            "Local omit skips. pull_request + blank fails. push lints HEAD commit."
+        ),
     )
     title_p.add_argument(
         "--body",
         default=None,
-        help="PR body. Default: env PR_BODY. Skip if omitted or blank. Lint six 解说规格 headings when docs/pr-brief.md exists.",
+        help=(
+            "PR body. Default: env PR_BODY. Local omit skips. "
+            "pull_request + blank fails six 解说规格 headings when docs/pr-brief.md exists."
+        ),
     )
     title_p.add_argument(
         "--event",
@@ -286,12 +298,10 @@ def main(
             check_state=args.check_state,
         )
     if args.command == "check":
-        title = resolve_arg_or_env(args.title, env_dict, "PR_TITLE")
-        body = resolve_arg_or_env(args.body, env_dict, "PR_BODY")
         return run_check(
             Path(args.root),
-            title=title,
-            body=body,
+            title=args.title,
+            body=args.body,
             stdout=out,
             stderr=err,
             environ=env_dict,
@@ -331,8 +341,6 @@ def main(
             if body is None:
                 raw_body = pull.get("body")
                 body = raw_body if isinstance(raw_body, str) else None
-        title = resolve_arg_or_env(title, env_dict, "PR_TITLE")
-        body = resolve_arg_or_env(body, env_dict, "PR_BODY")
         code = run_pr_title(
             title=title,
             environ=env_dict,
@@ -342,8 +350,9 @@ def main(
         )
         if code != EXIT_OK:
             return code
-        if body is not None and brief_spec_exists(Path(args.root)):
-            brief_code, message = lint_pr_body(body)
+        body_ref = resolve_spec_body(body, env_dict)
+        if body_ref.text is not None and brief_spec_exists(Path(args.root)):
+            brief_code, message = lint_pr_body(body_ref.text)
             if brief_code != EXIT_OK:
                 print(message, file=err)
                 return brief_code
@@ -355,11 +364,11 @@ def main(
     if args.command == "ci-select":
         from forge.ci_select import run_ci_select
 
-        title = resolve_arg_or_env(args.title, env_dict, "PR_TITLE")
+        title_ref = resolve_spec_title(args.title, env_dict, Path(args.root))
         return run_ci_select(
             Path(args.root),
             check=args.check,
-            title=title,
+            title=title_ref.text,
             changed=args.changed,
             github_output=args.github_output,
             stdout=out,

@@ -42,6 +42,21 @@ items:
     case_id: FN-forge-check/edge
     type: edge
     level: unit
+  - function_id: FN-forge-pr-title
+    case_id: FN-forge-pr-title/functional
+    type: functional
+    level: unit
+  - function_id: FN-forge-pr-title
+    case_id: FN-forge-pr-title/negative
+    type: negative
+    level: unit
+  - function_id: FN-forge-pr-title
+    case_id: FN-forge-pr-title/edge
+    type: edge
+    level: unit
+    span: interaction
+    relates:
+      - FN-forge-check
   - function_id: FN-forge-sop-lock
     case_id: FN-forge-sop-lock/functional
     type: functional

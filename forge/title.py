@@ -10,7 +10,10 @@ does not grow a Node toolchain.
 
 from __future__ import annotations
 
+import json
+import os
 import re
+import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,6 +49,98 @@ def resolve_arg_or_env(
     if explicit is not None:
         return explicit
     return optional_text(environ.get(key))
+
+
+@dataclass(frozen=True)
+class SpecRef:
+    """Resolved PR spec field: title or body.
+
+    source:
+      arg — ``--title`` / ``--body`` (including explicit empty)
+      env — non-blank ``PR_TITLE`` / ``PR_BODY``
+      commit — push (or Actions-empty title) uses HEAD subject
+      omitted — local, no event, env unset
+    """
+
+    text: str | None
+    source: str
+
+
+def event_name(environ: Mapping[str, str]) -> str:
+    return (environ.get("GITHUB_EVENT_NAME") or "").strip().lower()
+
+
+def head_commit_subject(root: Path | str | None, environ: Mapping[str, str]) -> str | None:
+    """First line of the push head commit. Event JSON wins, then git."""
+    raw_path = environ.get("GITHUB_EVENT_PATH")
+    if raw_path:
+        try:
+            payload = json.loads(Path(raw_path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = None
+        if isinstance(payload, dict):
+            commit = payload.get("head_commit")
+            message = commit.get("message") if isinstance(commit, dict) else None
+            if isinstance(message, str) and message.strip():
+                return message.splitlines()[0].strip()
+    if root is None:
+        return None
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
+    proc = subprocess.run(
+        ["git", "-C", str(root), "-c", "commit.gpgsign=false", "log", "-1", "--format=%s"],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    if proc.returncode != 0:
+        return None
+    subject = (proc.stdout or "").splitlines()
+    if not subject:
+        return None
+    text = subject[0].strip()
+    return text or None
+
+
+def resolve_spec_title(
+    explicit: str | None,
+    environ: Mapping[str, str],
+    root: Path | str | None = None,
+) -> SpecRef:
+    """Title source by event. Do not skip push: that state is in the spec.
+
+    pull_request + blank PR_TITLE → empty (lint fails).
+    push or Actions-empty title (env set, not pull_request) → HEAD subject.
+    local unset, no event → omitted (check skips).
+    """
+    if explicit is not None:
+        return SpecRef(explicit, "arg")
+    raw = environ.get("PR_TITLE") if "PR_TITLE" in environ else None
+    event = event_name(environ)
+    if raw is not None and raw.strip() != "":
+        return SpecRef(raw, "env")
+    if event == "pull_request":
+        # On a pull_request event the title spec is present. Blank or unset
+        # is empty — lint fails. Do not skip; skip was the old hole.
+        return SpecRef("", "env")
+    if event == "push" or raw is not None:
+        commit = head_commit_subject(root, environ)
+        if commit is not None:
+            return SpecRef(commit, "commit")
+        return SpecRef("", "env") if raw is not None else SpecRef(None, "omitted")
+    return SpecRef(None, "omitted")
+
+
+def resolve_spec_body(explicit: str | None, environ: Mapping[str, str]) -> SpecRef:
+    """Body source by event. pull_request + blank body is empty spec, not skip."""
+    if explicit is not None:
+        return SpecRef(explicit, "arg")
+    raw = environ.get("PR_BODY") if "PR_BODY" in environ else None
+    event = event_name(environ)
+    if raw is not None and raw.strip() != "":
+        return SpecRef(raw, "env")
+    if event == "pull_request":
+        return SpecRef("", "env")
+    return SpecRef(None, "omitted")
 
 TYPES = (
     "build",
@@ -233,9 +328,9 @@ def run_pr_title(
 ) -> int:
     """CLI entry. Reads --title or PR_TITLE. Exit 0 pass / 2 fail.
 
-    Blank ``PR_TITLE`` (GitHub Actions on push) is omitted: this is the PR
-    spec machine check, so no title means skip, not ``empty PR title``.
-    Explicit ``--title ""`` still fails.
+    Spec source is event-aware (see ``resolve_spec_title``). push does not
+    skip: blank ``PR_TITLE`` lints the HEAD commit subject. pull_request +
+    blank title fails. Explicit ``--title ""`` still fails.
     """
     import os
     import sys
@@ -253,10 +348,10 @@ def run_pr_title(
                 resolved_scopes = load_config(yaml_path).title_scopes
             except ForgeError:
                 resolved_scopes = None
-    resolved = resolve_arg_or_env(title, env, "PR_TITLE")
-    if resolved is None:
+    spec = resolve_spec_title(title, env, root)
+    if spec.source == "omitted" or spec.text is None:
         return EXIT_OK
-    code, message, _parts = lint_title(resolved, scopes=resolved_scopes)
+    code, message, _parts = lint_title(spec.text, scopes=resolved_scopes)
     if code != EXIT_OK:
         print(message, file=err)
     return code

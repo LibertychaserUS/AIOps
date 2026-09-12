@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -155,6 +156,29 @@ class PathFallbackTests(unittest.TestCase):
 
 
 class GithubOutputTests(unittest.TestCase):
+    def test_push_blank_pr_title_uses_commit_facet(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            event = Path(tmp) / "event.json"
+            event.write_text(
+                json.dumps({"head_commit": {"message": "feat(forge/dev): event states\n"}}),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            code = main(
+                ["ci-select", "--root", str(ROOT), "--check", "forge-check"],
+                stdout=stdout,
+                stderr=stderr,
+                environ={
+                    "PR_TITLE": "",
+                    "GITHUB_EVENT_NAME": "push",
+                    "GITHUB_EVENT_PATH": str(event),
+                },
+            )
+            self.assertEqual(code, EXIT_OK, stderr.getvalue())
+            self.assertIn("run: true", stdout.getvalue())
+            self.assertIn("reason: title:forge", stdout.getvalue())
+
     def test_github_output_appends_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             dest = Path(tmp) / "out"

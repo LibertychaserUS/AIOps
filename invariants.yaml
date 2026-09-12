@@ -37,3 +37,8 @@ items:
       - FN-forge-check
       - FN-forge-submit
     span: interaction
+  - id: INV-pr-spec-event-states
+    text: PR spec source depends on event; push does not skip the title lock
+    function_ids:
+      - FN-forge-pr-title
+    span: system

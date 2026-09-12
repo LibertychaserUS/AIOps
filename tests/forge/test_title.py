@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import io
+import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -19,6 +21,8 @@ from forge.title import (
     lint_title,
     optional_text,
     resolve_arg_or_env,
+    resolve_spec_body,
+    resolve_spec_title,
     run_pr_title,
 )
 
@@ -225,26 +229,51 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, EXIT_TITLE)
         self.assertIn("empty", stderr.getvalue())
 
-    def test_blank_env_skips_spec_check(self) -> None:
+    def test_push_blank_env_lints_head_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            event = Path(tmp) / "event.json"
+            event.write_text(
+                json.dumps({"head_commit": {"message": f"{EXAMPLE}\n\nbody"}}),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            code = main(
+                ["pr-title", "--root", str(ROOT)],
+                stdout=stdout,
+                stderr=stderr,
+                environ={
+                    "PR_TITLE": "",
+                    "PR_BODY": "",
+                    "GITHUB_EVENT_NAME": "push",
+                    "GITHUB_EVENT_PATH": str(event),
+                },
+            )
+            self.assertEqual(code, EXIT_OK, stderr.getvalue())
+
+    def test_pull_request_blank_env_fails(self) -> None:
         stdout = io.StringIO()
         stderr = io.StringIO()
         code = main(
             ["pr-title", "--root", str(ROOT)],
             stdout=stdout,
             stderr=stderr,
-            environ={"PR_TITLE": "", "PR_BODY": ""},
+            environ={"PR_TITLE": "", "GITHUB_EVENT_NAME": "pull_request"},
         )
-        self.assertEqual(code, EXIT_OK, stderr.getvalue())
-        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(code, EXIT_TITLE)
+        self.assertIn("empty", stderr.getvalue())
 
-    def test_run_pr_title_blank_env_skips(self) -> None:
-        code = run_pr_title(
-            title=None,
-            environ={"PR_TITLE": ""},
-            stdout=io.StringIO(),
-            stderr=io.StringIO(),
+    def test_pull_request_unset_title_fails(self) -> None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        code = main(
+            ["pr-title", "--root", str(ROOT)],
+            stdout=stdout,
+            stderr=stderr,
+            environ={"GITHUB_EVENT_NAME": "pull_request"},
         )
-        self.assertEqual(code, EXIT_OK)
+        self.assertEqual(code, EXIT_TITLE)
+        self.assertIn("empty", stderr.getvalue())
 
     def test_run_pr_title_does_not_need_github(self) -> None:
         stdout = io.StringIO()
@@ -265,6 +294,116 @@ class OptionalEnvTextTests(unittest.TestCase):
         self.assertEqual(resolve_arg_or_env("", {"PR_TITLE": EXAMPLE}, "PR_TITLE"), "")
         self.assertIsNone(resolve_arg_or_env(None, {"PR_TITLE": ""}, "PR_TITLE"))
         self.assertEqual(resolve_arg_or_env(None, {"PR_TITLE": EXAMPLE}, "PR_TITLE"), EXAMPLE)
+
+
+class SpecEventStateTests(unittest.TestCase):
+    """Event × env × source — the states the old fixtures missed."""
+
+    def test_resolve_matrix(self) -> None:
+        cases = [
+            (EXAMPLE, {}, "arg", EXAMPLE),
+            ("", {"PR_TITLE": EXAMPLE, "GITHUB_EVENT_NAME": "push"}, "arg", ""),
+            (None, {"PR_TITLE": EXAMPLE, "GITHUB_EVENT_NAME": "pull_request"}, "env", EXAMPLE),
+            (None, {"PR_TITLE": "", "GITHUB_EVENT_NAME": "pull_request"}, "env", ""),
+            (None, {"GITHUB_EVENT_NAME": "pull_request"}, "env", ""),
+            (None, {}, "omitted", None),
+        ]
+        for explicit, environ, source, text in cases:
+            with self.subTest(explicit=explicit, environ=environ):
+                spec = resolve_spec_title(explicit, environ, root=ROOT)
+                self.assertEqual(spec.source, source)
+                self.assertEqual(spec.text, text)
+
+    def test_actions_empty_title_without_event_name_uses_commit(self) -> None:
+        spec = resolve_spec_title(None, {"PR_TITLE": ""}, root=ROOT)
+        self.assertEqual(spec.source, "commit")
+        self.assertTrue(spec.text)
+
+    def test_push_without_commit_is_empty_not_skip(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            spec = resolve_spec_title(
+                None,
+                {"PR_TITLE": "", "GITHUB_EVENT_NAME": "push"},
+                root=tmp,
+            )
+            self.assertEqual(spec.source, "env")
+            self.assertEqual(spec.text, "")
+            stderr = io.StringIO()
+            code = run_pr_title(
+                title=None,
+                environ={"PR_TITLE": "", "GITHUB_EVENT_NAME": "push"},
+                stdout=io.StringIO(),
+                stderr=stderr,
+                root=tmp,
+            )
+            self.assertEqual(code, EXIT_TITLE)
+            self.assertIn("empty", stderr.getvalue())
+
+    def test_body_matrix(self) -> None:
+        brief = "## 做了什么\n"
+        cases = [
+            (brief, {}, "arg", brief),
+            (None, {"PR_BODY": brief, "GITHUB_EVENT_NAME": "pull_request"}, "env", brief),
+            (None, {"PR_BODY": "", "GITHUB_EVENT_NAME": "pull_request"}, "env", ""),
+            (None, {"GITHUB_EVENT_NAME": "pull_request"}, "env", ""),
+            (None, {"PR_BODY": "", "GITHUB_EVENT_NAME": "push"}, "omitted", None),
+            (None, {}, "omitted", None),
+        ]
+        for explicit, environ, source, text in cases:
+            with self.subTest(explicit=explicit, environ=environ):
+                spec = resolve_spec_body(explicit, environ)
+                self.assertEqual(spec.source, source)
+                self.assertEqual(spec.text, text)
+
+    def test_push_reads_event_head_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            event = Path(tmp) / "event.json"
+            event.write_text(
+                json.dumps({"head_commit": {"message": f"{EXAMPLE}\n\nbody"}}),
+                encoding="utf-8",
+            )
+            spec = resolve_spec_title(
+                None,
+                {
+                    "PR_TITLE": "",
+                    "GITHUB_EVENT_NAME": "push",
+                    "GITHUB_EVENT_PATH": str(event),
+                },
+                root=ROOT,
+            )
+            self.assertEqual(spec.source, "commit")
+            self.assertEqual(spec.text, EXAMPLE)
+
+    def test_push_bad_commit_subject_fails_lint(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            event = Path(tmp) / "event.json"
+            event.write_text(
+                json.dumps({"head_commit": {"message": "wip\n"}}),
+                encoding="utf-8",
+            )
+            stderr = io.StringIO()
+            code = run_pr_title(
+                title=None,
+                environ={
+                    "PR_TITLE": "",
+                    "GITHUB_EVENT_NAME": "push",
+                    "GITHUB_EVENT_PATH": str(event),
+                },
+                stdout=io.StringIO(),
+                stderr=stderr,
+                root=ROOT,
+            )
+            self.assertEqual(code, EXIT_TITLE)
+            self.assertTrue(stderr.getvalue())
+
+    def test_whitespace_pr_title_on_pull_request_is_empty(self) -> None:
+        spec = resolve_spec_title(
+            None,
+            {"PR_TITLE": "  \n", "GITHUB_EVENT_NAME": "pull_request"},
+            root=ROOT,
+        )
+        self.assertEqual(spec.source, "env")
+        self.assertEqual(spec.text, "")
 
 
 class WorkshopConfigTests(unittest.TestCase):

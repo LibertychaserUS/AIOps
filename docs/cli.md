@@ -81,9 +81,11 @@ options:
   -h, --help     show this help message and exit
   --root ROOT    repo root (default: .)
   --title TITLE  PR title to lint (same as pr-title). Default: env PR_TITLE.
-                 Skip if omitted or blank.
+                 Local omit skips. pull_request + blank fails. push lints HEAD
+                 commit.
   --body BODY    PR body to lint when docs/pr-brief.md exists. Default: env
-                 PR_BODY. Skip if omitted or blank.
+                 PR_BODY. Local omit skips. pull_request + blank fails the six
+                 headings.
 ```
 
 ## python -m forge submit
@@ -114,9 +116,10 @@ usage: python -m forge pr-title [-h] [--title TITLE] [--body BODY]
 options:
   -h, --help     show this help message and exit
   --title TITLE  PR title, e.g. "feat(overlay/dev): add cover triad". Default:
-                 env PR_TITLE. Skip if omitted or blank.
-  --body BODY    PR body. Default: env PR_BODY. Skip if omitted or blank. Lint
-                 six 解说规格 headings when docs/pr-brief.md exists.
+                 env PR_TITLE. Local omit skips. pull_request + blank fails.
+                 push lints HEAD commit.
+  --body BODY    PR body. Default: env PR_BODY. Local omit skips. pull_request
+                 + blank fails six 解说规格 headings when docs/pr-brief.md exists.
   --event EVENT  GitHub event JSON path (reads pull_request.title /
                  pull_request.body).
   --root ROOT    Repo root used to detect docs/pr-brief.md (default: .).
@@ -131,9 +134,10 @@ usage: python -m forge pr-title [-h] [--title TITLE] [--body BODY]
 options:
   -h, --help     show this help message and exit
   --title TITLE  PR title, e.g. "feat(overlay/dev): add cover triad". Default:
-                 env PR_TITLE. Skip if omitted or blank.
-  --body BODY    PR body. Default: env PR_BODY. Skip if omitted or blank. Lint
-                 six 解说规格 headings when docs/pr-brief.md exists.
+                 env PR_TITLE. Local omit skips. pull_request + blank fails.
+                 push lints HEAD commit.
+  --body BODY    PR body. Default: env PR_BODY. Local omit skips. pull_request
+                 + blank fails six 解说规格 headings when docs/pr-brief.md exists.
   --event EVENT  GitHub event JSON path (reads pull_request.title /
                  pull_request.body).
   --root ROOT    Repo root used to detect docs/pr-brief.md (default: .).

@@ -19,7 +19,7 @@ from forge import EXIT_OK
 from forge.apply import ForgeError, load_config
 from forge.brief import brief_spec_exists, lint_pr_body
 from forge.status import state_is_fresh
-from forge.title import resolve_arg_or_env, run_pr_title
+from forge.title import resolve_spec_body, resolve_spec_title, run_pr_title
 
 EXIT_CHECK = 2
 CHECK_ENV = "FORGE_CHECK_RUNNING"
@@ -530,16 +530,19 @@ def run_check(
 ) -> int:
     """Run the local pre-submit checklist. Exit 0 / 2. Never writes GitHub.
 
-    Title/body steps skip when omitted. That is not the same object as CI
-    `pr-title`, which reads the GitHub PR title and body.
+    Title/body source is event-aware (``resolve_spec_title`` /
+    ``resolve_spec_body``). Local omit skips. pull_request + blank fails.
+    push lints the HEAD commit subject; it does not skip the title lock.
     """
     out = sys.stdout if stdout is None else stdout
     err = sys.stderr if stderr is None else stderr
     env: Mapping[str, str] = os.environ if environ is None else environ
     root = root.resolve()
     steps: list[Step] = []
-    resolved_title = resolve_arg_or_env(title, env, "PR_TITLE")
-    resolved_body = resolve_arg_or_env(body, env, "PR_BODY")
+    title_ref = resolve_spec_title(title, env, root)
+    body_ref = resolve_spec_body(body, env)
+    resolved_title = title_ref.text
+    resolved_body = body_ref.text
 
     if overlay_yaml_exists(root):
         validate_fn = _default_overlay_validate if overlay_validate is None else overlay_validate
@@ -578,9 +581,9 @@ def run_check(
         if code != EXIT_OK:
             steps.append(Step("pr-title", "fail", buf_err.getvalue().strip() or f"exit {code}"))
         else:
-            steps.append(Step("pr-title", "ok", resolved_title))
+            steps.append(Step("pr-title", "ok", f"{title_ref.source}: {resolved_title}"))
     else:
-        steps.append(Step("pr-title", "skip", "no --title; CI lints PR_TITLE"))
+        steps.append(Step("pr-title", "skip", "no spec; pull_request lints PR_TITLE, push lints commit"))
 
     if brief_spec_exists(root):
         if resolved_body is not None:
@@ -590,7 +593,7 @@ def run_check(
             else:
                 steps.append(Step("pr-body", "ok", "six ## headings"))
         else:
-            steps.append(Step("pr-body", "skip", "no --body; CI lints PR_BODY"))
+            steps.append(Step("pr-body", "skip", "no spec; pull_request lints PR_BODY"))
     else:
         steps.append(Step("pr-body", "skip", "no docs/pr-brief.md"))
 

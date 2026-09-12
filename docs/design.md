@@ -101,7 +101,7 @@ PR 的 review 和 merge 由 **GitHub Ruleset + 有写权限的人** 管理。RBA
 | Agent 政策 | 产品仓 `AGENTS.md`（贴 `forge/agent-policy.md` 文本） |
 | 状态页 | `docs/STATE.md`（生成） |
 
-`check`（不写 GitHub）：overlay validate / cover；有 title 时 pr-title；有 `docs/pr-brief.md` 且有 body 时 pr-body；deny_paths；`suite_guard`（agent 分支把套件改成 `blocked` → 红）；`docs_sync`；工作本另加 sop-lock / schema / unittest。接入方根目录（没有 `overlay/__init__.py`）不打印 workshop-only skip。
+`check`（不写 GitHub）：overlay validate / cover；pr-title / pr-body 按事件取值（本地未设才 skip；`pull_request` 空白红；`push` lint HEAD 提交）；deny_paths；`suite_guard`（agent 分支把套件改成 `blocked` → 红）；`docs_sync`；工作本另加 sop-lock / schema / unittest。接入方根目录（没有 `overlay/__init__.py`）不打印 workshop-only skip。
 
 `submit`：先 `check`；必须 `FORGE_SUBMIT_TOKEN`（缺则含 `--dry-run` 也红）；推功能枝并开/更新 draft PR；base = `protect[0]`；`--base` 必须在 `protect`。永不 merge，永不 approve，永不 apply。`gh auth login` / `GH_TOKEN` / extraheader / `GITHUB_TOKEN` 都不够。见 [`submit-credential.md`](submit-credential.md)。
 

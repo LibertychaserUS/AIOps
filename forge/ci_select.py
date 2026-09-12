@@ -16,7 +16,7 @@ from typing import Any, TextIO
 
 from forge import EXIT_CONFIG, EXIT_OK
 from forge.apply import ForgeError, parse_simple_yaml
-from forge.title import lint_title, resolve_arg_or_env
+from forge.title import lint_title, resolve_spec_title
 
 DEFAULT_COMMON = ("pr-title", "sop-lock")
 DEFAULT_TITLE_MAP: dict[str, tuple[str, ...]] = {
@@ -256,7 +256,7 @@ def run_ci_select(
     err = sys.stderr if stderr is None else stderr
     env: Mapping[str, str] = {} if environ is None else environ
     root = root.resolve()
-    resolved_title = resolve_arg_or_env(title, env, "PR_TITLE")
+    resolved_title = resolve_spec_title(title, env, root).text
     try:
         config = load_ci_config(root)
         if changed is None and products_from_title(resolved_title, config.title_map)[0] is None:
