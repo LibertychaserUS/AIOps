@@ -15,7 +15,7 @@
 
 ### Added
 
-- 提交内容包按层配对（[ADR 0007](docs/adr/0007-content-package-layers.md)）：碰哪一层带哪一组配对物。不是每个 PR 都交文档 + 代码 + workflow。升针是独立 Ops 包，不塞进功能切片。
+- 补设计：提交内容包按层配对（[ADR 0007](docs/adr/0007-content-package-layers.md)，提议）。一开始只有配对锁、没有包规格。人接受前不加新的 `docs_sync` / CLI / workflow。
 
 ## [forge-1.1.2]
 

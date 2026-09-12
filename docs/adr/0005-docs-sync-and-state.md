@@ -26,6 +26,7 @@ v1 文档里夹着「当前 pin 是哪条 tag、Ruleset 装没装、required che
 - 设计文档不再声称「现在 pin 是 1.0.1」。那句留给 STATE 与 CHANGELOG。
 - 改 Overlay 契约必须带 `docs/overlay-contract.md`（及 CHANGELOG）；改 Forge 配置面必须带 `docs/forge-config.md` 与 `docs/cli.md`。
 - 没有 `docs/STATE.md` 时不红；一旦生成，就必须保鲜。
+- 本条只锁「改了这些路径要带文档」。一单内容包是什么、workflow 算哪一层，当时没设计；补设计见 [0007](0007-content-package-layers.md)（提议，未接受前不加新锁）。
 
 ## 替代方案
 

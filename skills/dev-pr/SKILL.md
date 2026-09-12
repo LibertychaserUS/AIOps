@@ -29,7 +29,7 @@ PYTHONPATH=../AIOps python3 -m forge check --root . --title "feat(overlay/agent)
 5. **Title** 过 `python -m forge pr-title`。本工作本 `title.scopes` 是列表（`product/actor`）；接入方若写 `any` 则只查 Conventional Commits 语法。正文六节：`做了什么` `为什么` `动了哪些门` `怎么验` `不做什么` `分工`。进保护分支默认 squash：**封顶**再压，压完**换底**。
 6. **Promote 不是 submit。** `dev` → `main` 用 `forge promote`，仍然不 merge。
 7. 需要状态页时：`python -m forge status --repo OWNER/NAME --root . --write docs/STATE.md`。改 `forge/**` 时按 `docs_sync` 同步 CHANGELOG / 配置文档。
-8. **内容包按层配对。** 封顶 PR 只装碰到的层。命中 `docs_sync.paths` → 同改 `require`。不要把产品仓 workflow 写进功能切片。升针是 Ops 包。不是每个 PR 都要同时交文档 + 代码 + workflow。见 [`docs/forge-config.md`](../../docs/forge-config.md) 与 [ADR 0007](../../docs/adr/0007-content-package-layers.md)。
+8. **内容包按层配对（ADR 0007，提议）。** 封顶 PR 只装碰到的层。命中已有 `docs_sync.paths` → 同改 `require`。不要把产品仓 workflow 写进功能切片。不是每个 PR 都要同时交文档 + 代码 + workflow。人接受 0007 之前不要加新锁。见 [`docs/forge-config.md`](../../docs/forge-config.md)。
 
 ### Never
 

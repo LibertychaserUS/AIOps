@@ -76,7 +76,7 @@ docs_sync:
 
 ## 内容包（按层配对）
 
-内容包是进保护枝的那单 squash PR，不是功能枝上每一颗 WIP。决定：[ADR 0007](adr/0007-content-package-layers.md)。封顶拓扑见 [`pr-brief.md`](pr-brief.md)。
+内容包是进保护枝的那单 squash PR，不是功能枝上每一颗 WIP。**提议**：[ADR 0007](adr/0007-content-package-layers.md)（未接受。先设计后实现：人接受前不加新的 `docs_sync` / CLI / workflow）。封顶拓扑见 [`pr-brief.md`](pr-brief.md)。一开始只有 0005 的配对锁，没有内容包规格；本表是补设计。
 
 **不是**「每次都必须同时交文档 + 代码 + workflow」。  
 **是**「碰哪一层，同单带上那一层的配对物；没碰的层不要塞进来」。

@@ -88,7 +88,7 @@ PR 的 review 和 merge 由 **GitHub Ruleset + 有写权限的人** 管理。RBA
 
 ## 3. Forge
 
-范围、按分支规则、`promote`、`docs_sync`、`title.scopes`、`forbidden_live_repos`、内容包按层配对：合入后见 `forge-config.md` 与 [ADR 0003](adr/0003-dev-main-promotion.md)、[0004](adr/0004-per-branch-rulesets.md)、[0005](adr/0005-docs-sync-and-state.md)、[0007](adr/0007-content-package-layers.md)。命令见 [`cli.md`](cli.md)。
+范围、按分支规则、`promote`、`docs_sync`、`title.scopes`、`forbidden_live_repos`：合入后见 `forge-config.md` 与 [ADR 0003](adr/0003-dev-main-promotion.md)、[0004](adr/0004-per-branch-rulesets.md)、[0005](adr/0005-docs-sync-and-state.md)。内容包按层配对是补设计，[ADR 0007](adr/0007-content-package-layers.md) 仍是提议；人接受后再加新锁。新的合入规则先写 ADR，后实现。命令见 [`cli.md`](cli.md)。
 
 对象：
 

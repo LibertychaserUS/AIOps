@@ -4,7 +4,7 @@
 
 CLI 清单见 [`cli.md`](cli.md)。字段权威：Overlay 契约（合入后 `overlay-contract.md`）、Forge 配置（合入后 `forge-config.md`）。本页只写步骤。
 
-现状页：[`STATE.md`](STATE.md)（生成；没有就先 `forge status --write`）。设计决定：[ADR 0001](adr/0001-two-products-one-repo.md) … [0007](adr/0007-content-package-layers.md)。
+现状页：[`STATE.md`](STATE.md)（生成；没有就先 `forge status --write`）。设计决定：[ADR 0001](adr/0001-two-products-one-repo.md) … [0006](adr/0006-chinese-canonical.md)。[0007](adr/0007-content-package-layers.md) 是内容包补设计，仍是提议。
 
 ---
 
