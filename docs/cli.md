@@ -81,9 +81,9 @@ options:
   -h, --help     show this help message and exit
   --root ROOT    repo root (default: .)
   --title TITLE  PR title to lint (same as pr-title). Default: env PR_TITLE.
-                 Skip if omitted (CI still lints PR_TITLE).
+                 Skip if omitted or blank.
   --body BODY    PR body to lint when docs/pr-brief.md exists. Default: env
-                 PR_BODY. Skip if omitted (CI still lints PR_BODY).
+                 PR_BODY. Skip if omitted or blank.
 ```
 
 ## python -m forge submit

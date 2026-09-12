@@ -20,6 +20,33 @@ from forge import EXIT_OK
 
 EXIT_TITLE = 2
 
+
+def optional_text(value: str | None) -> str | None:
+    """Missing or whitespace-only is omitted.
+
+    GitHub Actions ``env: PR_TITLE: ${{ github.event.pull_request.title }}``
+    is an empty string on ``push`` (no pull_request payload). That is not a
+    provided title.
+    """
+    if value is None or value.strip() == "":
+        return None
+    return value
+
+
+def resolve_arg_or_env(
+    explicit: str | None,
+    environ: Mapping[str, str],
+    key: str,
+) -> str | None:
+    """Prefer ``--title`` / ``--body``. Blank env values count as omitted.
+
+    An explicit empty ``--title ""`` stays empty so the dedicated lint can
+    still fail. Only the environment fallback strips blanks.
+    """
+    if explicit is not None:
+        return explicit
+    return optional_text(environ.get(key))
+
 TYPES = (
     "build",
     "chore",

@@ -16,7 +16,7 @@ from forge.brief import brief_spec_exists, lint_pr_body
 from forge.check import run_check
 from forge.status import run_status
 from forge.submit import run_submit
-from forge.title import run_pr_title
+from forge.title import resolve_arg_or_env, run_pr_title
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -63,12 +63,12 @@ def _parser() -> argparse.ArgumentParser:
     check_p.add_argument(
         "--title",
         default=None,
-        help="PR title to lint (same as pr-title). Default: env PR_TITLE. Skip if omitted (CI still lints PR_TITLE).",
+        help="PR title to lint (same as pr-title). Default: env PR_TITLE. Skip if omitted or blank.",
     )
     check_p.add_argument(
         "--body",
         default=None,
-        help="PR body to lint when docs/pr-brief.md exists. Default: env PR_BODY. Skip if omitted (CI still lints PR_BODY).",
+        help="PR body to lint when docs/pr-brief.md exists. Default: env PR_BODY. Skip if omitted or blank.",
     )
 
     submit_p = sub.add_parser(
@@ -286,8 +286,8 @@ def main(
             check_state=args.check_state,
         )
     if args.command == "check":
-        title = args.title if args.title is not None else env_dict.get("PR_TITLE")
-        body = args.body if args.body is not None else env_dict.get("PR_BODY")
+        title = resolve_arg_or_env(args.title, env_dict, "PR_TITLE")
+        body = resolve_arg_or_env(args.body, env_dict, "PR_BODY")
         return run_check(
             Path(args.root),
             title=title,
@@ -357,7 +357,7 @@ def main(
     if args.command == "ci-select":
         from forge.ci_select import run_ci_select
 
-        title = args.title if args.title is not None else env_dict.get("PR_TITLE")
+        title = resolve_arg_or_env(args.title, env_dict, "PR_TITLE")
         return run_ci_select(
             Path(args.root),
             check=args.check,

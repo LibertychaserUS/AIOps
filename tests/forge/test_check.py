@@ -101,6 +101,57 @@ class TitleStepTests(unittest.TestCase):
         self.assertIn("pr-body", stdout.getvalue())
         self.assertIn("CI lints PR_BODY", stdout.getvalue())
 
+    def test_blank_env_pr_title_skips_like_omitted(self) -> None:
+        # GitHub Actions sets PR_TITLE to "" on push (no pull_request payload).
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        code = run_check(
+            ROOT,
+            title=None,
+            stdout=stdout,
+            stderr=stderr,
+            environ={"PR_TITLE": "", "PR_BODY": "  "},
+            run_unittests=False,
+            overlay_validate=_ok,
+            overlay_cover=_ok,
+            schema_runner=_ok,
+        )
+        self.assertEqual(code, EXIT_OK, stderr.getvalue())
+        self.assertNotIn("FAIL", stdout.getvalue())
+        self.assertIn("no --title", stdout.getvalue())
+        self.assertIn("CI lints PR_BODY", stdout.getvalue())
+
+    def test_cli_blank_env_pr_title_skips(self) -> None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        code = main(
+            ["check", "--root", str(ROOT)],
+            stdout=stdout,
+            stderr=stderr,
+            environ={"PR_TITLE": ""},
+        )
+        self.assertEqual(code, EXIT_OK, stderr.getvalue())
+        self.assertIn("no --title", stdout.getvalue())
+        self.assertNotIn("empty PR title", stderr.getvalue())
+
+    def test_explicit_empty_title_is_still_red(self) -> None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        code = run_check(
+            Path("."),
+            title="",
+            stdout=stdout,
+            stderr=stderr,
+            environ={"PR_TITLE": EXAMPLE},
+            run_unittests=False,
+            overlay_validate=_ok,
+            overlay_cover=_ok,
+            schema_runner=_ok,
+        )
+        self.assertEqual(code, EXIT_CHECK)
+        self.assertIn("FAIL", stdout.getvalue())
+        self.assertIn("empty", stderr.getvalue())
+
     def test_bad_body_is_red_when_brief_exists(self) -> None:
         stdout = io.StringIO()
         stderr = io.StringIO()

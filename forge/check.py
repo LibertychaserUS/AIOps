@@ -19,7 +19,7 @@ from forge import EXIT_OK
 from forge.apply import ForgeError, load_config
 from forge.brief import brief_spec_exists, lint_pr_body
 from forge.status import state_is_fresh
-from forge.title import run_pr_title
+from forge.title import resolve_arg_or_env, run_pr_title
 
 EXIT_CHECK = 2
 CHECK_ENV = "FORGE_CHECK_RUNNING"
@@ -538,8 +538,8 @@ def run_check(
     env: Mapping[str, str] = os.environ if environ is None else environ
     root = root.resolve()
     steps: list[Step] = []
-    resolved_title = title if title is not None else env.get("PR_TITLE")
-    resolved_body = body if body is not None else env.get("PR_BODY")
+    resolved_title = resolve_arg_or_env(title, env, "PR_TITLE")
+    resolved_body = resolve_arg_or_env(body, env, "PR_BODY")
 
     if overlay_yaml_exists(root):
         validate_fn = _default_overlay_validate if overlay_validate is None else overlay_validate

@@ -46,6 +46,8 @@ branches:
 
 本工作本列出允许 scope，保留现在行为。接入方可写 `any`。
 
+`forge check` 读 `--title` / `--body`，缺省读环境变量 `PR_TITLE` / `PR_BODY`。空白环境变量视为省略（GitHub Actions 在 `push` 上将 `github.event.pull_request.title` 写成空串），跳过 pr-title / pr-body。显式 `--title ""` 仍红。专用 `python -m forge pr-title` 仍把空标题当红。
+
 ## docs_sync
 
 ```yaml

@@ -4,6 +4,12 @@
 
 产品分两条线：`overlay-X.Y.Z` 与 `forge-X.Y.Z`。对应 git tag 为 `overlay-vX.Y.Z` / `forge-vX.Y.Z`。未发布的段写在下面，打 tag 时由 `forge release` 引用。
 
+## [forge-1.1.3]
+
+### Fixed
+
+- `forge check` 把空白 `PR_TITLE` / `PR_BODY` 视为省略。GitHub Actions 在 `push` 上写 `PR_TITLE: ${{ github.event.pull_request.title }}` 会得到空串；`1.1.2` 把它当成「有标题」并报 `empty PR title`。显式 `--title ""` 仍红。专用 `python -m forge pr-title` 仍把空标题当红。
+
 ## [forge-1.1.2]
 
 ### Fixed

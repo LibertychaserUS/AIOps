@@ -17,6 +17,8 @@ from forge.title import (
     TYPES,
     EXIT_TITLE,
     lint_title,
+    optional_text,
+    resolve_arg_or_env,
     run_pr_title,
 )
 
@@ -229,6 +231,19 @@ class CliTests(unittest.TestCase):
         code = run_pr_title(title="not conventional", environ={}, stdout=stdout, stderr=stderr)
         self.assertEqual(code, EXIT_TITLE)
         self.assertTrue(stderr.getvalue())
+
+
+class OptionalEnvTextTests(unittest.TestCase):
+    def test_blank_env_is_omitted(self) -> None:
+        self.assertIsNone(optional_text(None))
+        self.assertIsNone(optional_text(""))
+        self.assertIsNone(optional_text("  \n"))
+        self.assertEqual(optional_text(EXAMPLE), EXAMPLE)
+
+    def test_explicit_empty_arg_is_kept(self) -> None:
+        self.assertEqual(resolve_arg_or_env("", {"PR_TITLE": EXAMPLE}, "PR_TITLE"), "")
+        self.assertIsNone(resolve_arg_or_env(None, {"PR_TITLE": ""}, "PR_TITLE"))
+        self.assertEqual(resolve_arg_or_env(None, {"PR_TITLE": EXAMPLE}, "PR_TITLE"), EXAMPLE)
 
 
 class WorkshopConfigTests(unittest.TestCase):
