@@ -231,7 +231,12 @@ def run_pr_title(
     root: Path | str | None = None,
     scopes: str | list[str] | None = None,
 ) -> int:
-    """CLI entry. Reads --title or PR_TITLE. Exit 0 pass / 2 fail."""
+    """CLI entry. Reads --title or PR_TITLE. Exit 0 pass / 2 fail.
+
+    Blank ``PR_TITLE`` (GitHub Actions on push) is omitted: this is the PR
+    spec machine check, so no title means skip, not ``empty PR title``.
+    Explicit ``--title ""`` still fails.
+    """
     import os
     import sys
     from pathlib import Path
@@ -248,7 +253,9 @@ def run_pr_title(
                 resolved_scopes = load_config(yaml_path).title_scopes
             except ForgeError:
                 resolved_scopes = None
-    resolved = title if title is not None else env.get("PR_TITLE")
+    resolved = resolve_arg_or_env(title, env, "PR_TITLE")
+    if resolved is None:
+        return EXIT_OK
     code, message, _parts = lint_title(resolved, scopes=resolved_scopes)
     if code != EXIT_OK:
         print(message, file=err)

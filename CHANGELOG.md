@@ -8,7 +8,7 @@
 
 ### Fixed
 
-- `forge check` 把空白 `PR_TITLE` / `PR_BODY` 视为省略。GitHub Actions 在 `push` 上写 `PR_TITLE: ${{ github.event.pull_request.title }}` 会得到空串；`1.1.2` 把它当成「有标题」并报 `empty PR title`。显式 `--title ""` 仍红。专用 `python -m forge pr-title` 仍把空标题当红。
+- PR 规格机器检查（`python -m forge pr-title` 与 `forge check` 的 pr-title / pr-body 步）把空白 `PR_TITLE` / `PR_BODY` 视为省略。GitHub Actions 在 `push` 上写 `github.event.pull_request.title` 会得到空串；`1.1.2` 把它当成「有标题」并报 `empty PR title`。没有规格就 skip，不红。显式 `--title ""` 仍红。
 
 ## [forge-1.1.2]
 

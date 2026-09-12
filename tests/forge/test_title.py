@@ -225,6 +225,27 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, EXIT_TITLE)
         self.assertIn("empty", stderr.getvalue())
 
+    def test_blank_env_skips_spec_check(self) -> None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        code = main(
+            ["pr-title", "--root", str(ROOT)],
+            stdout=stdout,
+            stderr=stderr,
+            environ={"PR_TITLE": "", "PR_BODY": ""},
+        )
+        self.assertEqual(code, EXIT_OK, stderr.getvalue())
+        self.assertEqual(stderr.getvalue(), "")
+
+    def test_run_pr_title_blank_env_skips(self) -> None:
+        code = run_pr_title(
+            title=None,
+            environ={"PR_TITLE": ""},
+            stdout=io.StringIO(),
+            stderr=io.StringIO(),
+        )
+        self.assertEqual(code, EXIT_OK)
+
     def test_run_pr_title_does_not_need_github(self) -> None:
         stdout = io.StringIO()
         stderr = io.StringIO()

@@ -110,12 +110,12 @@ def _parser() -> argparse.ArgumentParser:
     title_p.add_argument(
         "--title",
         default=None,
-        help='PR title, e.g. "feat(overlay/dev): add cover triad". Default: env PR_TITLE.',
+        help='PR title, e.g. "feat(overlay/dev): add cover triad". Default: env PR_TITLE. Skip if omitted or blank.',
     )
     title_p.add_argument(
         "--body",
         default=None,
-        help="PR body. Default: env PR_BODY. Lint six 解说规格 headings when docs/pr-brief.md exists.",
+        help="PR body. Default: env PR_BODY. Skip if omitted or blank. Lint six 解说规格 headings when docs/pr-brief.md exists.",
     )
     title_p.add_argument(
         "--event",
@@ -331,10 +331,8 @@ def main(
             if body is None:
                 raw_body = pull.get("body")
                 body = raw_body if isinstance(raw_body, str) else None
-        if title is None:
-            title = env_dict.get("PR_TITLE")
-        if body is None:
-            body = env_dict.get("PR_BODY")
+        title = resolve_arg_or_env(title, env_dict, "PR_TITLE")
+        body = resolve_arg_or_env(body, env_dict, "PR_BODY")
         code = run_pr_title(
             title=title,
             environ=env_dict,
