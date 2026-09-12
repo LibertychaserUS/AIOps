@@ -1,4 +1,4 @@
 interface:
   display_name: "Use Forge"
   short_description: "Install Forge; do not vendor the tool"
-  default_prompt: "Use $use-forge to adopt Forge on a product repo. Keep forge/ in LibertychaserUS/AIOps or a fork; commit only forge.yaml."
+  default_prompt: "Use $use-forge as the six-step developer cold start: pin a published tag (overlay-v2.0.0 / forge-v1.1.2), pip install, forge check, submit to protect[0]. Do not live-apply (that is $manage-repo). Do not vendor forge/."

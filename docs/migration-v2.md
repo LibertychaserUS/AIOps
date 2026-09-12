@@ -13,7 +13,7 @@ CLI 清单见 [`cli.md`](cli.md)。字段权威：Overlay 契约（合入后 `ov
 ```text
 git clone <本工作本或你的 fork> /tmp/AIOps
 cd /tmp/AIOps
-git checkout overlay-v2.0.0    # 与 forge-v1.1.0 同一提交；未打 tag 前用集成者给出的 SHA
+git checkout overlay-v2.0.0    # Overlay 已发布针。Forge CLI 另 checkout forge-v1.1.2
 python3 -m pip install -r requirements.txt
 export PYTHONPATH=/tmp/AIOps
 ```

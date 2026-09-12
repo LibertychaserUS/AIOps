@@ -6,7 +6,7 @@
 | 产品 | tag 形状 | 例 |
 |---|---|---|
 | Overlay | `overlay-vX.Y.Z` | `overlay-v2.0.0` |
-| Forge | `forge-vX.Y.Z` | `forge-v1.1.0` |
+| Forge | `forge-vX.Y.Z` | `forge-v1.1.2` |
 
 接入方 pin **已经存在的 tag 或 SHA**，不要 pin 浮动 `main`。不要 force-move 已有针。GitHub 每个仓只有一个 Latest 徽章；两条产品 tag 都要 pin 具体 tag，不要拿 Latest 当针。
 

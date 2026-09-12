@@ -26,7 +26,7 @@ metadata:
 3. **Merge** 只在那些检查绿、审批够。默认 squash：**封顶**再压，压完**换底**。不要让 agent merge。不要替开发 `forge submit`（那是 `$dev-pr`）。
 4. **Promote：** `dev` → `main` 由 `forge promote --repo O/N --from dev --to main` 开 PR。人批 + 合。命令本身永不 merge。
 5. **Overlay `blocked`** 是人手改 yaml。Agent 不得在 agent 分支上做（`suite_guard` 红）。`blocked` 必须有带链接或编号的 `blocked_reason`。不要写已删除的旧字段。改完：`python -m overlay validate --root .`。
-6. **发布：** `python -m forge release --repo OWNER/NAME --products overlay --version 2.0.0 --dry-run` 与 `--products forge --version 1.1.0` 分两次（`--products both` 要求两产品 `__version__` 相同）。CHANGELOG 必须有 `## [overlay-2.0.0]` / `## [forge-1.1.0]`。不要 force-move 已有针。
+6. **发布：** `python -m forge release --repo OWNER/NAME --products overlay --version 2.0.0 --dry-run` 与 `--products forge --version 1.1.2` 分两次（`--products both` 要求两产品 `__version__` 相同）。CHANGELOG 必须有对应 `## [overlay-X.Y.Z]` / `## [forge-X.Y.Z]`。不要 force-move 已有针。人点 `release` workflow，agent 不自动打 tag。
 
 ## Never
 

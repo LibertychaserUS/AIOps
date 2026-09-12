@@ -21,6 +21,8 @@
 ```text
 git clone <本工作本> /tmp/AIOps
 cd /tmp/AIOps
+git checkout overlay-v2.0.0
+# Forge CLI：git checkout forge-v1.1.2
 python3 -m pip install -r requirements.txt
 export PYTHONPATH=/tmp/AIOps
 
@@ -38,7 +40,7 @@ Agent 可以 `check` / `submit`。Agent **不可以** live-`apply` Ruleset、自
 
 ## 冷启动
 
-开发：[`skills/use-forge/SKILL.md`](skills/use-forge/SKILL.md)（合入后为 v1.1：dev/main、`promote`、STATE、docs_sync）。Overlay：[`skills/use-overlay/SKILL.md`](skills/use-overlay/SKILL.md)。用例：[`skills/design-cases/SKILL.md`](skills/design-cases/SKILL.md)。
+开发冷启动六步：[`skills/use-forge/SKILL.md`](skills/use-forge/SKILL.md)。Ops apply / 合入：[`skills/manage-repo/SKILL.md`](skills/manage-repo/SKILL.md)。Overlay：[`skills/use-overlay/SKILL.md`](skills/use-overlay/SKILL.md)。用例：[`skills/design-cases/SKILL.md`](skills/design-cases/SKILL.md)。
 
 装 skill（host id：`codex` / `cursor` / `claude-code` / `github-copilot`）：
 
@@ -65,7 +67,7 @@ gh skill install <owner>/<workshop> --agent cursor --pin overlay-v2.0.0 --all
 ### Edge
 ```
 
-- 技法名只能是 Functional / Negative / Edge。不要写 `### Depth`。不要用散文 `##` 当标题。
+- 技法名只能是 `### Functional` / `### Negative` / `### Edge`。不要写 `### Depth`。不要写 `## Specified`（或任何散文 `##`，它会变成 `function_id`）。
 - `function_id` 在 overlay root **全局唯一**。
 - `invariants.yaml` 必须对上 `##` 标题。
 - `status` 只有 `active` | `blocked`。隔离未就绪用 `blocked` + 带链接的 `blocked_reason`。人签走 PR 批准 + CODEOWNERS。见 [ADR 0002](docs/adr/0002-remove-armed.md)。

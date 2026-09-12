@@ -11,6 +11,7 @@
 - PR 规格按**事件 × 来源**取值，不再把空白 `PR_TITLE` 当成「没有规格就 skip」。`1.1.2` 把 Actions 在 `push` 上写成的空串当成已提供标题并报 `empty PR title`；中间一刀「空白就 skip」是绕过，旧夹具（好 `--title` / `--title ""` / 缺 actor）没锁到 `GITHUB_EVENT_NAME`、`PR_TITLE` 空串、以及 `forge check` 在 push 上嵌 pr-title。
 - 来源表：`--title` / `--body`（含显式空串）→ 按参数 lint；非空 `PR_TITLE` / `PR_BODY` → 按环境 lint；`pull_request` + 空白或未设标题/正文 → 空规格，红（正文在有 `docs/pr-brief.md` 时查六个标题）；`push` 或 Actions 空串（环境已设、不是 `pull_request`）→ lint HEAD 提交第一行（先 `GITHUB_EVENT_PATH` 的 `head_commit.message`，否则 `git log -1 --format=%s`）；本地无事件且环境未设 → 省略，`forge check` skip。
 - 夹具：新叶子 `FN-forge-pr-title` + `INV-pr-spec-event-states`。`ci-select` 在 push 空 `PR_TITLE` 时用提交标题的产品面。
+- 冷启动说明只 pin **已存在**的 tag（`overlay-v2.0.0` / `forge-v1.1.2`）。`use-forge` 收成开发六步；live apply 只在 `manage-repo`。仓顶 README / README.zh-CN 的 30 秒命令带 `git checkout`，不再默认落到浮动 `main`。不自动打下一针。
 
 ## [forge-1.1.2]
 
