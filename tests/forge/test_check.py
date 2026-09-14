@@ -25,6 +25,16 @@ def _fail(_root: Path, _stdout, _stderr) -> int:
     return EXIT_CHECK
 
 
+_MINIMAL_FORGE = """schema: forge-config/v1
+protect:
+  - main
+"""
+
+
+def _write_minimal_forge(root: Path) -> None:
+    (root / "forge.yaml").write_text(_MINIMAL_FORGE, encoding="utf-8")
+
+
 class WorkshopCheckTests(unittest.TestCase):
     def test_workshop_check_with_title_is_green(self) -> None:
         stdout = io.StringIO()
@@ -229,11 +239,31 @@ class TitleStepTests(unittest.TestCase):
 
 
 class SkipAndFailTests(unittest.TestCase):
+    def test_empty_root_is_red(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            code = run_check(
+                root,
+                title=EXAMPLE,
+                stdout=stdout,
+                stderr=stderr,
+                environ={},
+                run_unittests=True,
+            )
+            self.assertEqual(code, EXIT_CHECK, stdout.getvalue())
+            self.assertIn("not a product root", stderr.getvalue())
+            self.assertNotIn("forge check: ok", stdout.getvalue())
+
     def test_adopter_root_omits_workshop_only_rows(self) -> None:
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            _write_minimal_forge(root)
             stdout = io.StringIO()
             stderr = io.StringIO()
             code = run_check(
@@ -259,6 +289,7 @@ class SkipAndFailTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            _write_minimal_forge(root)
             (root / ".husky").mkdir()
             stdout = io.StringIO()
             stderr = io.StringIO()

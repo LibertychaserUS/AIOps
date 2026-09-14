@@ -15,7 +15,8 @@ Forge keeps people and agents from pushing protected branches. Overlay turns req
 ```text
 git clone <this-workshop> /tmp/AIOps && cd /tmp/AIOps
 git checkout overlay-v2.0.0
-# Forge CLI: git checkout forge-v1.1.2
+# Forge CLI is a second pin: git checkout forge-v1.1.2
+# pip does not install a `forge` console script.
 python3 -m pip install -r requirements.txt
 export PYTHONPATH=/tmp/AIOps
 
@@ -24,6 +25,8 @@ python3 -m overlay validate --root .
 python3 -m overlay cover --root .
 python3 -m forge check --root .
 ```
+
+`--root` must contain `forge.yaml` or `overlay.yaml` or `check` exits 2. Use `python3 -m`. On `forge-v1.1.2`, do not set an empty `PR_TITLE` on `push`.
 
 CLI reference (generated, do not copy lists by hand): [`docs/cli.md`](docs/cli.md).
 

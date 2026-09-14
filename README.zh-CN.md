@@ -22,7 +22,8 @@
 git clone <本工作本> /tmp/AIOps
 cd /tmp/AIOps
 git checkout overlay-v2.0.0
-# Forge CLI：git checkout forge-v1.1.2
+# Forge CLI 另针：git checkout forge-v1.1.2
+# 不要只用 Overlay 针当 Forge。pip 不会装出 forge 命令。
 python3 -m pip install -r requirements.txt
 export PYTHONPATH=/tmp/AIOps
 
@@ -31,6 +32,8 @@ python3 -m overlay validate --root .
 python3 -m overlay cover --root .
 python3 -m forge check --root .
 ```
+
+`--root` 必须能看到 `forge.yaml` 或 `overlay.yaml`，否则 `check` 红（先 cd）。有的机器没有 `python`，用 `python3 -m`。`1.1.2` 的 CI `push` 不要写入空的 `PR_TITLE`；`1.1.3` 后 push 锁提交 subject。
 
 升级 1.0.x：[`docs/migration-v2.md`](docs/migration-v2.md)。设计：[`docs/design.md`](docs/design.md)。决定：[`docs/adr/`](docs/adr/)。变更：[`CHANGELOG.md`](CHANGELOG.md)。
 

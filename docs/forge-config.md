@@ -58,6 +58,8 @@ PR 规格机器检查是 `python -m forge pr-title`（`forge check` 嵌同一把
 
 CI job `pr-title` 仍只挂 `pull_request`。`forge check` 在 push 上**不**卸掉标题锁：锁的是提交 subject，不是跳过。叶子 `FN-forge-pr-title`，invariant `INV-pr-spec-event-states`。
 
+`forge check --root` 必须是产品根：至少有 `forge.yaml` 或 `overlay.yaml`。两者都没有 → 退出 2，不要当成绿。`pip install -r requirements.txt` 只装 PyYAML 等，**不会** 给出 `forge` 命令；用 `PYTHONPATH` + `python3 -m forge`。Overlay 与 Forge 是两针：`overlay-v2.0.0` / `forge-v1.1.2`（未发布 `1.1.3` 前）。`1.1.2` 上 CI `push` 不要写入空的 `PR_TITLE`。
+
 ## docs_sync
 
 ```yaml

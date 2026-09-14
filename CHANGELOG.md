@@ -12,6 +12,8 @@
 - 来源表：`--title` / `--body`（含显式空串）→ 按参数 lint；非空 `PR_TITLE` / `PR_BODY` → 按环境 lint；`pull_request` + 空白或未设标题/正文 → 空规格，红（正文在有 `docs/pr-brief.md` 时查六个标题）；`push` 或 Actions 空串（环境已设、不是 `pull_request`）→ lint HEAD 提交第一行（先 `GITHUB_EVENT_PATH` 的 `head_commit.message`，否则 `git log -1 --format=%s`）；本地无事件且环境未设 → 省略，`forge check` skip。
 - 夹具：新叶子 `FN-forge-pr-title` + `INV-pr-spec-event-states`。`ci-select` 在 push 空 `PR_TITLE` 时用提交标题的产品面。
 - 冷启动说明只 pin **已存在**的 tag（`overlay-v2.0.0` / `forge-v1.1.2`）。`use-forge` 收成开发六步；live apply 只在 `manage-repo`。仓顶 README / README.zh-CN 的 30 秒命令带 `git checkout`，不再默认落到浮动 `main`。不自动打下一针。
+- `forge check` 在 `--root` 既无 `forge.yaml` 又无 `overlay.yaml` 时退出 2（「不是产品根；先 cd」），不再全 skip 后打印 `forge check: ok`。
+- 冷启动一律 `python3 -m forge` / `python3 -m overlay`。`pip install -r requirements.txt` **不会** 装出 `forge` 命令，必须 `PYTHONPATH` + `python3 -m`。Overlay 针 `overlay-v2.0.0`，Forge CLI 针 `forge-v1.1.2`（发 1.1.3 后再改）。`1.1.2` 的 CI `push` 不要设空 `PR_TITLE`；`1.1.3` 后 push 锁提交 subject。
 
 ### Added
 

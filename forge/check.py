@@ -52,6 +52,14 @@ def overlay_yaml_exists(root: Path) -> bool:
     return (root / "overlay.yaml").is_file()
 
 
+def forge_yaml_exists(root: Path) -> bool:
+    return (root / "forge.yaml").is_file()
+
+
+def is_product_root(root: Path) -> bool:
+    return overlay_yaml_exists(root) or forge_yaml_exists(root)
+
+
 def schema_check_exists(root: Path) -> bool:
     return (root / "schema" / "check.py").is_file()
 
@@ -538,6 +546,13 @@ def run_check(
     err = sys.stderr if stderr is None else stderr
     env: Mapping[str, str] = os.environ if environ is None else environ
     root = root.resolve()
+    if not is_product_root(root):
+        print(
+            "forge check: not a product root (no forge.yaml or overlay.yaml); "
+            "cd to the product first",
+            file=err,
+        )
+        return EXIT_CHECK
     steps: list[Step] = []
     title_ref = resolve_spec_title(title, env, root)
     body_ref = resolve_spec_body(body, env)

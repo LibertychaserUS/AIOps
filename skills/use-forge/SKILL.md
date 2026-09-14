@@ -49,6 +49,8 @@ python3 -m pip install -r requirements.txt
 export PYTHONPATH=/tmp/AIOps
 ```
 
+这只装 PyYAML 等，**不会** 给出 `forge` 命令。一律 `python3 -m forge` / `python3 -m overlay`（有的机器没有 `python`）。Overlay 与 Forge 是两针，不要只用 `overlay-v2.0.0` 当 Forge CLI。
+
 ### 3. Write thin `forge.yaml`
 
 抄 [`forge/forge.example.yaml`](../../forge/forge.example.yaml)。设 `protect: [dev, main]`、`branches:`、`agent_branch_prefixes`、`deny_paths`、`docs_sync`、`title.scopes`。`required_checks` = 接入方 PR 上真实的 **CI job 名**。不要抄别人仓的 workflow 名。
@@ -106,6 +108,8 @@ PYTHONPATH=/tmp/AIOps python3 -m forge submit --repo OWNER/PRODUCT --title "feat
 |---|---|
 | 想把 `forge/` 拷进产品仓 | 停。工具留在 sibling checkout。 |
 | checkout 已发布针失败 | `git fetch --tags` 后再 pin **已存在**的 tag。不要 pin `main`。 |
+| `forge check: ok` 但没进产品仓 | `--root` 必须有 `forge.yaml` 或 `overlay.yaml`，否则现在红。 |
+| CI push 报 `empty PR title`（`forge-v1.1.2`） | 不要在 push 上写入空的 `PR_TITLE`。`1.1.3` 后 lock 提交 subject。 |
 | `required_checks` 对不上 CI | 改成 PR 上真实的 job 名。 |
 | 想 live apply / 直推保护分支 | 停。`$manage-repo` / `$dev-pr`。 |
 | 想把套件标 blocked | 停。人写。`$manage-repo`。 |

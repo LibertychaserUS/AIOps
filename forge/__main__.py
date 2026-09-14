@@ -57,7 +57,7 @@ def _parser() -> argparse.ArgumentParser:
 
     check_p = sub.add_parser(
         "check",
-        help="local pre-submit gate. Exit 0/2. No GitHub write. submit refuses if this is red.",
+        help="local pre-submit gate. Exit 0/2. --root must contain forge.yaml or overlay.yaml. No GitHub write. submit refuses if this is red.",
     )
     check_p.add_argument("--root", default=".", help="repo root (default: .)")
     check_p.add_argument(

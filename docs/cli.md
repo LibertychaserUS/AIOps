@@ -22,8 +22,9 @@ positional arguments:
     apply               create or update forge-protected-<branch> and forge-
                         protected-tags
     status              read-only: installed / missing / drifted per ruleset
-    check               local pre-submit gate. Exit 0/2. No GitHub write.
-                        submit refuses if this is red.
+    check               local pre-submit gate. Exit 0/2. --root must contain
+                        forge.yaml or overlay.yaml. No GitHub write. submit
+                        refuses if this is red.
     submit              开发侧代推: run forge check, then push the feature branch
                         and open/update a draft PR. Never merges.
     pr-title (title)    lint a GitHub PR title (Conventional Commits +
