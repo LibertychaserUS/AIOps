@@ -58,7 +58,9 @@ PR 规格机器检查是 `python -m forge pr-title`（`forge check` 嵌同一把
 
 CI job `pr-title` 仍只挂 `pull_request`。`forge check` 在 push 上**不**卸掉标题锁：锁的是提交 subject，不是跳过。叶子 `FN-forge-pr-title`，invariant `INV-pr-spec-event-states`。
 
-`forge check --root` 必须是产品根：至少有 `forge.yaml` 或 `overlay.yaml`。两者都没有 → 退出 2，不要当成绿。`pip install -r requirements.txt` 只装 PyYAML 等，**不会** 给出 `forge` 命令；用 `PYTHONPATH` + `python3 -m forge`。Overlay 与 Forge 是两针：`overlay-v2.0.0` / `forge-v1.1.2`（未发布 `1.1.3` 前）。`1.1.2` 上 CI `push` 不要写入空的 `PR_TITLE`。
+`forge check --root` 必须是产品根：至少有 `forge.yaml` 或 `overlay.yaml`。两者都没有 → 退出 2，不要当成绿。`pip install -r requirements.txt` 只装 PyYAML 等，**不会** 给出 `forge` 命令；用 `PYTHONPATH` + `python3 -m forge`。Overlay 与 Forge 是两针：`overlay-v2.0.0` / `forge-v1.1.3`。只 checkout Overlay 针会拿到 Forge 1.1.0（空根假绿）。`1.1.2` 上 CI `push` 不要写入空的 `PR_TITLE`；`1.1.3` 起 lock 提交 subject。
+
+`apply` 必须带 `--path` 指向**目标仓自己的** `forge.yaml`。不要在工具仓根目录对产品仓 `--repo` live apply：cwd 的工作本配置会把 `pr-title` / `sop-lock` / `unittest` 写进别人的 Ruleset。`--dry-run` 同样要带 `--path` 才能对照。接入方最小例是 [`examples/acme-python/forge.yaml`](../examples/acme-python/forge.yaml)，不要抄工作本根 `forge.yaml`。
 
 ## docs_sync
 
@@ -91,7 +93,7 @@ docs_sync:
 
 五种包：产品包、工具包、文档包、工作流 / 升针包、升级包（`promote`）。不要把升针塞进功能切片。不要把「每个 agent PR 必须改 workflow」写成规则——产品仓把 `.github/workflows/` 放进 `deny_paths` 时，那样写等于每单都红，或把 deny 卸掉。
 
-接入方示例（`examples/learning-guide/forge.yaml`）：套件 / 配置 → brief。工作本自己：`forge/**` → CHANGELOG + `docs/forge-config.md`。
+接入方最小例：[`examples/acme-python/forge.yaml`](../examples/acme-python/forge.yaml)。Learning Guide 夹具（`examples/learning-guide/forge.yaml`）是产品 job 名，不要当通用模板抄。工作本自己：`forge/**` → CHANGELOG + `docs/forge-config.md`。
 
 ## forbidden_live_repos
 

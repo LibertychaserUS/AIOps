@@ -4,6 +4,14 @@
 
 产品分两条线：`overlay-X.Y.Z` 与 `forge-X.Y.Z`。对应 git tag 为 `overlay-vX.Y.Z` / `forge-vX.Y.Z`。未发布的段写在下面，打 tag 时由 `forge release` 引用。
 
+## [Unreleased]
+
+### Changed
+
+- 冷启动与 skill 的当前 Forge 针改为已发布的 `forge-v1.1.3`。`overlay-v2.0.0` peel 仍是 Forge 1.1.0（空根 `check` 假绿），必须第二针。不要用 GitHub Release Latest 当针。
+- `apply` 必须 `--path` 指向目标仓自己的 `forge.yaml`。不要在工具仓根对产品仓 live apply。接入方最小例改指 `examples/acme-python/`。
+- ADR 0007 仍是**提议**，未接受。
+
 ## [forge-1.1.3]
 
 ### Fixed

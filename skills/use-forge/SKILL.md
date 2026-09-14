@@ -15,7 +15,7 @@ metadata:
 
 live `apply`、合入、套件 `blocked` 只在 [`../manage-repo/SKILL.md`](../manage-repo/SKILL.md)。开 PR 细节在 [`../dev-pr/SKILL.md`](../dev-pr/SKILL.md)。密钥细节只看 [`../../docs/submit-credential.md`](../../docs/submit-credential.md)，不要把 `FORGE_SUBMIT_TOKEN` 和 Ops 的 `FORGE_GITHUB_TOKEN` 写进同一步。
 
-Pin **已经存在的** tag。当前已发布：`overlay-v2.0.0` / `forge-v1.1.2`。不要 pin `main`。不要 checkout 不存在的 tag。不要 force-move 旧针。现状只看 [`../../docs/STATE.md`](../../docs/STATE.md)。起步：[`../../README.zh-CN.md`](../../README.zh-CN.md)。
+Pin **已经存在的** tag。当前已发布：`overlay-v2.0.0` / `forge-v1.1.3`。Forge 必须第二针：`overlay-v2.0.0` peel 仍是 Forge 1.1.0（空根假绿）。不要 pin `main`。不要 checkout 不存在的 tag。不要 force-move 旧针。不要拿 Latest 当针。现状只看 [`../../docs/STATE.md`](../../docs/STATE.md)。起步：[`../../README.zh-CN.md`](../../README.zh-CN.md)。
 
 `python -m forge --help` 才是子命令清单。没有 `brief` / `credential` / `ops-chain` / `revoke`。
 
@@ -37,7 +37,7 @@ Pin **已经存在的** tag。当前已发布：`overlay-v2.0.0` / `forge-v1.1.2
 git clone <tool-repo-url> /tmp/AIOps
 cd /tmp/AIOps
 git checkout overlay-v2.0.0
-# Forge CLI: git checkout forge-v1.1.2
+# Forge CLI: git checkout forge-v1.1.3
 ```
 
 需要 CPython **3.12+**。不要把 `forge/` vendor 进产品仓。
