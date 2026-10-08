@@ -177,6 +177,27 @@ class PromoteTests(unittest.TestCase):
             self.assertEqual(code, EXIT_OK, err)
             self.assertIn("chore(ci/agent):", out)
 
+    def test_live_promote_refuses_agent_branch_dry_run_allowed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _repo(tmp)
+            _git(root, "checkout", "-b", "cursor/agent-slice")
+            code, _out, err, fake = _promote(
+                path=root / "forge.yaml",
+                cwd=root,
+            )
+            self.assertEqual(code, EXIT_CONFIG)
+            self.assertIn("agent branch", err)
+            self.assertIn("cursor/agent-slice", err)
+            self.assertEqual(fake.writes(), [])
+            dry, dout, derr, fake_dry = _promote(
+                path=root / "forge.yaml",
+                cwd=root,
+                dry_run=True,
+            )
+            self.assertEqual(dry, EXIT_OK, derr)
+            self.assertIn("dry-run", dout)
+            self.assertEqual(fake_dry.writes(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -22,6 +22,22 @@ def _steps(job: dict) -> list[dict]:
 
 
 class ReusableWorkflowTests(unittest.TestCase):
+    def test_empty_branch_omits_flag_and_workshop_does_not_pin_main(self) -> None:
+        data = _load()
+        select_runs = [
+            str(step.get("run") or "")
+            for step in _steps(data["jobs"]["select"])
+            if step.get("name") == "overlay select"
+        ]
+        self.assertTrue(select_runs, data["jobs"]["select"])
+        self.assertIn('python -m overlay select --root', select_runs[0])
+        self.assertIn('if [ -n "${{ steps.br.outputs.name }}" ]', select_runs[0])
+        caller = yaml.safe_load((ROOT / ".github" / "workflows" / "overlay-check.yml").read_text(encoding="utf-8"))
+        workshop = caller["jobs"]["overlay"]["with"]
+        fixture = caller["jobs"]["fixture"]["with"]
+        self.assertNotIn("branch", workshop)
+        self.assertEqual(fixture.get("branch"), "main")
+        self.assertNotIn("python -m overlay generate", (ROOT / ".github" / "workflows" / "overlay.yml").read_text())
     def test_run_job_can_install_product_dependencies(self) -> None:
         # Learning Guide had to abandon this reusable and write an inline job
         # only to `npm ci`; a standard part must let the product install its

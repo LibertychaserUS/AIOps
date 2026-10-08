@@ -6,8 +6,19 @@
 
 ## [Unreleased]
 
+### Added
+
+- `python -m overlay generate`：假 HTTP 可测；缺 API key 退出 3；解析失败不写文件；输出 `status: active`。`blocked` 套件拒绝，`--force` 也不清掉 `blocked`。不挂 push。提示词 `prompts/extract.md`、`prompts/generate-cases.md`（temperature 0）。
+- `overlay review` 在 `--i-am` 非空且当前分支不是 agent 前缀时写套件状态。没有 `forge.yaml` 拒绝。agent 分支不能借此清掉 `blocked`。
+- `overlay.yaml` 可选 `require_command`（缺省 false）。为 true 时，入选套件没有 `product_command` 则 `run` 退出 2、不执行。
+
 ### Fixed
 
+- live `forge promote` 在 `agent_branch_prefixes`（`cursor/`、`copilot/`、`agent/`）上拒绝；`--dry-run` 仍可。人 / ops 分支不变。
+- 工作本 `forge check` 跑与 CI 相同的 `python -m unittest discover -s tests -t .`。没有 `overlay/__init__.py` 的根不跑这套单测。
+- `ci-select`：产品门在标题选中 **或** 路径命中时跑。标题 `docs` 不再挡住碰到 `forge/` / `overlay/` 的 diff。未声明检查名仍 skip-success。
+- 显式 `select --branch` / `run --branch` 的名字不在 `overlay.yaml` 且没有 `branches.default` 时退出 2。已配置分支选出 0 个套件仍退出 0。省略 `--branch` 时，PR 用 base ref；push 到已配置分支用该名；否则 `branches.default`，再否则仅当 ref 未配置时用 `main`。
+- 工作本 Overlay CI 不再写死 `branch: main`。`overlay.yaml` 的 `dev` 与 `main` 同 kind。fixture job 仍传 `main`。
 - `submit` 更新已有 PR 时按 **head 且 base** 匹配。同一功能枝上指向另一条保护分支的 open PR 不会被 PATCH。
 - `promote` 标题在 `title.scopes` 允许时用 `chore(ci/agent):`，两扇产品门都跑。不再用列表第一项（工作本会变成只跑 Overlay），也不再使用过不了 `pr-title` 的 `release/agent`。`scopes: any` 同样用 `ci/agent`。见 [ADR 0003](docs/adr/0003-dev-main-promotion.md) 修订。
 - `suite_guard`：agent 分支不得把已有 `blocked` 改回 `active` 或删掉。人枝仍只记录。

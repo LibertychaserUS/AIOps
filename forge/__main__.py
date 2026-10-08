@@ -159,13 +159,13 @@ def _parser() -> argparse.ArgumentParser:
     select_p.add_argument(
         "--title",
         default=None,
-        help="PR title. Default: env PR_TITLE. Title product facet wins when valid.",
+        help="PR title. Default: env PR_TITLE. A product gate runs on title or paths.",
     )
     select_p.add_argument(
         "--changed",
         nargs="*",
         default=None,
-        help="Changed paths when no valid title (push). Omit to use git HEAD~1.",
+        help="Changed paths. Omit to use git HEAD~1. Union with a valid title.",
     )
     select_p.add_argument(
         "--github-output",

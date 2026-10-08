@@ -21,7 +21,9 @@
 | 工作本单测 | `unittest` | **永远跑**，不走 ci-select。命令：`python3 -m unittest discover -s tests -t . -q` |
 | 产品门 | `forge-check`、`overlay-check` | workflow 必启动；跳过由 `ci-select` 写成 success，不靠 `on.paths` |
 
-标题 `product` 选产品门：`overlay` → `overlay-check`；`forge` → `forge-check`；`ci` → 两门都跑；`docs` → 只跑通用。通用层与 `unittest` 不跳过。未声明的检查名 skip，不当红。
+标题 `product` **或** 变更路径命中 `ci.products.*.paths`，产品门就跑：`overlay` → `overlay-check`；`forge` → `forge-check`；`ci` → 两门都跑。标题 `docs` 且路径没碰到产品时只跑通用；标题 `docs` 但 diff 碰到 `forge/` 或 `overlay/` 时，被碰到的门仍跑。通用层与 `unittest` 不跳过。未声明的检查名 skip-success，不当红（这个契约是故意的，不改成 fail-closed）。
+
+假绿（同一句，不另造政策）：[GitHub Ruleset 的 required status checks](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#require-status-checks-to-pass-before-merging) 把已勾的检查名当成合入条件。跳过却报成功，只在这次 diff **不可能**影响该门时成立——和 [path filter 让必需要的检查根本不报告](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/collaborating-on-repositories-with-code-quality-features/troubleshooting-required-status-checks#handling-skipped-but-required-checks) 是同一族问题。`overlay.yaml` 里没有的分支、以及 `require_command: true` 时入选套件没有 `product_command`，是配置错误（退出 2），不是「没有东西可跑」的成功。已配置分支选出 0 个套件仍是成功。
 
 接入方不要拷本工作本 `ci.yml`。Overlay 接入方 pin reusable `overlay.yml`。`required_checks` 填真实 **CI job 名**。按分支规则见合入后的 `forge-config.md` 与 [ADR 0004](adr/0004-per-branch-rulesets.md)。
 

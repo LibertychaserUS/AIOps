@@ -41,7 +41,7 @@ GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge
 | `blocked` 要带链接的 `blocked_reason` | `overlay validate` → **`overlay-check`** | reason 是不是真人写的 | |
 | 内核 `function_id` 不冻产品号段；schema 不写产品域名 | `schema/check.py`（`overlay-check` + `sop-lock`） | 接入方编号好不好 | |
 | Overlay 内核 `.py` 不含产品生产域名 / 产品仓路径 | `python -m forge sop-lock` → **`sop-lock`** | 文档里点名禁令 | fixture 在 `examples/` |
-| push workflow 不跑 `overlay generate`、不设 `OPENAI_API_KEY` | `sop-lock` 扫 `.github/workflows` | dispatch / 人点 generate（未交付） | |
+| push workflow 不跑 `overlay generate`、不设 `OPENAI_API_KEY` | `sop-lock` 扫 `.github/workflows` | 人在本机点 generate；不挂 push | |
 | 不 `workflow_call` 产品构建 workflow；不 checkout 外国产品仓 | `sop-lock` | 改别的仓的构建门 | |
 | reusable `uses:` 不钉浮动 `main`/`master`/`HEAD`/`latest` | `sop-lock` | 接入方仓是否 pin | 相对路径合法 |
 | Overlay push 上不另开旁路 `unittest discover` | `sop-lock` | — | Overlay 单测进 Overlay `product_command`；Forge 单测进 **`forge-check`**；`ci.yml` 的 `unittest` job 放行 |

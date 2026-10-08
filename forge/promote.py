@@ -24,6 +24,7 @@ from forge.apply import (
     normalize_branch,
     parse_repo,
 )
+from forge.check import matching_agent_prefix, resolve_branch
 from forge.submit import (
     BODY_HEADINGS,
     MISSING_SUBMIT_TOKEN,
@@ -156,6 +157,15 @@ def run_promote(
         code, message, _ = lint_title(title, scopes=config.title_scopes)
         if code != EXIT_OK:
             raise ForgeError(EXIT_CONFIG, message)
+        work = Path.cwd() if cwd is None else Path(cwd)
+        branch = resolve_branch(work, environ)
+        prefix = matching_agent_prefix(branch, config.agent_branch_prefixes)
+        if prefix and not dry_run:
+            raise ForgeError(
+                EXIT_CONFIG,
+                "refusing live promote on agent branch "
+                f"{branch} (prefix {prefix}); agents open drafts only; --dry-run is allowed",
+            )
         body = promote_body(commits)
         if dry_run:
             print("dry-run", file=out)

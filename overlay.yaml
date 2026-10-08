@@ -5,10 +5,13 @@ product:
 branches:
   main:
     run: [functional, regression]
+  dev:
+    run: [functional, regression]
   test:
     run: [functional, regression]
   hotfix:
     run: [functional]
+require_command: true
 kinds:
   concurrency: later
   agent: later

@@ -182,6 +182,6 @@ python3 -m forge sop-lock --root .
 
 ## 未知分支
 
-不要为每个 feature 分支新建 Overlay workflow。Overlay CI 仍走**同一条** `overlay-check` 家族。某分支跑哪些 `kind` 写在接入方 `overlay.yaml` 的 `branches:`（git-chain）。未知分支回落 `branches.default` 再到 `main`。产品门按 `forge.yaml` `branches:` 选跑或跳过成功。通用 job `pr-title` 只在 `pull_request` 上跑且不 skip；`forge check` 在 `push` 上锁的是提交 subject，同样不因空 `PR_TITLE` 卸锁。
+不要为每个 feature 分支新建 Overlay workflow。Overlay CI 仍走**同一条** `overlay-check` 家族。某分支跑哪些 `kind` 写在接入方 `overlay.yaml` 的 `branches:`（git-chain）。显式未知分支没有 `branches.default` 时是配置错误（退出 2）；省略 `--branch` 的 push 才在 ref 未配置时用 `main`。产品门按标题或路径选跑；未命中才跳过成功。通用 job `pr-title` 只在 `pull_request` 上跑且不 skip；`forge check` 在 `push` 上锁的是提交 subject，同样不因空 `PR_TITLE` 卸锁。
 
 这与 PR 名分工无关：不要把 `cursor/…-6842` 改成角色前缀，也不要为角色改 workflow 名或 skill 名。

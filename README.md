@@ -57,3 +57,5 @@ Or symlink `skills/*` into `.agents/skills`, `.cursor/skills`, or `.claude/skill
 | [`examples/acme-python/`](examples/acme-python/) | Minimal adopter (not a product fixture) |
 
 Never pin `main`. Never self-merge. Never treat CodeRabbit as the only merge gate.
+
+Overlay reusable `branch` defaults to empty: a pull request uses the base ref; a push uses a configured Overlay branch, then `branches.default`, then `main` only when that git ref is not configured. See [`docs/overlay-ci.md`](docs/overlay-ci.md).

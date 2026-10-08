@@ -66,6 +66,7 @@ class OverlayConfig:
     kinds: dict[str, str]
     never_red_statuses: frozenset[str]
     forbid_hosts: tuple[str, ...]
+    require_command: bool = False
 
 
 @dataclass
@@ -312,6 +313,15 @@ def load_overlay_config(root: Path, issues: list[Issue]) -> OverlayConfig | None
         if extra:
             issues.append(Issue(rel, f"never_red_statuses cannot include {sorted(extra)}"))
 
+    require_raw = data.get("require_command", False)
+    if require_raw is None:
+        require_raw = False
+    if not isinstance(require_raw, bool):
+        issues.append(Issue(rel, "require_command must be true or false"))
+        require_command = False
+    else:
+        require_command = require_raw
+
     hosts_raw = data.get("forbid_hosts") or []
     if hosts_raw is None:
         hosts_raw = []
@@ -332,6 +342,7 @@ def load_overlay_config(root: Path, issues: list[Issue]) -> OverlayConfig | None
         kinds=kinds,
         never_red_statuses=never_ok or frozenset({"blocked"}),
         forbid_hosts=hosts,
+        require_command=require_command,
     )
 
 

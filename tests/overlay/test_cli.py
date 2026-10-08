@@ -26,9 +26,12 @@ class CliTests(unittest.TestCase):
         self.assertIn("--branch", result.stdout)
         self.assertIn("--write-receipt", result.stdout)
 
-    def test_generate_is_not_implemented(self) -> None:
-        result = run_overlay("generate")
-        self.assertNotEqual(result.returncode, 0)
+    def test_generate_help_lists_force(self) -> None:
+        result = run_overlay("generate", "--help")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--inbox", result.stdout)
+        self.assertIn("--force", result.stdout)
+        self.assertNotIn("OPENAI_API_KEY", result.stdout)
 
     def test_review_refuses_without_i_am(self) -> None:
         result = run_overlay("review", "--suite", "my-learning", "--status", "active")

@@ -71,11 +71,13 @@ python -m overlay select --branch <name> --root .
 ```
 
 - `--branch X` 只查 `overlay.yaml` 的 `branches.X` 策略；套件状态读当前 checkout。
-- `--branch` 缺省：环境变量 `GITHUB_BASE_REF` → `GITHUB_REF_NAME` → `main`。
-- 未知分支不是全部丢掉：回落到 `branches.default`（若配置）再到 `main`，并打印一行说明。
+- `--branch` 省略：`GITHUB_BASE_REF`（PR）→ 若 `GITHUB_REF_NAME` 已配置则用它 → 否则 `branches.default` → 否则仅当该 ref 不是已配置分支时用 `main`。
+- 显式名字不在 `branches` 且没有 `branches.default`：退出 2。这是配错，不是空选择。有 `branches.default` 则回落并打印一行。
+- 已配置分支选出 0 个套件：退出 0。
 - 只入选 `status: active` 且 `kind` 在该分支 `run:` 列表里的套件。`blocked` 丢掉且不红。
 - `kinds: later`（以及 `subject: agent`）丢掉。
 - 失败的 `product_command` 才会把 `run` 染红（退出 5）。命中 `forbid_hosts` → 退出 2，命令不启动。
+- `require_command: true` 时，入选套件没有命令 → 退出 2，不执行。缺省 `false`。
 
 ## `run`
 

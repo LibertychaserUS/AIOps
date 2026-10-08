@@ -35,7 +35,7 @@ Overlay 冻字段与对齐方式，不冻某产品的编号或 PRD 树。两棵�
 | 产品 | 开 PR 交 inbox | 往 `inbox/` 丢需求摘录；审 `cases.md` |
 | 开发 | `check` 绿且持有 `FORGE_SUBMIT_TOKEN` 后 `submit` | 只修 `active` 红的部分 |
 | 测试 | 审 PR | 未就绪标 `blocked`（带链接） |
-| Agent | 只开草稿 PR；可 `promote --dry-run` 若人要求 | 可被派去 `generate`（人点）；不能改成 `blocked` |
+| Agent | 只开草稿 PR。live `promote` 在 `agent_branch_prefixes` 上拒绝；人要求时可 `promote --dry-run` | 人点才 `generate`；不能改成 `blocked`，也不能清掉已有的 `blocked` |
 | 接入方管理员 | `apply`、勾 Ruleset、点 merge、`release` | 写 `overlay.yaml`，挂 reusable workflow |
 
 PR 的 review 和 merge 由 **GitHub Ruleset + 有写权限的人** 管理。RBAC：[`rbac.md`](rbac.md)。
@@ -101,13 +101,13 @@ PR 的 review 和 merge 由 **GitHub Ruleset + 有写权限的人** 管理。RBA
 | Agent 政策 | 产品仓 `AGENTS.md`（贴 `forge/agent-policy.md` 文本） |
 | 状态页 | `docs/STATE.md`（生成） |
 
-`check`（不写 GitHub）：overlay validate / cover；pr-title / pr-body 按事件取值（本地未设才 skip；`pull_request` 空白红；`push` lint HEAD 提交）；deny_paths；`suite_guard`（agent 分支把套件改成 `blocked`，或清掉已有 `blocked` → 红）；`docs_sync`；工作本另加 sop-lock / schema / 快单测子集。全量 `unittest` 在 CI job `unittest`。接入方根目录（没有 `overlay/__init__.py`）不打印 workshop-only skip。
+`check`（不写 GitHub）：overlay validate / cover；pr-title / pr-body 按事件取值（本地未设才 skip；`pull_request` 空白红；`push` lint HEAD 提交）；deny_paths；`suite_guard`（agent 分支把套件改成 `blocked`，或清掉已有 `blocked` → 红）；`docs_sync`；工作本另加 sop-lock / schema / 与 CI 相同的 `python -m unittest discover -s tests -t .`。接入方根目录（没有 `overlay/__init__.py`）不跑这套工作本单测，也不打印 workshop-only skip。
 
 `submit`：先 `check`；必须 `FORGE_SUBMIT_TOKEN`（缺则含 `--dry-run` 也红）；推功能枝并开/更新 draft PR；base = `protect[0]`；`--base` 必须在 `protect`。永不 merge，永不 approve，永不 apply。`gh auth login` / `GH_TOKEN` / extraheader / `GITHUB_TOKEN` 都不够。见 [`submit-credential.md`](submit-credential.md)。
 
 `apply`：每个保护分支一条 `forge-protected-<branch>`；另有 `forge-protected-tags`。认证 `FORGE_GITHUB_TOKEN`。`--dry-run` 打印全部 payload。
 
-`promote`：需要 `FORGE_SUBMIT_TOKEN`。已有 open PR（head 与 base 都对上）则更新，否则创建（非 draft）。标题 `chore(ci/agent):`，两扇产品门都跑。永不 merge。
+`promote`：需要 `FORGE_SUBMIT_TOKEN`。当前 git 分支命中 `agent_branch_prefixes` 时 **live 拒绝**（退出 3）；`--dry-run` 仍可。人 / ops 分支：已有 open PR（head 与 base 都对上）则更新，否则创建（非 draft）。标题 `chore(ci/agent):`，两扇产品门都跑。永不 merge。分工是 GitHub Ruleset + 人合入；agent 只开草稿。
 
 进保护分支默认 **squash 封顶**；合完 **换底**。不要从即将被压掉的旧头再叠。
 
@@ -170,17 +170,37 @@ forbid_hosts:
 
 `forbid_hosts`：只是命令文本的字符串匹配，防手滑，不是安全边界。
 
-`select`：`--branch X` 只查 `branches.X`；状态读当前 checkout。缺省：`GITHUB_BASE_REF` → `GITHUB_REF_NAME` → `main`。未知分支回落 `branches.default` 再到 `main`，并打印一行说明。
+### 4.6 `select`
 
-`run`：`bash -c`；`--timeout`；回执记 `exit`、`duration_s`、命令 sha256。命令命中 `forbid_hosts` → 退出 2，不启动。仅 `active` 命令非 0 使 job 红。
+`--branch X` 只查 `branches.X`；状态读当前 checkout。显式名字不在 `overlay.yaml` 且没有 `branches.default` → **退出 2**（配置错误，不是空选择成功）。有 `branches.default` 则回落并打印一行。已配置的分支选出 0 个套件仍是退出 0。
+
+`--branch` 省略时：`GITHUB_BASE_REF`（PR 基线）→ 若 `GITHUB_REF_NAME` 是已配置分支则用它 → 否则 `branches.default` → 否则仅当该 ref **不是**已配置分支时用 `main`。不要把未知 git 分支当成「没选出套件所以绿」。
+
+假绿与产品门同一句，见 [`ci-design.md`](ci-design.md)：跳过成功只在 diff 不可能影响该门时成立；缺分支或该跑的套件没有命令是配置，不是成功。
+
+### 4.7 `run` 与 `require_command`
+
+`bash -c`；`--timeout`；回执记 `exit`、`duration_s`、命令 sha256。命令命中 `forbid_hosts` → 退出 2，不启动。仅 `active` 命令非 0 使 job 红。
+
+`overlay.yaml` 可选 `require_command: true|false`（缺省 **false**，所以既有接入方与 Learning Guide fixture 仍把缺命令记成 `skipped_no_command`）。为 true 时，入选套件没有 `product_command` → 退出 2，**不执行**。`blocked` 不入选，不因此变红。工作本在每条 `active` 套件都已有命令时才设 true。
 
 `migrate`：见 [`migration-v2.md`](migration-v2.md)。
 
-reusable：pin tag/SHA。`setup_command` 在 caller checkout 装产品工具链。`--branch` 缺省 `github.base_ref` / `github.ref_name`。运行时示例（Node / Python / Go / Java）见合入后的 `overlay-ci.md`。
+reusable：pin tag/SHA。`setup_command` 在 caller checkout 装产品工具链。`branch` 留空时按 §4.6 解析，不把功能枝名字当成显式 `--branch`。运行时示例（Node / Python / Go / Java）见合入后的 `overlay-ci.md`。
 
 回执：`wrote_by` 仅 `select` | `run`。模型不得写。无回执的 `run` 退出 2。
 
-`generate`（未交付）是唯一出站 LLM 的命令。禁止 `on: push` 跑 generate。输出必须 `status: active` 的草稿由人经 PR 合入；未就绪人手改 `blocked`。
+### 4.8 `generate`
+
+`python -m overlay generate --inbox inbox/<id>.md` 是唯一出站 LLM 的命令。禁止 `on: push` 跑它，workflow 不设模型密钥。人点或本机调用；输出经 PR 合入。
+
+- 读 `prompts/extract.md` 与 `prompts/generate-cases.md`。各文件 front matter 的 `temperature`（本仓为 `0`）写进 chat completion。HTTP 用标准库 `urllib`。
+- 缺 `OPENAI_API_KEY`（或 `OPENROUTER_API_KEY`）退出 **3**。解析失败**什么都不写**。
+- 写出 `suites/<id>/suite.yaml` + `cases.md`：`schema: overlay-suite/v2`，`status: active`，不写已删除的审核字段。
+- 目标已是 `blocked`：拒绝，**`--force` 也不清** `blocked`。没有把 `blocked` 改回 `active` 的路径。
+- 目标已存在且不是 `blocked`：无 `--force` 则拒绝；`--force` 覆盖并仍写 `active`。
+
+`review`：`--i-am` 非空，且当前 git 分支不命中 `forge.yaml` 的 `agent_branch_prefixes`，才写 `suite.yaml`。没有 `forge.yaml`、或分支对不上，拒绝（退出 2）。人枝可把套件写成 `blocked`（`--reason` 须含链接或登记编号）或 `active`（`--reason` 非空）。agent 枝拒绝，不能靠这条命令清掉 `blocked`。
 
 ---
 
@@ -228,4 +248,4 @@ CHANGELOG.md
 
 ## 9. 切片
 
-第一刀已能装到任意仓：Overlay validate/select/run/receipt；Forge apply/check/submit。v2 加上 migrate、按分支 Ruleset、promote、STATE、docs_sync、acme 示例。`generate` 仍是后一刀。
+第一刀已能装到任意仓：Overlay validate/select/run/receipt；Forge apply/check/submit。v2 加上 migrate、按分支 Ruleset、promote、STATE、docs_sync、acme 示例。`generate` 与 `review` 写路径按 §4.8，不挂在 push 上。

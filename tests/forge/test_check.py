@@ -70,6 +70,36 @@ class WorkshopCheckTests(unittest.TestCase):
         self.assertEqual(code, EXIT_OK, stderr.getvalue())
         self.assertIn("forge check: ok", stdout.getvalue())
 
+    def test_workshop_unittest_args_match_ci_discover(self) -> None:
+        from forge.check import CHECK_ENV, WORKSHOP_UNITTEST_ARGS, workshop_unittest_args
+
+        if os.environ.get(CHECK_ENV):
+            self.skipTest("nested forge check already owns the discover process")
+        self.assertEqual(workshop_unittest_args(ROOT), WORKSHOP_UNITTEST_ARGS)
+        self.assertEqual(WORKSHOP_UNITTEST_ARGS, ("discover", "-s", "tests", "-t", ".", "-q"))
+        seen: dict[str, tuple[str, ...]] = {}
+
+        def _runner(root: Path, modules, stdout, stderr) -> int:
+            del root, stdout, stderr
+            seen["modules"] = tuple(modules)
+            return EXIT_OK
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        code = run_check(
+            ROOT,
+            title=EXAMPLE,
+            stdout=stdout,
+            stderr=stderr,
+            environ={},
+            run_unittests=True,
+            unittest_runner=_runner,
+        )
+        self.assertEqual(code, EXIT_OK, stderr.getvalue())
+        self.assertEqual(seen["modules"], WORKSHOP_UNITTEST_ARGS)
+        self.assertIn("unittest", stdout.getvalue())
+        self.assertNotIn("unittest (fast)", stdout.getvalue())
+
 
 class TitleStepTests(unittest.TestCase):
     def test_bad_title_is_red(self) -> None:
@@ -281,7 +311,7 @@ class SkipAndFailTests(unittest.TestCase):
             self.assertIn("pr-title", out)
             self.assertNotIn("schema/check.py", out)
             self.assertNotIn("sop-lock", out)
-            self.assertNotIn("unittest (fast)", out)
+            self.assertNotIn("unittest", out)
             self.assertNotIn("no workshop tests/", out)
             self.assertIn("ok", out)
 

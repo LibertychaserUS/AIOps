@@ -59,19 +59,40 @@ def git_sha(root: Path) -> str:
     return "unknown"
 
 
-def default_select_branch(environ: Mapping[str, str] | None = None) -> str:
+def resolve_omitted_branch(
+    config: OverlayConfig, environ: Mapping[str, str] | None = None
+) -> tuple[str, str | None]:
+    """Branch when --branch is omitted.
+
+    Pull request: GITHUB_BASE_REF. Push to a configured branch: that name.
+    Otherwise branches.default, else main only when the ref is not configured.
+    """
     env = os.environ if environ is None else environ
-    for key in ("GITHUB_BASE_REF", "GITHUB_REF_NAME"):
-        value = (env.get(key) or "").strip()
-        if value:
-            return value
-    return "main"
+    base = (env.get("GITHUB_BASE_REF") or "").strip()
+    if base:
+        return base, None
+    ref = (env.get("GITHUB_REF_NAME") or "").strip()
+    if ref and ref in config.branches:
+        return ref, None
+    if "default" in config.branches:
+        label = ref or "(unset)"
+        return "default", f"branch {label!r} is not configured; using branches.default"
+    if "main" in config.branches and (not ref or ref not in config.branches):
+        if ref:
+            return "main", f"branch {ref!r} is not configured; using main"
+        return "main", None
+    return ref or "main", None
 
 
 def resolve_branch_policy(
     config: OverlayConfig, branch: str
 ) -> tuple[str, frozenset[str] | None, str | None]:
-    """Look up overlay.yaml branches.<name>; unknown falls back to default then main."""
+    """Look up overlay.yaml branches.<name>.
+
+    A missing name with branches.default falls back and prints a note.
+    A missing name with no default is a contract error (kinds is None).
+    main is not a silent fallback for an explicit unknown name.
+    """
     if branch in config.branches:
         return branch, config.branches[branch], None
     if "default" in config.branches:
@@ -80,13 +101,31 @@ def resolve_branch_policy(
             config.branches["default"],
             f"unknown branch {branch!r}; falling back to branches.default",
         )
-    if "main" in config.branches:
-        return (
-            "main",
-            config.branches["main"],
-            f"unknown branch {branch!r}; falling back to main",
-        )
-    return branch, None, f"unknown branch {branch!r}; no branches.default or main"
+    return (
+        branch,
+        None,
+        f"unknown branch {branch!r}; not in overlay.yaml and no branches.default",
+    )
+
+
+def prepare_branch(
+    config: OverlayConfig,
+    branch: str | None,
+    environ: Mapping[str, str] | None = None,
+) -> tuple[str | None, list[str]]:
+    """Resolve the branch to select. None means contract error (notes explain)."""
+    notes: list[str] = []
+    requested = (branch or "").strip()
+    if not requested:
+        requested, omit_note = resolve_omitted_branch(config, environ)
+        if omit_note:
+            notes.append(omit_note)
+    name, kinds, policy_note = resolve_branch_policy(config, requested)
+    if kinds is None:
+        return None, [policy_note or f"unknown branch {requested!r}"]
+    if policy_note:
+        notes.append(policy_note)
+    return name, notes
 
 
 def _effective_status(suite: SuiteDoc) -> str:
@@ -197,10 +236,11 @@ def selection_evidence(suites: list[SuiteDoc]) -> list[dict[str, object]]:
 
 def run_select(
     root: Path,
-    branch: str,
+    branch: str | None,
     write_receipt_dir: Path | None = None,
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
+    environ: Mapping[str, str] | None = None,
 ) -> int:
     out = sys.stdout if stdout is None else stdout
     err = sys.stderr if stderr is None else stderr
@@ -211,7 +251,14 @@ def run_select(
         print("overlay select: validate failed", file=err)
         return EXIT_CONTRACT
 
-    selection = select_suites(suites, config, branch)
+    effective, notes = prepare_branch(config, branch, environ)
+    if effective is None:
+        for note in notes:
+            print(f"overlay select: {note}", file=err)
+        return EXIT_CONTRACT
+    for note in notes:
+        print(f"overlay select: {note}", file=err)
+    selection = select_suites(suites, config, effective)
     if selection.fallback_note:
         print(f"overlay select: {selection.fallback_note}", file=err)
     assert_errors = assert_selection(selection)
@@ -225,7 +272,7 @@ def run_select(
         receipt = build_receipt(
             wrote_by="select",
             git_sha=sha,
-            branch=branch,
+            branch=effective,
             events=selection_events(selection),
             evidence=selection_evidence(suites),
         )

@@ -24,9 +24,8 @@ from forge.title import resolve_spec_body, resolve_spec_title, run_pr_title
 EXIT_CHECK = 2
 CHECK_ENV = "FORGE_CHECK_RUNNING"
 
-# Title grammar only. Never include test_submit / test_check (they call check).
-FAST_UNITTEST_MODULES = ("tests.forge.test_title",)
-FAST_UNITTEST_FILES = (Path("tests") / "forge" / "test_title.py",)
+# Same command as the CI job `unittest`. Adopter roots never reach this.
+WORKSHOP_UNITTEST_ARGS = ("discover", "-s", "tests", "-t", ".", "-q")
 
 OverlayFn = Callable[[Path, TextIO, TextIO], int]
 SchemaFn = Callable[[Path, TextIO, TextIO], int]
@@ -64,12 +63,11 @@ def schema_check_exists(root: Path) -> bool:
     return (root / "schema" / "check.py").is_file()
 
 
-def workshop_fast_test_modules(root: Path) -> list[str]:
-    modules: list[str] = []
-    for rel, module in zip(FAST_UNITTEST_FILES, FAST_UNITTEST_MODULES):
-        if (root / rel).is_file():
-            modules.append(module)
-    return modules
+def workshop_unittest_args(root: Path) -> tuple[str, ...] | None:
+    """Full discover, matching CI. None when this root has no workshop tests/."""
+    if not (root / "tests").is_dir():
+        return None
+    return WORKSHOP_UNITTEST_ARGS
 
 
 def _last_line(text: str) -> str:
@@ -505,7 +503,7 @@ def _default_unittest_runner(
         pythonpath = pythonpath + os.pathsep + existing
     env["PYTHONPATH"] = pythonpath
     proc = subprocess.run(
-        [sys.executable, "-m", "unittest", *modules, "-q"],
+        [sys.executable, "-m", "unittest", *modules],
         cwd=str(root),
         capture_output=True,
         text=True,
@@ -649,13 +647,13 @@ def run_check(
                 steps.append(Step("schema/check.py", "ok", _last_line(buf_out.getvalue())))
 
         nested = bool(env.get(CHECK_ENV)) or bool(os.environ.get(CHECK_ENV))
-        modules = workshop_fast_test_modules(root)
+        modules = workshop_unittest_args(root)
         if not run_unittests:
-            steps.append(Step("unittest (fast)", "skip", "disabled"))
+            steps.append(Step("unittest", "skip", "disabled"))
         elif nested:
-            steps.append(Step("unittest (fast)", "skip", "already inside forge check"))
+            steps.append(Step("unittest", "skip", "already inside forge check"))
         elif not modules:
-            steps.append(Step("unittest (fast)", "skip", "no workshop tests/"))
+            steps.append(Step("unittest", "skip", "no workshop tests/"))
         else:
             unit_fn = _default_unittest_runner if unittest_runner is None else unittest_runner
             buf_out = io.StringIO()
@@ -663,9 +661,9 @@ def run_check(
             code = unit_fn(root, modules, buf_out, buf_err)
             _print_captured(buf_err.getvalue(), err)
             if code != EXIT_OK:
-                steps.append(Step("unittest (fast)", "fail", f"exit {code}"))
+                steps.append(Step("unittest", "fail", f"exit {code}"))
             else:
-                steps.append(Step("unittest (fast)", "ok", " ".join(modules)))
+                steps.append(Step("unittest", "ok", " ".join(modules)))
 
     _print_checklist(steps, out)
     failed = [step for step in steps if step.status == "fail"]
