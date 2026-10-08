@@ -9,10 +9,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from forge import EXIT_OK
 from forge.__main__ import main
 from forge.check import EXIT_CHECK, deny_paths_step, path_is_denied, run_check, suite_guard_step
 from forge.title import EXAMPLE
+
+from forge import EXIT_OK
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -632,6 +633,33 @@ class SuiteGuardCheckTests(unittest.TestCase):
             code, out = _check(root, {"GITHUB_HEAD_REF": "cursor/block"})
             self.assertEqual(code, EXIT_CHECK, out)
             self.assertIn("agent branch cursor/block", out)
+
+    def test_agent_branch_clearing_blocked_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product_with_suite(root)
+            (root / "suites" / "login" / "suite.yaml").write_text(BLOCKED_SUITE, encoding="utf-8")
+            _git(root, "add", "-A")
+            _git(root, "commit", "-m", "human blocks")
+            _git(root, "checkout", "-b", "cursor/unblock")
+            (root / "suites" / "login" / "suite.yaml").write_text(ACTIVE_SUITE, encoding="utf-8")
+            code, out = _check(root)
+            self.assertEqual(code, EXIT_CHECK, out)
+            self.assertIn("blocked -> active", out)
+            self.assertIn("must not set or clear blocked", out)
+
+    def test_human_branch_clearing_blocked_is_green(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product_with_suite(root)
+            (root / "suites" / "login" / "suite.yaml").write_text(BLOCKED_SUITE, encoding="utf-8")
+            _git(root, "add", "-A")
+            _git(root, "commit", "-m", "human blocks")
+            _git(root, "checkout", "-b", "review/unblock")
+            (root / "suites" / "login" / "suite.yaml").write_text(ACTIVE_SUITE, encoding="utf-8")
+            code, out = _check(root)
+            self.assertEqual(code, EXIT_OK, out)
+            self.assertIn("human branch", out)
 
     def test_already_blocked_on_main_stays_green_for_agent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

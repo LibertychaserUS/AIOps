@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 import re
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable, TextIO
+from typing import Any, TextIO
 
 import yaml
 

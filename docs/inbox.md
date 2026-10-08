@@ -135,7 +135,7 @@ overlay generate --inbox inbox/<id>.md
 
 | 动作 | 改 inbox？ | 改 suite？ |
 |---|---|---|
-| 产品改需求摘录 | 是（新 PR） | 否；需要则重新 generate（`--force-draft`） |
+| 产品改需求摘录 | 是（新 PR） | 否；需要则重新 generate（`--force`） |
 | generate | 否 | 是，只许变成/保持 `active` 草稿 |
 | 人审 blocked | 否 | 是 |
 | select / run | 否 | 否 |

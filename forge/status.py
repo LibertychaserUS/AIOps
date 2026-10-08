@@ -5,11 +5,11 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from forge import EXIT_OK, TAG_RULESET_NAME, branch_ruleset_name
+from forge import EXIT_OK
 from forge.apply import (
     DEFAULT_API,
     ForgeError,
@@ -18,7 +18,6 @@ from forge.apply import (
     build_payloads,
     classify_ruleset,
     expected_ruleset_names,
-    find_named_ruleset,
     load_config,
     parse_repo,
     resolve_token,
@@ -77,7 +76,7 @@ def scan_ci_job_names(root: Path) -> list[str]:
     for path in sorted(list(folder.glob("*.yml")) + list(folder.glob("*.yaml"))):
         try:
             data = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except Exception:
+        except (OSError, yaml.YAMLError):
             continue
         jobs = data.get("jobs") if isinstance(data, dict) else None
         if not isinstance(jobs, dict):
@@ -143,7 +142,7 @@ def render_status_lines(
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def render_state_markdown(

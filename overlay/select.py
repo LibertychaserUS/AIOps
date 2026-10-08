@@ -5,9 +5,10 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, TextIO
+from typing import TextIO
 
 from overlay import EXIT_CONTRACT, EXIT_OK, EXIT_SELECT_ASSERT
 from overlay.receipt import build_receipt, receipt_filename, write_receipt
@@ -141,7 +142,7 @@ def assert_selection(selection: Selection) -> list[str]:
     if not bad:
         return []
     return [
-        f"select assertion: draft/blocked present in selected: {', '.join(bad)}"
+        f"select assertion: blocked or removed status present in selected: {', '.join(bad)}"
     ]
 
 

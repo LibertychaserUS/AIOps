@@ -246,9 +246,11 @@ def _suite_status(text: str | None) -> str:
         return ""
     try:
         import yaml
-
+    except ImportError:
+        return ""
+    try:
         data = yaml.safe_load(text)
-    except Exception:
+    except yaml.YAMLError:
         return ""
     if not isinstance(data, dict):
         return ""
@@ -262,7 +264,7 @@ def _show_at(root: Path, base: str, rel: str) -> str | None:
 
 
 def suite_guard_step(root: Path, environ: Mapping[str, str] | None = None) -> Step:
-    """Agent branches must not flip suite status to blocked. Humans are recorded."""
+    """Agent branches must not set or clear blocked. Humans are recorded."""
     forge_yaml = root / "forge.yaml"
     if not forge_yaml.is_file():
         return Step("suite_guard", "skip", "no forge.yaml")
@@ -287,15 +289,21 @@ def suite_guard_step(root: Path, environ: Mapping[str, str] | None = None) -> St
         new_path = root / rel
         new_text = new_path.read_text(encoding="utf-8") if new_path.is_file() else None
         old_text = _show_at(root, base, rel) if base else None
-        new_status = _suite_status(new_text)
-        old_status = _suite_status(old_text)
+        new_present = new_text is not None
+        old_present = old_text is not None
+        new_status = _suite_status(new_text) or ("active" if new_present else "")
+        old_status = _suite_status(old_text) or ("active" if old_present else "")
         if new_status == "blocked" and old_status != "blocked":
             hits.append(f"{rel} (status {old_status or 'none'} -> blocked)")
+        elif old_status == "blocked" and new_status != "blocked":
+            shown = new_status or "deleted"
+            hits.append(f"{rel} (status blocked -> {shown})")
     if hits:
         return Step(
             "suite_guard",
             "fail",
-            f"agent branch {branch} must not set status blocked: {', '.join(hits)}; a human writes blocked",
+            "agent branch "
+            f"{branch} must not set or clear blocked: {', '.join(hits)}; a human writes that status",
         )
     return Step("suite_guard", "ok", f"suite.yaml edits do not introduce blocked; agent branch {branch}")
 

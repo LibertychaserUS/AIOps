@@ -6,7 +6,6 @@ from pathlib import Path
 
 from tests.overlay.support import copy_lg, run_overlay, write_generic_root
 
-
 MIGRATE_HINT = "python -m overlay migrate --root ."
 
 

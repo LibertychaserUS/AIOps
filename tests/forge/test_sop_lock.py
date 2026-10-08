@@ -7,9 +7,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from forge import EXIT_OK
 from forge.__main__ import main
 from forge.sop_lock import EXIT_SOP, collect_issues, run_sop_lock
+
+from forge import EXIT_OK
 
 ROOT = Path(__file__).resolve().parents[2]
 

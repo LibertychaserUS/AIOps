@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `submit` 更新已有 PR 时按 **head 且 base** 匹配。同一功能枝上指向另一条保护分支的 open PR 不会被 PATCH。
+- `promote` 标题在 `title.scopes` 允许时用 `chore(ci/agent):`，两扇产品门都跑。不再用列表第一项（工作本会变成只跑 Overlay），也不再使用过不了 `pr-title` 的 `release/agent`。`scopes: any` 同样用 `ci/agent`。见 [ADR 0003](docs/adr/0003-dev-main-promotion.md) 修订。
+- `suite_guard`：agent 分支不得把已有 `blocked` 改回 `active` 或删掉。人枝仍只记录。
+- Python 内核增加 ruff 门（`tests/style/test_ruff.py`，随 `unittest` 跑）。没有新的 GitHub job 名。
+- Overlay `select` 断言文案不再把已删除的 `draft` 写成现行状态。
+
 ### Changed
 
 - 冷启动与 skill 的当前 Forge 针改为已发布的 `forge-v1.1.3`。`overlay-v2.0.0` peel 仍是 Forge 1.1.0（空根 `check` 假绿），必须第二针。不要用 GitHub Release Latest 当针。

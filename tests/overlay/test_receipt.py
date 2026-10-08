@@ -6,8 +6,8 @@ import unittest
 from pathlib import Path
 
 import yaml
-
 from overlay.receipt import ALLOWED_WROTE_BY, ReceiptError, build_receipt
+
 from tests.overlay.support import LG, REPO, run_overlay
 
 HTTP_MODULES = {

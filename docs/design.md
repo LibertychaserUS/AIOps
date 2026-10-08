@@ -95,19 +95,19 @@ PR 的 review 和 merge 由 **GitHub Ruleset + 有写权限的人** 管理。RBA
 | 对象 | 存哪 |
 |---|---|
 | 保护分支与规则 | 产品仓 `forge.yaml` → `protect` + `branches:` |
-| Agent 分支前缀 | `agent_branch_prefixes`（默认含 `cursor/`、`copilot/`、`agent/`） |
+| Agent 分支前缀 | `agent_branch_prefixes`（缺省 `cursor/`、`copilot/`；示例可再加 `agent/`） |
 | 禁止改的路径 | `deny_paths` |
 | CODEOWNERS | 产品仓 `.github/CODEOWNERS` |
 | Agent 政策 | 产品仓 `AGENTS.md`（贴 `forge/agent-policy.md` 文本） |
 | 状态页 | `docs/STATE.md`（生成） |
 
-`check`（不写 GitHub）：overlay validate / cover；pr-title / pr-body 按事件取值（本地未设才 skip；`pull_request` 空白红；`push` lint HEAD 提交）；deny_paths；`suite_guard`（agent 分支把套件改成 `blocked` → 红）；`docs_sync`；工作本另加 sop-lock / schema / unittest。接入方根目录（没有 `overlay/__init__.py`）不打印 workshop-only skip。
+`check`（不写 GitHub）：overlay validate / cover；pr-title / pr-body 按事件取值（本地未设才 skip；`pull_request` 空白红；`push` lint HEAD 提交）；deny_paths；`suite_guard`（agent 分支把套件改成 `blocked`，或清掉已有 `blocked` → 红）；`docs_sync`；工作本另加 sop-lock / schema / 快单测子集。全量 `unittest` 在 CI job `unittest`。接入方根目录（没有 `overlay/__init__.py`）不打印 workshop-only skip。
 
 `submit`：先 `check`；必须 `FORGE_SUBMIT_TOKEN`（缺则含 `--dry-run` 也红）；推功能枝并开/更新 draft PR；base = `protect[0]`；`--base` 必须在 `protect`。永不 merge，永不 approve，永不 apply。`gh auth login` / `GH_TOKEN` / extraheader / `GITHUB_TOKEN` 都不够。见 [`submit-credential.md`](submit-credential.md)。
 
 `apply`：每个保护分支一条 `forge-protected-<branch>`；另有 `forge-protected-tags`。认证 `FORGE_GITHUB_TOKEN`。`--dry-run` 打印全部 payload。
 
-`promote`：需要 `FORGE_SUBMIT_TOKEN`。已有 open PR 则更新，否则创建（非 draft）。永不 merge。
+`promote`：需要 `FORGE_SUBMIT_TOKEN`。已有 open PR（head 与 base 都对上）则更新，否则创建（非 draft）。标题 `chore(ci/agent):`，两扇产品门都跑。永不 merge。
 
 进保护分支默认 **squash 封顶**；合完 **换底**。不要从即将被压掉的旧头再叠。
 

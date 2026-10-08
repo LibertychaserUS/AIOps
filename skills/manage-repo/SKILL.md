@@ -25,7 +25,7 @@ metadata:
 2. **Required checks** 是 PR 上的 **CI job 名**。**本工作本**（仅 AIOps）：`overlay-check`、`pr-title`、`forge-check`、`sop-lock`、`unittest`。接入方用自己仓的 job 名（最小例 `examples/acme-python/forge.yaml`），不要抄工作本这一行。`dev` 无人批；`main` 要 1 个 approvals + CODEOWNERS（见 `branches:`）。**通用检查 ≠ 产品门。**
 3. **Merge** 只在那些检查绿、审批够。默认 squash：**封顶**再压，压完**换底**。不要让 agent merge。不要替开发 `forge submit`（那是 `$dev-pr`）。
 4. **Promote：** `dev` → `main` 由 `forge promote --repo O/N --from dev --to main` 开 PR。人批 + 合。命令本身永不 merge。
-5. **Overlay `blocked`** 是人手改 yaml。Agent 不得在 agent 分支上做（`suite_guard` 红）。`blocked` 必须有带链接或编号的 `blocked_reason`。不要写已删除的旧字段。改完：`python -m overlay validate --root .`。
+5. **Overlay `blocked`** 是人手改 yaml。Agent 不得在 agent 分支上写成 `blocked`，也不得清掉已有的 `blocked`（`suite_guard` 红）。`blocked` 必须有带链接或编号的 `blocked_reason`。不要写已删除的旧字段。改完：`python -m overlay validate --root .`。
 6. **发布：** `python -m forge release --repo OWNER/NAME --products overlay --version 2.0.0 --dry-run` 与 `--products forge --version 1.1.3` 分两次（`--products both` 要求两产品 `__version__` 相同）。CHANGELOG 必须有对应 `## [overlay-X.Y.Z]` / `## [forge-X.Y.Z]`。不要 force-move 已有针。不要把 Latest 徽章当针。人点 `release` workflow，agent 不自动打 tag。
 
 ## Never

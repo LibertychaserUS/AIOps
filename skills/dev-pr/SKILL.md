@@ -25,7 +25,7 @@ PYTHONPATH=../AIOps python3 -m forge check --root . --title "feat(overlay/agent)
 
 2. **Open a draft PR onto `protect[0]`**（通常 `dev`）。`forge submit` 即使 `--dry-run` 也要 `FORGE_SUBMIT_TOKEN`。不要推保护分支。不要 merge。`--base` 必须在 `protect`。
 3. **Do not live `forge apply`.** 不要改 Ruleset、required checks、产品仓已有的构建 workflow。
-4. **Overlay：不要把 `status` 改成 `blocked`。** `suite_guard` 在 agent 分支上会红。人改走 `$manage-repo`。
+4. **Overlay：不要把 `status` 改成 `blocked`，也不要清掉已有的 `blocked`。** `suite_guard` 在 agent 分支上会红。人改走 `$manage-repo`。
 5. **Title** 过 `python -m forge pr-title`。本工作本 `title.scopes` 是列表（`product/actor`）；接入方若写 `any` 则只查 Conventional Commits 语法。正文六节：`做了什么` `为什么` `动了哪些门` `怎么验` `不做什么` `分工`。进保护分支默认 squash：**封顶**再压，压完**换底**。
 6. **Promote 不是 submit。** `dev` → `main` 用 `forge promote`，仍然不 merge。
 7. 需要状态页时：`python -m forge status --repo OWNER/NAME --root . --write docs/STATE.md`。改 `forge/**` 时按 `docs_sync` 同步 CHANGELOG / 配置文档。
@@ -47,7 +47,7 @@ PYTHONPATH=../AIOps python3 -m forge check --root . --title "feat(overlay/agent)
 PYTHONPATH=../AIOps python3 -m forge submit --repo OWNER/NAME --title "feat(overlay/agent): add cover triad" --dry-run
 ```
 
-非法：`git push origin main`。非法：check 红还 submit。非法：agent 分支写 `status: blocked`。
+非法：`git push origin main`。非法：check 红还 submit。非法：agent 分支写 `status: blocked`，或把 `blocked` 改回 `active`。
 
 ## Performance Notes
 

@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from overlay.select import Selection, SuiteDoc, assert_selection
+
 from tests.overlay.support import GENERIC_SUITE, LG, REPO, copy_lg, run_overlay, write_generic_root
 
 

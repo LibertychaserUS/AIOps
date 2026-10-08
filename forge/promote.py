@@ -30,16 +30,24 @@ from forge.submit import (
     REQUIRE_SUBMIT_TOKEN,
     GitRunner,
     default_git_runner,
-    pr_body,
     resolve_submit_token,
 )
 from forge.title import lint_title
 
 
 def promote_scope(scopes: str | list[str] | None) -> str:
+    """Title scope for a promote PR.
+
+    ``ci/agent`` is inside the closed grammar and ``ci`` selects both product
+    gates. A closed ``title.scopes`` list that does not allow it keeps the
+    first entry. ``scopes: any`` also uses ``ci/agent`` (legal Conventional
+    Commits; not a free-form ``release/`` product).
+    """
     if isinstance(scopes, list) and scopes:
+        if "ci/agent" in scopes:
+            return "ci/agent"
         return scopes[0]
-    return "release/agent"
+    return "ci/agent"
 
 
 def promote_title(from_branch: str, to_branch: str, short_sha: str, scopes: str | list[str] | None) -> str:

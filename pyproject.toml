@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "aiops"
 version = "1.0.1"
-description = "Forge + Overlay. Pin published overlay-v1.0.1 and forge-v1.0.1."
+description = "Forge + Overlay workshop. Pin published tags, not floating main."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -18,3 +18,15 @@ forge = "forge.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["overlay", "forge"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["forge", "overlay", "schema", "tests", "scripts"]
+
+[tool.ruff.lint]
+# Syntax, pyflakes, isort, py312 upgrades. CLI print stays.
+select = ["E4", "E7", "E9", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["E402"]

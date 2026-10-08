@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import unittest
 
-from forge import SUBMIT_TOKEN_ENV
 from forge.credential import (
     WriteCredential,
     probe_write_credential,
     redact_secrets,
 )
+
+from forge import SUBMIT_TOKEN_ENV
 
 
 class ProbeTests(unittest.TestCase):

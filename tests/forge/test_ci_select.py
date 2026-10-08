@@ -8,10 +8,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from forge import EXIT_OK
 from forge.__main__ import main
 from forge.apply import load_config
 from forge.ci_select import decide, load_ci_config, path_matches
+
+from forge import EXIT_OK
 
 ROOT = Path(__file__).resolve().parents[2]
 
