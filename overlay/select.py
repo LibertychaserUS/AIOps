@@ -277,7 +277,7 @@ def run_select(
             evidence=selection_evidence(suites),
         )
         run_id = os.environ.get("GITHUB_RUN_ID", "").strip() or None
-        filename = receipt_filename(branch, sha, run_id)
+        filename = receipt_filename(effective, sha, run_id)
         path = write_receipt(write_receipt_dir, receipt, filename)
         print(f"overlay select: wrote {path.as_posix()}", file=err)
 

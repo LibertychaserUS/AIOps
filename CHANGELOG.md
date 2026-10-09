@@ -14,6 +14,7 @@
 
 ### Fixed
 
+- `overlay select` / `run` 写回执时用解析后的分支名（省略 `--branch`：`GITHUB_BASE_REF`，否则已配置的 ref，否则 `branches.default`，再否则 `main`）。文件名不再收到 `None`。
 - live `forge promote` 在 `agent_branch_prefixes`（`cursor/`、`copilot/`、`agent/`）上拒绝；`--dry-run` 仍可。人 / ops 分支不变。
 - 工作本 `forge check` 跑与 CI 相同的 `python -m unittest discover -s tests -t .`。没有 `overlay/__init__.py` 的根不跑这套单测。
 - `ci-select`：产品门在标题选中 **或** 路径命中时跑。标题 `docs` 不再挡住碰到 `forge/` / `overlay/` 的 diff。未声明检查名仍 skip-success。

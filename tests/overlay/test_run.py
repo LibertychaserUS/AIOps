@@ -265,6 +265,34 @@ class RunTests(unittest.TestCase):
         self.assertEqual(selected, ["overlay-select"])
         self.assertNotIn("forge-apply", result.stdout)
 
+    def test_omitted_branch_run_receipt_uses_resolved_name(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = write_generic_root(Path(tmp))
+            dest = Path(tmp) / "receipts"
+            result = run_overlay(
+                "run",
+                "--root",
+                str(root),
+                "--write-receipt",
+                str(dest),
+                "--workdir",
+                str(root),
+                env={
+                    "GITHUB_BASE_REF": "",
+                    "GITHUB_REF_NAME": "cursor/not-configured",
+                    "GITHUB_RUN_ID": "",
+                    "GITHUB_SHA": "abc123def4567890",
+                },
+            )
+            self.assertEqual(result.returncode, EXIT_OK, result.stderr + result.stdout)
+            self.assertIn("branches.default", result.stderr)
+            files = list(dest.glob("*.yaml"))
+            self.assertEqual(len(files), 1, files)
+            self.assertTrue(files[0].name.startswith("default-run-"), files[0].name)
+            data = yaml.safe_load(files[0].read_text(encoding="utf-8"))
+            self.assertEqual(data["branch"], "default")
+            self.assertEqual(data["wrote_by"], "run")
+
     def test_run_module_has_no_http_client(self) -> None:
         path = REPO / "overlay" / "run.py"
         tree = ast.parse(path.read_text(encoding="utf-8"))

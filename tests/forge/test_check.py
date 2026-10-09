@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import subprocess
 import tempfile
@@ -141,22 +142,37 @@ class TitleStepTests(unittest.TestCase):
         self.assertIn("pr-body", stdout.getvalue())
 
     def test_push_blank_pr_title_lints_head_commit(self) -> None:
-        stdout = io.StringIO()
-        stderr = io.StringIO()
-        code = run_check(
-            ROOT,
-            title=None,
-            stdout=stdout,
-            stderr=stderr,
-            environ={"PR_TITLE": "", "PR_BODY": "  ", "GITHUB_EVENT_NAME": "push"},
-            run_unittests=False,
-            overlay_validate=_ok,
-            overlay_cover=_ok,
-            schema_runner=_ok,
-        )
+        # The subject comes from the push event, not this checkout's HEAD.
+        # pull_request CI detaches at a "Merge … into …" commit, which is not
+        # a Conventional Commits title.
+        with tempfile.TemporaryDirectory() as tmp:
+            event = Path(tmp) / "event.json"
+            event.write_text(
+                json.dumps({"head_commit": {"message": f"{EXAMPLE}\n\nbody"}}),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            code = run_check(
+                ROOT,
+                title=None,
+                stdout=stdout,
+                stderr=stderr,
+                environ={
+                    "PR_TITLE": "",
+                    "PR_BODY": "  ",
+                    "GITHUB_EVENT_NAME": "push",
+                    "GITHUB_EVENT_PATH": str(event),
+                },
+                run_unittests=False,
+                overlay_validate=_ok,
+                overlay_cover=_ok,
+                schema_runner=_ok,
+            )
         self.assertEqual(code, EXIT_OK, stderr.getvalue())
         self.assertNotIn("FAIL", stdout.getvalue())
         self.assertIn("commit:", stdout.getvalue())
+        self.assertIn(EXAMPLE, stdout.getvalue())
 
     def test_pull_request_blank_pr_title_is_red(self) -> None:
         stdout = io.StringIO()

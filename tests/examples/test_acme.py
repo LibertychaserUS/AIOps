@@ -21,6 +21,10 @@ ACME = ROOT / "examples" / "acme-python"
 def _run(args: list[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT)
+    # Local adopter checkout: no GitHub event. CI sets GITHUB_EVENT_NAME and
+    # leaves PR_TITLE blank; that is a pull_request spec, not this fixture.
+    for key in ("GITHUB_EVENT_NAME", "GITHUB_EVENT_PATH", "PR_TITLE", "PR_BODY"):
+        env.pop(key, None)
     return subprocess.run(
         [sys.executable, *args],
         cwd=cwd,
@@ -50,7 +54,7 @@ def _adopter_clone() -> Path:
     _git(dest, "config", "user.email", "t@example.test")
     _git(dest, "config", "user.name", "T")
     _git(dest, "add", "-A")
-    _git(dest, "commit", "-m", "adopt overlay and forge")
+    _git(dest, "commit", "-m", "chore: adopt overlay and forge")
     return dest
 
 
@@ -68,6 +72,10 @@ class AcmeOverlayForgeTests(unittest.TestCase):
         try:
             result = _run(["-m", "forge", "check", "--root", str(clone)], cwd=clone)
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertIn("pr-title", result.stdout)
+            self.assertIn("skip", result.stdout)
+            self.assertIn("no spec", result.stdout)
+            self.assertNotIn("empty PR title", result.stderr + result.stdout)
             self.assertNotIn("sop-lock", result.stdout, "workshop-only rows must not print for an adopter")
             self.assertIn("deny_paths", result.stdout)
             self.assertIn("suite_guard", result.stdout)

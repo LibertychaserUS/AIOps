@@ -205,7 +205,11 @@ def run_run(
         )
         run_id = os.environ.get("GITHUB_RUN_ID", "").strip() or None
         suffix = f"{run_id}-run" if run_id else None
-        filename = receipt_filename(branch, sha, suffix) if suffix else receipt_filename(f"{branch}-run", sha)
+        filename = (
+            receipt_filename(effective, sha, suffix)
+            if suffix
+            else receipt_filename(f"{effective}-run", sha)
+        )
         path = write_receipt(write_receipt_dir, receipt, filename)
         print(f"overlay run: wrote {path.as_posix()}", file=err)
     else:
