@@ -15,7 +15,8 @@ agent 分支 (cursor/… copilot/ agent/)
         |  CI required checks 绿
         |  approvals: 0（无人批）
         |
-        |  forge promote --repo O/N --from dev --to main
+        |  人 / ops 在非 agent 分支：forge promote --repo O/N --from dev --to main
+        |  agent 分支前缀上 live promote 拒绝；--dry-run 可以
         |  需要 FORGE_SUBMIT_TOKEN；开或更新 PR；永不 merge
         v
      保护分支 main 上的 promote PR
@@ -46,10 +47,11 @@ flowchart TD
 |---|---|---|
 | `forge check` | 可以 | — |
 | `forge submit` 到 `dev` | 可以（持 `FORGE_SUBMIT_TOKEN`） | — |
-| `forge promote` 开 PR | 可以（持同一把 token） | 可以 |
+| `forge promote --dry-run` | 可以（人要求时；仍要 token） | 可以 |
+| `forge promote` 开 PR（live） | **不可**（`cursor/` `copilot/` `agent/` 拒绝） | 可以（人 / ops 分支） |
 | merge / squash | **不可** | 可以（合入锁绿 + 批） |
 | live `forge apply` | **不可** | Ops |
-| 把套件标 `blocked` | **不可**（`suite_guard` 红） | 可以 |
+| 把套件标 `blocked`，或清掉已有 `blocked` | **不可**（`suite_guard` 红；`review` 在 agent 枝也拒绝） | 可以 |
 | `forge release` / 打 tag | **不可**（除非 Ops 明确要求 dry-run） | Ops |
 | 写 `docs/STATE.md` | 可以（`forge status --write`） | 可以 |
 | 改 `.github/workflows/` 里 `deny_paths` 命中的文件 | 本地 check 红 | 人改 |

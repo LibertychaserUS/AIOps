@@ -15,7 +15,7 @@ v1 文档里夹着「当前 pin 是哪条 tag、Ruleset 装没装、required che
 2. **`docs_sync`。** `forge.yaml` 表：diff（相对 `origin/<protect[0]>` merge-base，含工作区）命中 `paths` 却没有同时改动任一 `require` 文件 → 红。工作本内建三条：
    - 仓内 `*.md` 相对链接目标必须存在；
    - 文中出现的 `overlay-vX.Y.Z` / `forge-vX.Y.Z` 必须是已有 git tag **或** CHANGELOG 里对应版本（允许写「下一版」，但要先登记）；
-   - 若 `docs/STATE.md` 存在，其记录的 pin / 保护分支 / required checks 与当前 `forge.yaml`+git 不一致 → 红，提示 `forge status --write`。
+   - 若 `docs/STATE.md` 存在，其记录的保护分支 / required checks / CI job 名与当前 `forge.yaml` + `.github/workflows` 不一致 → 红，提示 `forge status --write`。pin 与最近 tag 只展示，不参与变红：发布提交先带上 STATE，tag 在其后，比对 tag 会让每一次发布自相矛盾。
 
 3. **`docs/cli.md` 由脚本生成**（`scripts/gen_cli_docs.py`），从 `python -m forge --help`、各子命令 `--help`、`python -m overlay --help` 抽出。人手不要在别的文档里抄子命令清单，链到 [`docs/cli.md`](../cli.md)。W1/W2 合入后由集成者重跑生成器。
 

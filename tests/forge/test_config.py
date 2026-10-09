@@ -6,8 +6,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from forge import EXIT_CONFIG, SCHEMA_ID
 from forge.apply import ForgeError, load_config, validate_config
+
+from forge import EXIT_CONFIG, SCHEMA_ID
 
 
 class LegacyConfigTests(unittest.TestCase):

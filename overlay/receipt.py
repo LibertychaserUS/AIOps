@@ -5,7 +5,7 @@ This module must not import an HTTP client. wrote_by is only select or run.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +20,7 @@ class ReceiptError(ValueError):
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def build_receipt(
@@ -45,10 +45,16 @@ def build_receipt(
     }
 
 
-def receipt_filename(branch: str, git_sha: str, run_id: str | None = None) -> str:
-    safe_branch = branch.replace("/", "-") or "unknown"
+def receipt_filename(branch: str | None, git_sha: str, run_id: str | None = None) -> str:
+    """Receipt file name. ``branch`` is the resolved name, never left as None.
+
+    Callers resolve an omitted branch (base ref, configured ref,
+    ``branches.default``, else ``main``) before calling this. A missing
+    string still becomes ``unknown`` so a filename can be built.
+    """
     if run_id:
         return f"{run_id}.yaml"
+    safe_branch = (branch or "").replace("/", "-") or "unknown"
     short = git_sha[:12] if git_sha else "unknown"
     return f"{safe_branch}-{short}.yaml"
 

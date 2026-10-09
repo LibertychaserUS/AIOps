@@ -7,9 +7,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from forge import EXIT_OK
 from forge.__main__ import main
 from forge.ops_chain import BOUNCE_MARK, bounce_body, run_bounce, run_review_bots
+
+from forge import EXIT_OK
 from tests.forge.fake_github import FakeGitHub
 
 API = "https://forge.test"

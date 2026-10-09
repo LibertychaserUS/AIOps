@@ -5,11 +5,11 @@ from __future__ import annotations
 import io
 import unittest
 
-from forge import EXIT_OK
 from forge.__main__ import main
 from forge.brief import EXIT_BRIEF, REQUIRED_H2, lint_pr_body
 from forge.title import EXAMPLE
 
+from forge import EXIT_OK
 
 GOOD = "\n\n".join(f"## {heading}\n\n-" for heading in REQUIRED_H2)
 

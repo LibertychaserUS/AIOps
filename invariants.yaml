@@ -17,7 +17,7 @@ items:
       - FN-overlay-select
     span: system
   - id: INV-forge-does-not-arm
-    text: Forge must not write Overlay status on an agent branch
+    text: agent branches must not set or clear blocked; humans record that status
     function_ids:
       - FN-forge-apply
     span: system

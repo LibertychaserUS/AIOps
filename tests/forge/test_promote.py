@@ -9,9 +9,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from forge import EXIT_AUTH, EXIT_CONFIG, EXIT_OK, SUBMIT_TOKEN_ENV
 from forge.promote import run_promote
 from forge.submit import BODY_HEADINGS, MISSING_SUBMIT_TOKEN
+
+from forge import EXIT_AUTH, EXIT_CONFIG, EXIT_OK, SUBMIT_TOKEN_ENV
 from tests.forge.fake_github import FakeGitHub
 
 FAKE_API = "https://forge.test"
@@ -35,6 +36,7 @@ YAML = (
     "  scopes:\n"
     "    - overlay/agent\n"
     "    - forge/agent\n"
+    "    - ci/agent\n"
 )
 
 
@@ -117,7 +119,7 @@ class PromoteTests(unittest.TestCase):
             self.assertEqual(fake.pulls[0]["head"]["ref"], "dev")
             self.assertEqual(fake.pulls[0]["base"]["ref"], "main")
             self.assertIn("opened promote PR #1", out)
-            self.assertIn("chore(overlay/agent):", fake.pulls[0]["title"])
+            self.assertIn("chore(ci/agent):", fake.pulls[0]["title"])
             self.assertIn("## 做了什么", fake.pulls[0]["body"])
             self.assertIn("feat(overlay/agent): land on dev", fake.pulls[0]["body"])
             self.assertFalse(any("/merge" in path for _m, path, _b in fake.calls))
@@ -149,11 +151,11 @@ class PromoteTests(unittest.TestCase):
             self.assertIn("promote_from", err)
             self.assertEqual(fake.calls, [])
 
-    def test_scopes_any_uses_release_agent(self) -> None:
+    def test_scopes_any_uses_ci_agent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             yaml = YAML.replace(
-                "title:\n  scopes:\n    - overlay/agent\n    - forge/agent\n",
+                "title:\n  scopes:\n    - overlay/agent\n    - forge/agent\n    - ci/agent\n",
                 "title:\n  scopes: any\n",
             )
             (root / "forge.yaml").write_text(yaml, encoding="utf-8")
@@ -173,7 +175,28 @@ class PromoteTests(unittest.TestCase):
                 dry_run=True,
             )
             self.assertEqual(code, EXIT_OK, err)
-            self.assertIn("chore(release/agent):", out)
+            self.assertIn("chore(ci/agent):", out)
+
+    def test_live_promote_refuses_agent_branch_dry_run_allowed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _repo(tmp)
+            _git(root, "checkout", "-b", "cursor/agent-slice")
+            code, _out, err, fake = _promote(
+                path=root / "forge.yaml",
+                cwd=root,
+            )
+            self.assertEqual(code, EXIT_CONFIG)
+            self.assertIn("agent branch", err)
+            self.assertIn("cursor/agent-slice", err)
+            self.assertEqual(fake.writes(), [])
+            dry, dout, derr, fake_dry = _promote(
+                path=root / "forge.yaml",
+                cwd=root,
+                dry_run=True,
+            )
+            self.assertEqual(dry, EXIT_OK, derr)
+            self.assertIn("dry-run", dout)
+            self.assertEqual(fake_dry.writes(), [])
 
 
 if __name__ == "__main__":

@@ -8,16 +8,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from forge import EXIT_OK
 from forge.__main__ import main
 from forge.title import (
     ACTORS,
     EXAMPLE,
+    EXIT_TITLE,
     PRODUCTS,
     TITLE_PATTERN,
     TITLE_RE,
     TYPES,
-    EXIT_TITLE,
     lint_title,
     optional_text,
     resolve_arg_or_env,
@@ -25,6 +24,8 @@ from forge.title import (
     resolve_spec_title,
     run_pr_title,
 )
+
+from forge import EXIT_OK
 
 ROOT = Path(__file__).resolve().parents[2]
 

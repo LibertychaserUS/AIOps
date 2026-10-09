@@ -3,3 +3,7 @@ AGENTS.md @LibertychaserUS
 skills/** @LibertychaserUS
 .github/** @LibertychaserUS
 schema/** @LibertychaserUS
+inbox/** @LibertychaserUS
+suites/** @LibertychaserUS
+overlay.yaml @LibertychaserUS
+invariants.yaml @LibertychaserUS

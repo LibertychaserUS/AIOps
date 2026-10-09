@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Mapping, TextIO
+from typing import Any, TextIO
 from urllib.parse import urlparse
 from urllib.request import Request
 

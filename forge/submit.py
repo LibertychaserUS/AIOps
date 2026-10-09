@@ -35,20 +35,12 @@ from forge.apply import (
     normalize_branch,
     parse_repo,
 )
+from forge.brief import REQUIRED_H2 as BODY_HEADINGS
 from forge.check import EXIT_CHECK, run_check
 from forge.title import EXAMPLE, GRAMMAR, lint_title
 
 MISSING_SUBMIT_TOKEN = f"missing {SUBMIT_TOKEN_ENV}"
 REQUIRE_SUBMIT_TOKEN = f"would require {SUBMIT_TOKEN_ENV}"
-
-BODY_HEADINGS = (
-    "做了什么",
-    "为什么",
-    "动了哪些门",
-    "怎么验",
-    "不做什么",
-    "分工",
-)
 
 DEFAULT_REMOTE = "origin"
 GITHUB_HTTPS_EXTRAHEADER = "http.https://github.com/.extraheader"
@@ -210,7 +202,11 @@ def _open_or_update_draft(
     existing: dict[str, Any] | None = None
     if isinstance(listed, list):
         for item in listed:
-            if isinstance(item, dict):
+            if not isinstance(item, dict):
+                continue
+            base_obj = item.get("base")
+            base_ref = base_obj.get("ref") if isinstance(base_obj, dict) else None
+            if base_ref == base:
                 existing = item
                 break
     if existing and existing.get("number") is not None:

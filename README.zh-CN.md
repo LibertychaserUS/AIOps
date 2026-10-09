@@ -22,8 +22,9 @@
 git clone <本工作本> /tmp/AIOps
 cd /tmp/AIOps
 git checkout overlay-v2.0.0
-# Forge CLI 另针：git checkout forge-v1.1.2
-# 不要只用 Overlay 针当 Forge。pip 不会装出 forge 命令。
+# Forge CLI 另针：git checkout forge-v1.1.3
+# 不要只用 Overlay 针当 Forge。overlay-v2.0.0 peel 仍是 Forge 1.1.0（空根假绿）。
+# pip 不会装出 forge 命令。不要拿 GitHub Release Latest 当针（可能仍是 forge-v1.0.0）。
 python3 -m pip install -r requirements.txt
 export PYTHONPATH=/tmp/AIOps
 
@@ -48,7 +49,8 @@ Agent 可以 `check` / `submit`。Agent **不可以** live-`apply` Ruleset、自
 装 skill（host id：`codex` / `cursor` / `claude-code` / `github-copilot`）：
 
 ```text
-gh skill install <owner>/<workshop> --agent cursor --pin overlay-v2.0.0 --all
+gh skill install <owner>/<workshop> --agent cursor --pin overlay-v2.0.0 use-overlay design-cases
+gh skill install <owner>/<workshop> --agent cursor --pin forge-v1.1.3 use-forge manage-repo dev-pr
 ```
 
 或把 `skills/*` symlink 到 `.agents/skills` / `.cursor/skills` / `.claude/skills`。

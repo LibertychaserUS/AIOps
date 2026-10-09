@@ -7,8 +7,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from forge import EXIT_OK, TAG_RULESET_NAME, branch_ruleset_name
 from forge.status import EXIT_STATE, GENERATED_HEADER, MISSING_TOKEN_NOTE, run_status
+
+from forge import EXIT_OK, TAG_RULESET_NAME, branch_ruleset_name
 from tests.forge.fake_github import FakeGitHub
 
 FAKE_API = "https://forge.test"

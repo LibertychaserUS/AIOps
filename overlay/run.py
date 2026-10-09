@@ -15,6 +15,7 @@ from overlay.receipt import build_receipt, receipt_filename, write_receipt
 from overlay.select import (
     assert_selection,
     git_sha,
+    prepare_branch,
     select_suites,
     selection_events,
     selection_evidence,
@@ -90,7 +91,7 @@ def run_events_for_suite(
 
 def run_run(
     root: Path,
-    branch: str,
+    branch: str | None,
     write_receipt_dir: Path | None = None,
     workdir: Path | None = None,
     timeout: int = DEFAULT_TIMEOUT,
@@ -111,10 +112,27 @@ def run_run(
         print("overlay run: validate failed", file=err)
         return EXIT_CONTRACT
 
-    selection = select_suites(suites, config, branch)
+    effective, notes = prepare_branch(config, branch)
+    if effective is None:
+        for note in notes:
+            print(f"overlay run: {note}", file=err)
+        return EXIT_CONTRACT
+    for note in notes:
+        print(f"overlay run: {note}", file=err)
+    selection = select_suites(suites, config, effective)
     if selection.fallback_note:
         print(f"overlay run: {selection.fallback_note}", file=err)
     assert_errors = assert_selection(selection)
+    if config.require_command:
+        missing = [suite.suite_id for suite in selection.selected if not suite.product_command]
+        if missing:
+            shown = ", ".join(missing)
+            print(
+                "overlay run: require_command: selected suite(s) have no product_command: "
+                f"{shown}",
+                file=err,
+            )
+            return EXIT_CONTRACT
     if assert_errors:
         for message in assert_errors:
             print(message, file=err)
@@ -181,13 +199,17 @@ def run_run(
         receipt = build_receipt(
             wrote_by="run",
             git_sha=sha,
-            branch=branch,
+            branch=effective,
             events=events,
             evidence=selection_evidence(suites),
         )
         run_id = os.environ.get("GITHUB_RUN_ID", "").strip() or None
         suffix = f"{run_id}-run" if run_id else None
-        filename = receipt_filename(branch, sha, suffix) if suffix else receipt_filename(f"{branch}-run", sha)
+        filename = (
+            receipt_filename(effective, sha, suffix)
+            if suffix
+            else receipt_filename(f"{effective}-run", sha)
+        )
         path = write_receipt(write_receipt_dir, receipt, filename)
         print(f"overlay run: wrote {path.as_posix()}", file=err)
     else:

@@ -6,7 +6,6 @@ from pathlib import Path
 
 from tests.overlay.support import copy_lg, run_overlay, write_generic_root
 
-
 MIGRATE_HINT = "python -m overlay migrate --root ."
 
 
@@ -168,6 +167,29 @@ class ValidateTests(unittest.TestCase):
             path.write_text(text, encoding="utf-8")
             result = run_overlay("validate", "--root", str(root))
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_require_command_true_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = write_generic_root(Path(tmp))
+            overlay = root / "overlay.yaml"
+            overlay.write_text(
+                "require_command: true\n" + overlay.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            result = run_overlay("validate", "--root", str(root))
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_require_command_rejects_non_bool(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = write_generic_root(Path(tmp))
+            overlay = root / "overlay.yaml"
+            overlay.write_text(
+                overlay.read_text(encoding="utf-8") + "require_command: maybe\n",
+                encoding="utf-8",
+            )
+            result = run_overlay("validate", "--root", str(root))
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("require_command", result.stderr)
 
     def test_never_red_statuses_rejects_draft(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -23,7 +23,7 @@ forge submit  →  开/更新 draft PR，base = protect[0]（默认 dev）
     ▼
 forge promote --from dev --to main
     │  已有 open PR 则更新标题/正文，否则创建（非 draft）
-    │  标题 chore(release/agent): promote dev → main (<short sha>)
+    │  标题 chore(ci/agent): promote dev → main (<short sha>)
     │  永不 merge
     ▼
 人批准（1）+ CODEOWNERS 后 merge 进 main
@@ -48,3 +48,7 @@ forge release 打 overlay-v* / forge-v* tag（人点，不是 push 自动发）
 - Agent 直推 `dev`：否。仍必须 PR。
 - `promote` 自动 merge：否。人点。
 - 用 GitHub Merge Queue 当第一刀：以后由接入方在同一 Ruleset 上打开，默认关。
+
+## 修订（2026-10-08）
+
+标题 product 只有 `forge|overlay|ci|docs`。`release/agent` 过不了 `pr-title`，而且列表里的第一项（工作本是 `overlay/dev`）会让晋升 PR 只跑 Overlay 门。晋升标题固定为 `chore(ci/agent)`：`ci` 两扇产品门都跑。`title.scopes` 是封闭列表且不含 `ci/agent` 时，仍用列表第一项，避免给接入方造一个没允许的 scope。

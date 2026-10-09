@@ -4,6 +4,34 @@
 
 产品分两条线：`overlay-X.Y.Z` 与 `forge-X.Y.Z`。对应 git tag 为 `overlay-vX.Y.Z` / `forge-vX.Y.Z`。未发布的段写在下面，打 tag 时由 `forge release` 引用。
 
+## [Unreleased]
+
+### Added
+
+- `python -m overlay generate`：假 HTTP 可测；缺 API key 退出 3；解析失败不写文件；输出 `status: active`。`blocked` 套件拒绝，`--force` 也不清掉 `blocked`。不挂 push。提示词 `prompts/extract.md`、`prompts/generate-cases.md`（temperature 0）。
+- `overlay review` 在 `--i-am` 非空且当前分支不是 agent 前缀时写套件状态。没有 `forge.yaml` 拒绝。agent 分支不能借此清掉 `blocked`。
+- `overlay.yaml` 可选 `require_command`（缺省 false）。为 true 时，入选套件没有 `product_command` 则 `run` 退出 2、不执行。
+
+### Fixed
+
+- `overlay select` / `run` 写回执时用解析后的分支名（省略 `--branch`：`GITHUB_BASE_REF`，否则已配置的 ref，否则 `branches.default`，再否则 `main`）。文件名不再收到 `None`。
+- live `forge promote` 在 `agent_branch_prefixes`（`cursor/`、`copilot/`、`agent/`）上拒绝；`--dry-run` 仍可。人 / ops 分支不变。
+- 工作本 `forge check` 跑与 CI 相同的 `python -m unittest discover -s tests -t .`。没有 `overlay/__init__.py` 的根不跑这套单测。
+- `ci-select`：产品门在标题选中 **或** 路径命中时跑。标题 `docs` 不再挡住碰到 `forge/` / `overlay/` 的 diff。未声明检查名仍 skip-success。
+- 显式 `select --branch` / `run --branch` 的名字不在 `overlay.yaml` 且没有 `branches.default` 时退出 2。已配置分支选出 0 个套件仍退出 0。省略 `--branch` 时，PR 用 base ref；push 到已配置分支用该名；否则 `branches.default`，再否则仅当 ref 未配置时用 `main`。
+- 工作本 Overlay CI 不再写死 `branch: main`。`overlay.yaml` 的 `dev` 与 `main` 同 kind。fixture job 仍传 `main`。
+- `submit` 更新已有 PR 时按 **head 且 base** 匹配。同一功能枝上指向另一条保护分支的 open PR 不会被 PATCH。
+- `promote` 标题在 `title.scopes` 允许时用 `chore(ci/agent):`，两扇产品门都跑。不再用列表第一项（工作本会变成只跑 Overlay），也不再使用过不了 `pr-title` 的 `release/agent`。`scopes: any` 同样用 `ci/agent`。见 [ADR 0003](docs/adr/0003-dev-main-promotion.md) 修订。
+- `suite_guard`：agent 分支不得把已有 `blocked` 改回 `active` 或删掉。人枝仍只记录。
+- Python 内核增加 ruff 门（`tests/style/test_ruff.py`，随 `unittest` 跑）。没有新的 GitHub job 名。
+- Overlay `select` 断言文案不再把已删除的 `draft` 写成现行状态。
+
+### Changed
+
+- 冷启动与 skill 的当前 Forge 针改为已发布的 `forge-v1.1.3`。`overlay-v2.0.0` peel 仍是 Forge 1.1.0（空根 `check` 假绿），必须第二针。不要用 GitHub Release Latest 当针。
+- `apply` 必须 `--path` 指向目标仓自己的 `forge.yaml`。不要在工具仓根对产品仓 live apply。接入方最小例改指 `examples/acme-python/`。
+- ADR 0007 仍是**提议**，未接受。
+
 ## [forge-1.1.3]
 
 ### Fixed

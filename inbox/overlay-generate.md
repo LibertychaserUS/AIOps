@@ -13,15 +13,15 @@ locale: zh-CN
 
 # Intent
 
-generate turns one inbox into a draft suite. The command is specified but not shipped. Cases may exist; the suite stays blocked.
+generate turns one inbox into a reviewable suite (`status: active`). The command is specified but not shipped. Cases may exist; the suite stays blocked.
 
 # In scope
 
-- FN-overlay-generate Compiles suites only; never changes `status`; never runs on push.
+- FN-overlay-generate Compiles a new suite as `active`; does not clear `blocked`; never runs on push.
 
 # Out of scope
 
-- Auto-arm.
+- Clearing `blocked`, or spending a model token on push.
 - Token spend on push.
 
 # User cases

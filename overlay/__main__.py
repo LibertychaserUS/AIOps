@@ -1,4 +1,4 @@
-"""python -m overlay validate|select|review|run|cover|migrate"""
+"""python -m overlay validate|select|review|run|cover|migrate|generate"""
 
 from __future__ import annotations
 
@@ -10,10 +10,11 @@ from typing import TextIO
 
 from overlay import EXIT_CONTRACT, EXIT_OK
 from overlay.cover import run_cover
+from overlay.generate import run_generate
 from overlay.migrate import run_migrate
 from overlay.review import run_review
 from overlay.run import DEFAULT_TIMEOUT, run_run
-from overlay.select import default_select_branch, run_select
+from overlay.select import run_select
 from overlay.validate import run_validate
 
 
@@ -22,8 +23,8 @@ def build_parser() -> argparse.ArgumentParser:
         prog="python -m overlay",
         description=(
             "Overlay: validate inbox/suites, select active suites, run their "
-            "product_command, report cover, migrate v1 suites. No generate. "
-            "No model on this path."
+            "product_command, report cover, migrate v1 suites, generate from "
+            "an inbox when a human asks. Generate is not on the push path."
         ),
     )
     sub = parser.add_subparsers(dest="command")
@@ -35,7 +36,11 @@ def build_parser() -> argparse.ArgumentParser:
     select_p.add_argument(
         "--branch",
         default=None,
-        help="branch name from overlay.yaml (default: GITHUB_BASE_REF, then GITHUB_REF_NAME, then main)",
+        help=(
+            "branch in overlay.yaml. Omit: PR base, else a configured ref, "
+            "else branches.default, else main when the ref is not configured. "
+            "An explicit unknown name with no branches.default exits 2."
+        ),
     )
     select_p.add_argument("--root", default=".", help="adopter overlay root (default: .)")
     select_p.add_argument(
@@ -45,17 +50,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="directory for a program-written receipt (wrote_by=select)",
     )
 
-    review_p = sub.add_parser("review", help="human review (refuses without --i-am; no writes yet)")
+    review_p = sub.add_parser(
+        "review",
+        help="human review write (refuses without --i-am; refuses agent branches)",
+    )
+    review_p.add_argument("--root", default=".", help="adopter overlay root (default: .)")
     review_p.add_argument("--suite", default=None)
     review_p.add_argument("--status", choices=("blocked", "active"), default=None)
     review_p.add_argument("--i-am", dest="i_am", default=None, help="human identity; required")
-    review_p.add_argument("--reason", default=None)
+    review_p.add_argument("--reason", default=None, help="required; blocked needs a link or id")
 
     run_p = sub.add_parser("run", help="select active suites and run product_command")
     run_p.add_argument(
         "--branch",
         default=None,
-        help="branch name from overlay.yaml (default: GITHUB_BASE_REF, then GITHUB_REF_NAME, then main)",
+        help=(
+            "branch in overlay.yaml. Omit: PR base, else a configured ref, "
+            "else branches.default, else main when the ref is not configured. "
+            "An explicit unknown name with no branches.default exits 2."
+        ),
     )
     run_p.add_argument("--root", default=".", help="adopter overlay root (default: .)")
     run_p.add_argument(
@@ -86,6 +99,18 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="print rewrites without writing files",
     )
+
+    generate_p = sub.add_parser(
+        "generate",
+        help="compile inbox/<id>.md into suites/<id> (status active). Not on push.",
+    )
+    generate_p.add_argument("--inbox", required=True, help="inbox/<id>.md under --root")
+    generate_p.add_argument("--root", default=".", help="adopter overlay root (default: .)")
+    generate_p.add_argument(
+        "--force",
+        action="store_true",
+        help="replace an existing non-blocked suite. Does not clear blocked.",
+    )
     return parser
 
 
@@ -112,7 +137,7 @@ def main(
         return run_validate(Path(args.root), stdout=out, stderr=err)
     if args.command == "select":
         receipt_dir = Path(args.write_receipt) if args.write_receipt else None
-        branch = (args.branch or "").strip() or default_select_branch()
+        branch = (args.branch or "").strip() or None
         return run_select(
             Path(args.root),
             branch,
@@ -122,15 +147,17 @@ def main(
         )
     if args.command == "review":
         return run_review(
+            root=Path(args.root),
             i_am=args.i_am,
             suite=args.suite,
             status=args.status,
             reason=args.reason,
+            stdout=out,
             stderr=err,
         )
     if args.command == "run":
         timeout = args.timeout if args.timeout and args.timeout > 0 else DEFAULT_TIMEOUT
-        branch = (args.branch or "").strip() or default_select_branch()
+        branch = (args.branch or "").strip() or None
         return run_run(
             Path(args.root),
             branch,
@@ -146,6 +173,14 @@ def main(
         return run_migrate(
             Path(args.root),
             dry_run=bool(args.dry_run),
+            stdout=out,
+            stderr=err,
+        )
+    if args.command == "generate":
+        return run_generate(
+            Path(args.root),
+            args.inbox,
+            force=bool(args.force),
             stdout=out,
             stderr=err,
         )

@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from forge import COPY_FILES_NOTE, EXIT_API, EXIT_AUTH, EXIT_CONFIG, EXIT_OK, TAG_RULESET_NAME, branch_ruleset_name
+from forge.__main__ import main
 from forge.apply import (
     build_branch_payload,
     build_payloads,
@@ -17,8 +17,16 @@ from forge.apply import (
     run_apply,
     validate_config,
 )
-from forge.__main__ import main
 
+from forge import (
+    COPY_FILES_NOTE,
+    EXIT_API,
+    EXIT_AUTH,
+    EXIT_CONFIG,
+    EXIT_OK,
+    TAG_RULESET_NAME,
+    branch_ruleset_name,
+)
 from tests.forge.fake_github import FakeGitHub
 
 ROOT = Path(__file__).resolve().parents[2]
