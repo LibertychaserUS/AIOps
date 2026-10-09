@@ -19,7 +19,7 @@
     "readiness": {
       "type": "string",
       "enum": ["ready", "not-ready", "unknown"],
-      "description": "Hint only. generate always writes suite status: draft."
+      "description": "Hint only. generate writes suite status active (omitted means active)."
     },
     "source": {
       "type": "object",

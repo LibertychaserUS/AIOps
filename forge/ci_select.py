@@ -1,8 +1,8 @@
 """Machine-decidable CI selector from forge.yaml.
 
 Common checks always run. Product checks start, then skip-with-success
-when the selector says skip. Title product facet wins on a valid
-Conventional Commits title; otherwise changed paths decide.
+when the selector says skip. A product gate runs when the title selects
+it or the changed paths hit that product. Unknown check names skip.
 """
 
 from __future__ import annotations
@@ -174,11 +174,18 @@ def select_products(
     title: str | None,
     changed: Sequence[str] | None,
 ) -> tuple[tuple[str, ...], str, str]:
+    """Title OR paths. A docs title does not hide a product the diff touches."""
     mapped, reason = products_from_title(title, config.title_map)
+    path_products: tuple[str, ...] = ()
+    if changed is not None:
+        path_products = products_from_paths(changed, config.products)
     if mapped is not None:
+        extra = tuple(name for name in path_products if name not in mapped)
+        if extra:
+            return tuple(mapped) + extra, f"{reason}+paths", "title+paths"
         return mapped, reason, "title"
     if changed is not None:
-        return products_from_paths(changed, config.products), "paths", "paths"
+        return path_products, "paths", "paths"
     return tuple(config.products), "undecided-run-all", "default"
 
 
@@ -259,7 +266,7 @@ def run_ci_select(
     resolved_title = resolve_spec_title(title, env, root).text
     try:
         config = load_ci_config(root)
-        if changed is None and products_from_title(resolved_title, config.title_map)[0] is None:
+        if changed is None:
             changed = git_changed(root)
         decision = decide(config, check, title=resolved_title, changed=changed)
     except ForgeError as exc:

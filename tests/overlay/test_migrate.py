@@ -6,7 +6,6 @@ from pathlib import Path
 
 from tests.overlay.support import run_overlay, write, write_generic_root
 
-
 ARMED_V1 = """\
 # keep-me: packages stay below
 id: checkout-retry

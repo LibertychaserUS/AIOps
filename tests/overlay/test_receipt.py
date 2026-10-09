@@ -6,9 +6,9 @@ import unittest
 from pathlib import Path
 
 import yaml
+from overlay.receipt import ALLOWED_WROTE_BY, ReceiptError, build_receipt, receipt_filename
 
-from overlay.receipt import ALLOWED_WROTE_BY, ReceiptError, build_receipt
-from tests.overlay.support import LG, REPO, run_overlay
+from tests.overlay.support import LG, REPO, run_overlay, write_generic_root
 
 HTTP_MODULES = {
     "http",
@@ -81,6 +81,93 @@ class ReceiptTests(unittest.TestCase):
         text = path.read_text(encoding="utf-8")
         self.assertNotIn("urlopen", text)
         self.assertNotIn("openai", text.lower())
+
+    def test_receipt_filename_uses_branch_string(self) -> None:
+        self.assertEqual(receipt_filename(None, "abc"), "unknown-abc.yaml")
+        self.assertEqual(receipt_filename("", "abc"), "unknown-abc.yaml")
+        self.assertEqual(
+            receipt_filename("dev/feature", "0123456789abcdef"),
+            "dev-feature-0123456789ab.yaml",
+        )
+        self.assertEqual(receipt_filename(None, "abc", "99"), "99.yaml")
+
+    def _select_receipt(self, root: Path, dest: Path, env: dict[str, str]):
+        merged = {
+            "GITHUB_RUN_ID": "",
+            "GITHUB_SHA": "abc123def4567890",
+            **env,
+        }
+        return run_overlay(
+            "select",
+            "--root",
+            str(root),
+            "--write-receipt",
+            str(dest),
+            env=merged,
+        )
+
+    def test_omitted_branch_receipt_uses_base_ref(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "receipts"
+            result = self._select_receipt(
+                LG,
+                dest,
+                {"GITHUB_BASE_REF": "hotfix", "GITHUB_REF_NAME": "cursor/ignored"},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            data, name = _one(dest)
+            self.assertEqual(data["branch"], "hotfix")
+            self.assertTrue(name.startswith("hotfix-"), name)
+
+    def test_omitted_branch_receipt_uses_configured_ref(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "receipts"
+            result = self._select_receipt(
+                LG,
+                dest,
+                {"GITHUB_BASE_REF": "", "GITHUB_REF_NAME": "hotfix"},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            data, name = _one(dest)
+            self.assertEqual(data["branch"], "hotfix")
+            self.assertTrue(name.startswith("hotfix-"), name)
+
+    def test_omitted_branch_receipt_uses_branches_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = write_generic_root(Path(tmp))
+            dest = Path(tmp) / "receipts"
+            result = self._select_receipt(
+                root,
+                dest,
+                {"GITHUB_BASE_REF": "", "GITHUB_REF_NAME": "cursor/not-configured"},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertIn("branches.default", result.stderr)
+            data, name = _one(dest)
+            self.assertEqual(data["branch"], "default")
+            self.assertTrue(name.startswith("default-"), name)
+
+    def test_omitted_branch_receipt_uses_main_when_ref_is_unconfigured(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "receipts"
+            result = self._select_receipt(
+                LG,
+                dest,
+                {"GITHUB_BASE_REF": "", "GITHUB_REF_NAME": "cursor/not-configured"},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertIn("using main", result.stderr)
+            data, name = _one(dest)
+            self.assertEqual(data["branch"], "main")
+            self.assertTrue(name.startswith("main-"), name)
+
+
+def _one(dest: Path) -> tuple[dict, str]:
+    files = list(dest.glob("*.yaml"))
+    if len(files) != 1:
+        raise AssertionError(files)
+    data = yaml.safe_load(files[0].read_text(encoding="utf-8"))
+    return data, files[0].name
 
 
 if __name__ == "__main__":

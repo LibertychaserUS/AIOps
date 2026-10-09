@@ -87,7 +87,7 @@ PYTHONPATH=/tmp/AIOps python3 -m forge submit --repo OWNER/NAME --title "feat(fo
 - 不要 pin `main`。不要 force-move 已有针。不要 checkout 文档里还没打出来的 tag。
 - 不要 live-apply（那是 `$manage-repo`）。
 - 不要发明 `python -m forge brief|credential|ops-chain|revoke`。
-- 不要在 agent 分支把套件标成 `blocked`。
+- 不要在 agent 分支把套件标成 `blocked`，也不要清掉已有的 `blocked`。
 
 ## Examples
 
@@ -112,5 +112,5 @@ PYTHONPATH=/tmp/AIOps python3 -m forge submit --repo OWNER/PRODUCT --title "feat
 | CI push 报 `empty PR title`（`forge-v1.1.2`） | 不要在 push 上写入空的 `PR_TITLE`。`1.1.3` 后 lock 提交 subject。 |
 | `required_checks` 对不上 CI | 改成 PR 上真实的 job 名。 |
 | 想 live apply / 直推保护分支 | 停。`$manage-repo` / `$dev-pr`。 |
-| 想把套件标 blocked | 停。人写。`$manage-repo`。 |
+| 想把套件标成或清掉 blocked | 停。人写。`$manage-repo`。 |
 | 接入方已有自己的落地方式 | 先对照新旧，等人明确同意再写 `forge.yaml`。 |

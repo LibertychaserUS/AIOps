@@ -45,7 +45,7 @@ python3 -m overlay cover --root .
 
 叶子标题仍是 `### Functional` / `### Negative` / `### Edge`。`function_id` 全局唯一。`invariants.yaml` 的 `function_ids` 必须对上某篇 `cases.md` 的 `##` 标题。
 
-`select --branch` 只读 `overlay.yaml` 的 `branches.<name>`；状态读当前 checkout。缺省分支：`GITHUB_BASE_REF` → `GITHUB_REF_NAME` → `main`。未知分支回落 `branches.default` 再到 `main`。
+`select --branch` 只读 `overlay.yaml` 的 `branches.<name>`；状态读当前 checkout。省略时的解析与显式未知分支（没有 `branches.default` 则退出 2）见 [`design.md`](design.md) §4.6。2.0.0 发布说明里的「未知分支再落到 main」已由该节取代。
 
 CI：产品仓薄 caller 继续 `uses:` reusable `overlay.yml`，pin **`overlay-v2.0.0`（或 SHA）**。`run` 要 Node / Python / Go / Java 时传 `setup_command`（例如 `pip install -r requirements-dev.txt` 或 `npm ci`）。`--branch` 缺省用 `github.base_ref` / `github.ref_name`。不要 `workflow_call` 接入方构建 workflow。不要 pin `main`。
 

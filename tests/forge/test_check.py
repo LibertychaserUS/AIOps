@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-from forge import EXIT_OK
 from forge.__main__ import main
 from forge.check import EXIT_CHECK, deny_paths_step, path_is_denied, run_check, suite_guard_step
 from forge.title import EXAMPLE
+
+from forge import EXIT_OK
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -69,6 +71,36 @@ class WorkshopCheckTests(unittest.TestCase):
         self.assertEqual(code, EXIT_OK, stderr.getvalue())
         self.assertIn("forge check: ok", stdout.getvalue())
 
+    def test_workshop_unittest_args_match_ci_discover(self) -> None:
+        from forge.check import CHECK_ENV, WORKSHOP_UNITTEST_ARGS, workshop_unittest_args
+
+        if os.environ.get(CHECK_ENV):
+            self.skipTest("nested forge check already owns the discover process")
+        self.assertEqual(workshop_unittest_args(ROOT), WORKSHOP_UNITTEST_ARGS)
+        self.assertEqual(WORKSHOP_UNITTEST_ARGS, ("discover", "-s", "tests", "-t", ".", "-q"))
+        seen: dict[str, tuple[str, ...]] = {}
+
+        def _runner(root: Path, modules, stdout, stderr) -> int:
+            del root, stdout, stderr
+            seen["modules"] = tuple(modules)
+            return EXIT_OK
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        code = run_check(
+            ROOT,
+            title=EXAMPLE,
+            stdout=stdout,
+            stderr=stderr,
+            environ={},
+            run_unittests=True,
+            unittest_runner=_runner,
+        )
+        self.assertEqual(code, EXIT_OK, stderr.getvalue())
+        self.assertEqual(seen["modules"], WORKSHOP_UNITTEST_ARGS)
+        self.assertIn("unittest", stdout.getvalue())
+        self.assertNotIn("unittest (fast)", stdout.getvalue())
+
 
 class TitleStepTests(unittest.TestCase):
     def test_bad_title_is_red(self) -> None:
@@ -110,22 +142,37 @@ class TitleStepTests(unittest.TestCase):
         self.assertIn("pr-body", stdout.getvalue())
 
     def test_push_blank_pr_title_lints_head_commit(self) -> None:
-        stdout = io.StringIO()
-        stderr = io.StringIO()
-        code = run_check(
-            ROOT,
-            title=None,
-            stdout=stdout,
-            stderr=stderr,
-            environ={"PR_TITLE": "", "PR_BODY": "  ", "GITHUB_EVENT_NAME": "push"},
-            run_unittests=False,
-            overlay_validate=_ok,
-            overlay_cover=_ok,
-            schema_runner=_ok,
-        )
+        # The subject comes from the push event, not this checkout's HEAD.
+        # pull_request CI detaches at a "Merge … into …" commit, which is not
+        # a Conventional Commits title.
+        with tempfile.TemporaryDirectory() as tmp:
+            event = Path(tmp) / "event.json"
+            event.write_text(
+                json.dumps({"head_commit": {"message": f"{EXAMPLE}\n\nbody"}}),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            code = run_check(
+                ROOT,
+                title=None,
+                stdout=stdout,
+                stderr=stderr,
+                environ={
+                    "PR_TITLE": "",
+                    "PR_BODY": "  ",
+                    "GITHUB_EVENT_NAME": "push",
+                    "GITHUB_EVENT_PATH": str(event),
+                },
+                run_unittests=False,
+                overlay_validate=_ok,
+                overlay_cover=_ok,
+                schema_runner=_ok,
+            )
         self.assertEqual(code, EXIT_OK, stderr.getvalue())
         self.assertNotIn("FAIL", stdout.getvalue())
         self.assertIn("commit:", stdout.getvalue())
+        self.assertIn(EXAMPLE, stdout.getvalue())
 
     def test_pull_request_blank_pr_title_is_red(self) -> None:
         stdout = io.StringIO()
@@ -280,7 +327,7 @@ class SkipAndFailTests(unittest.TestCase):
             self.assertIn("pr-title", out)
             self.assertNotIn("schema/check.py", out)
             self.assertNotIn("sop-lock", out)
-            self.assertNotIn("unittest (fast)", out)
+            self.assertNotIn("unittest", out)
             self.assertNotIn("no workshop tests/", out)
             self.assertIn("ok", out)
 
@@ -632,6 +679,33 @@ class SuiteGuardCheckTests(unittest.TestCase):
             code, out = _check(root, {"GITHUB_HEAD_REF": "cursor/block"})
             self.assertEqual(code, EXIT_CHECK, out)
             self.assertIn("agent branch cursor/block", out)
+
+    def test_agent_branch_clearing_blocked_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product_with_suite(root)
+            (root / "suites" / "login" / "suite.yaml").write_text(BLOCKED_SUITE, encoding="utf-8")
+            _git(root, "add", "-A")
+            _git(root, "commit", "-m", "human blocks")
+            _git(root, "checkout", "-b", "cursor/unblock")
+            (root / "suites" / "login" / "suite.yaml").write_text(ACTIVE_SUITE, encoding="utf-8")
+            code, out = _check(root)
+            self.assertEqual(code, EXIT_CHECK, out)
+            self.assertIn("blocked -> active", out)
+            self.assertIn("must not set or clear blocked", out)
+
+    def test_human_branch_clearing_blocked_is_green(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _init_product_with_suite(root)
+            (root / "suites" / "login" / "suite.yaml").write_text(BLOCKED_SUITE, encoding="utf-8")
+            _git(root, "add", "-A")
+            _git(root, "commit", "-m", "human blocks")
+            _git(root, "checkout", "-b", "review/unblock")
+            (root / "suites" / "login" / "suite.yaml").write_text(ACTIVE_SUITE, encoding="utf-8")
+            code, out = _check(root)
+            self.assertEqual(code, EXIT_OK, out)
+            self.assertIn("human branch", out)
 
     def test_already_blocked_on_main_stays_green_for_agent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

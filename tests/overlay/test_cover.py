@@ -7,7 +7,15 @@ from pathlib import Path
 import yaml
 
 from overlay import EXIT_CONTRACT, EXIT_OK
-from tests.overlay.support import GENERIC_CASES, LG, REPO, copy_lg, run_overlay, write, write_generic_root
+from tests.overlay.support import (
+    GENERIC_CASES,
+    LG,
+    REPO,
+    copy_lg,
+    run_overlay,
+    write,
+    write_generic_root,
+)
 
 
 class CoverTests(unittest.TestCase):

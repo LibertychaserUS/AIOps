@@ -24,9 +24,8 @@ from forge.title import resolve_spec_body, resolve_spec_title, run_pr_title
 EXIT_CHECK = 2
 CHECK_ENV = "FORGE_CHECK_RUNNING"
 
-# Title grammar only. Never include test_submit / test_check (they call check).
-FAST_UNITTEST_MODULES = ("tests.forge.test_title",)
-FAST_UNITTEST_FILES = (Path("tests") / "forge" / "test_title.py",)
+# Same command as the CI job `unittest`. Adopter roots never reach this.
+WORKSHOP_UNITTEST_ARGS = ("discover", "-s", "tests", "-t", ".", "-q")
 
 OverlayFn = Callable[[Path, TextIO, TextIO], int]
 SchemaFn = Callable[[Path, TextIO, TextIO], int]
@@ -64,12 +63,11 @@ def schema_check_exists(root: Path) -> bool:
     return (root / "schema" / "check.py").is_file()
 
 
-def workshop_fast_test_modules(root: Path) -> list[str]:
-    modules: list[str] = []
-    for rel, module in zip(FAST_UNITTEST_FILES, FAST_UNITTEST_MODULES):
-        if (root / rel).is_file():
-            modules.append(module)
-    return modules
+def workshop_unittest_args(root: Path) -> tuple[str, ...] | None:
+    """Full discover, matching CI. None when this root has no workshop tests/."""
+    if not (root / "tests").is_dir():
+        return None
+    return WORKSHOP_UNITTEST_ARGS
 
 
 def _last_line(text: str) -> str:
@@ -246,9 +244,11 @@ def _suite_status(text: str | None) -> str:
         return ""
     try:
         import yaml
-
+    except ImportError:
+        return ""
+    try:
         data = yaml.safe_load(text)
-    except Exception:
+    except yaml.YAMLError:
         return ""
     if not isinstance(data, dict):
         return ""
@@ -262,7 +262,7 @@ def _show_at(root: Path, base: str, rel: str) -> str | None:
 
 
 def suite_guard_step(root: Path, environ: Mapping[str, str] | None = None) -> Step:
-    """Agent branches must not flip suite status to blocked. Humans are recorded."""
+    """Agent branches must not set or clear blocked. Humans are recorded."""
     forge_yaml = root / "forge.yaml"
     if not forge_yaml.is_file():
         return Step("suite_guard", "skip", "no forge.yaml")
@@ -287,15 +287,21 @@ def suite_guard_step(root: Path, environ: Mapping[str, str] | None = None) -> St
         new_path = root / rel
         new_text = new_path.read_text(encoding="utf-8") if new_path.is_file() else None
         old_text = _show_at(root, base, rel) if base else None
-        new_status = _suite_status(new_text)
-        old_status = _suite_status(old_text)
+        new_present = new_text is not None
+        old_present = old_text is not None
+        new_status = _suite_status(new_text) or ("active" if new_present else "")
+        old_status = _suite_status(old_text) or ("active" if old_present else "")
         if new_status == "blocked" and old_status != "blocked":
             hits.append(f"{rel} (status {old_status or 'none'} -> blocked)")
+        elif old_status == "blocked" and new_status != "blocked":
+            shown = new_status or "deleted"
+            hits.append(f"{rel} (status blocked -> {shown})")
     if hits:
         return Step(
             "suite_guard",
             "fail",
-            f"agent branch {branch} must not set status blocked: {', '.join(hits)}; a human writes blocked",
+            "agent branch "
+            f"{branch} must not set or clear blocked: {', '.join(hits)}; a human writes that status",
         )
     return Step("suite_guard", "ok", f"suite.yaml edits do not introduce blocked; agent branch {branch}")
 
@@ -497,7 +503,7 @@ def _default_unittest_runner(
         pythonpath = pythonpath + os.pathsep + existing
     env["PYTHONPATH"] = pythonpath
     proc = subprocess.run(
-        [sys.executable, "-m", "unittest", *modules, "-q"],
+        [sys.executable, "-m", "unittest", *modules],
         cwd=str(root),
         capture_output=True,
         text=True,
@@ -641,13 +647,13 @@ def run_check(
                 steps.append(Step("schema/check.py", "ok", _last_line(buf_out.getvalue())))
 
         nested = bool(env.get(CHECK_ENV)) or bool(os.environ.get(CHECK_ENV))
-        modules = workshop_fast_test_modules(root)
+        modules = workshop_unittest_args(root)
         if not run_unittests:
-            steps.append(Step("unittest (fast)", "skip", "disabled"))
+            steps.append(Step("unittest", "skip", "disabled"))
         elif nested:
-            steps.append(Step("unittest (fast)", "skip", "already inside forge check"))
+            steps.append(Step("unittest", "skip", "already inside forge check"))
         elif not modules:
-            steps.append(Step("unittest (fast)", "skip", "no workshop tests/"))
+            steps.append(Step("unittest", "skip", "no workshop tests/"))
         else:
             unit_fn = _default_unittest_runner if unittest_runner is None else unittest_runner
             buf_out = io.StringIO()
@@ -655,9 +661,9 @@ def run_check(
             code = unit_fn(root, modules, buf_out, buf_err)
             _print_captured(buf_err.getvalue(), err)
             if code != EXIT_OK:
-                steps.append(Step("unittest (fast)", "fail", f"exit {code}"))
+                steps.append(Step("unittest", "fail", f"exit {code}"))
             else:
-                steps.append(Step("unittest (fast)", "ok", " ".join(modules)))
+                steps.append(Step("unittest", "ok", " ".join(modules)))
 
     _print_checklist(steps, out)
     failed = [step for step in steps if step.status == "fail"]

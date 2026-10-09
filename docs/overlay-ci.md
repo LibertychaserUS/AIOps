@@ -32,15 +32,14 @@ jobs:
 
 ### `--branch` 缺省
 
-reusable 的 `branch` 输入默认为空。workflow 内解析顺序：
+reusable 的 `branch` 输入默认为空。空输入**不**把 `github.ref_name` 当成显式 `--branch`（功能枝名字因此不会变成「未知分支、退出 2」或「选出 0 个还绿」）。CLI 在省略 `--branch` 时：
 
-1. `inputs.branch`（调用方显式传入）
-2. `github.base_ref`（pull_request 的基线）
-3. `github.ref_name`
+1. `GITHUB_BASE_REF`（pull_request 的基线）
+2. `GITHUB_REF_NAME`，仅当它写在 `overlay.yaml` `branches` 里
+3. `branches.default`（若配置）
+4. `main`，仅当该 git ref **不是**已配置分支
 
-这与 CLI `python -m overlay select` 的缺省一致：`GITHUB_BASE_REF` → `GITHUB_REF_NAME` → `main`。未知分支再按 `overlay.yaml` 回落到 `branches.default` 再到 `main`。
-
-本工作本的 `overlay-check.yml` 把 `branch: main` 写死，是为了在 agent 分支上仍跑工具仓自己的 Overlay 套件，不是通用默认。
+调用方显式传入 `branch:` 则原样交给 `--branch`。显式未知名且没有 `branches.default` → 退出 2。本工作本 Overlay job 留空 `branch`，以便 PR 进 `dev` 时用基线；fixture job 仍传 `main`，避免示例根没有 `dev` 时变红。
 
 ## `setup_command`（runtime setup）
 

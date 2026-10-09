@@ -130,7 +130,7 @@ schema **不得**把 `REQ-n`、`ML-FR-004`、`PAY-01`、`LOGIN-01` 或 `^[A-Z]{2
 不要第四个文件 `suites/<id>/spec.md` 或仓根 `测试规格说明书.md`。`suites/<id>/` 就是测试树的这一刀实例。
 
 ```text
-suites/<id>/suite.yaml    # 机器规格：状态、种类、审核、source
+suites/<id>/suite.yaml    # 机器规格：状态、种类、source
 suites/<id>/cases.md      # 人读规格：function_id + 技法
 suites/<id>/trace.yaml    # 可选：function_id × level → case
 ```

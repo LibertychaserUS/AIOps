@@ -166,11 +166,11 @@ options:
   --root ROOT           repo root (default: .)
   --check CHECK         check name: pr-title, sop-lock, overlay-check, or
                         forge-check
-  --title TITLE         PR title. Default: env PR_TITLE. Title product facet
-                        wins when valid.
+  --title TITLE         PR title. Default: env PR_TITLE. A product gate runs
+                        on title or paths.
   --changed [CHANGED ...]
-                        Changed paths when no valid title (push). Omit to use
-                        git HEAD~1.
+                        Changed paths. Omit to use git HEAD~1. Union with a
+                        valid title.
   --github-output       append run=true|false to $GITHUB_OUTPUT (skip is
                         success)
 ```
@@ -249,20 +249,25 @@ options:
 ## python -m overlay
 
 ```text
-usage: python -m overlay [-h] {validate,select,review,run,cover,migrate} ...
+usage: python -m overlay [-h]
+                         {validate,select,review,run,cover,migrate,generate}
+                         ...
 
 Overlay: validate inbox/suites, select active suites, run their
-product_command, report cover, migrate v1 suites. No generate. No model on
-this path.
+product_command, report cover, migrate v1 suites, generate from an inbox when
+a human asks. Generate is not on the push path.
 
 positional arguments:
-  {validate,select,review,run,cover,migrate}
+  {validate,select,review,run,cover,migrate,generate}
     validate            validate inbox + suites + overlay.yaml
     select              print active suite ids for a branch
-    review              human review (refuses without --i-am; no writes yet)
+    review              human review write (refuses without --i-am; refuses
+                        agent branches)
     run                 select active suites and run product_command
     cover               print function_id triad + invariant coverage
     migrate             rewrite suite.yaml draft/armed to overlay-suite/v2
+    generate            compile inbox/<id>.md into suites/<id> (status
+                        active). Not on push.
 
 options:
   -h, --help            show this help message and exit
@@ -286,8 +291,10 @@ usage: python -m overlay select [-h] [--branch BRANCH] [--root ROOT]
 
 options:
   -h, --help           show this help message and exit
-  --branch BRANCH      branch name from overlay.yaml (default:
-                       GITHUB_BASE_REF, then GITHUB_REF_NAME, then main)
+  --branch BRANCH      branch in overlay.yaml. Omit: PR base, else a
+                       configured ref, else branches.default, else main when
+                       the ref is not configured. An explicit unknown name
+                       with no branches.default exits 2.
   --root ROOT          adopter overlay root (default: .)
   --write-receipt DIR  directory for a program-written receipt
                        (wrote_by=select)
@@ -296,16 +303,17 @@ options:
 ## python -m overlay review
 
 ```text
-usage: python -m overlay review [-h] [--suite SUITE]
+usage: python -m overlay review [-h] [--root ROOT] [--suite SUITE]
                                 [--status {blocked,active}] [--i-am I_AM]
                                 [--reason REASON]
 
 options:
   -h, --help            show this help message and exit
+  --root ROOT           adopter overlay root (default: .)
   --suite SUITE
   --status {blocked,active}
   --i-am I_AM           human identity; required
-  --reason REASON
+  --reason REASON       required; blocked needs a link or id
 ```
 
 ## python -m overlay run
@@ -317,8 +325,10 @@ usage: python -m overlay run [-h] [--branch BRANCH] [--root ROOT]
 
 options:
   -h, --help           show this help message and exit
-  --branch BRANCH      branch name from overlay.yaml (default:
-                       GITHUB_BASE_REF, then GITHUB_REF_NAME, then main)
+  --branch BRANCH      branch in overlay.yaml. Omit: PR base, else a
+                       configured ref, else branches.default, else main when
+                       the ref is not configured. An explicit unknown name
+                       with no branches.default exits 2.
   --root ROOT          adopter overlay root (default: .)
   --write-receipt DIR  directory for a program-written receipt (wrote_by=run);
                        required
@@ -346,4 +356,17 @@ options:
   -h, --help   show this help message and exit
   --root ROOT  adopter overlay root (default: .)
   --dry-run    print rewrites without writing files
+```
+
+## python -m overlay generate
+
+```text
+usage: python -m overlay generate [-h] --inbox INBOX [--root ROOT] [--force]
+
+options:
+  -h, --help     show this help message and exit
+  --inbox INBOX  inbox/<id>.md under --root
+  --root ROOT    adopter overlay root (default: .)
+  --force        replace an existing non-blocked suite. Does not clear
+                 blocked.
 ```

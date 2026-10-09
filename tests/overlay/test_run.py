@@ -203,7 +203,7 @@ class RunTests(unittest.TestCase):
             self.assertEqual(dropped.get("payment"), "never_red_statuses")
             self.assertEqual(dropped.get("login"), "never_red_statuses")
 
-    def test_unknown_branch_falls_back_and_is_green(self) -> None:
+    def test_unknown_branch_is_contract_error(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             dest = Path(tmp) / "receipts"
             result = run_overlay(
@@ -215,8 +215,39 @@ class RunTests(unittest.TestCase):
                 "--write-receipt",
                 str(dest),
             )
-            self.assertEqual(result.returncode, EXIT_OK, result.stderr)
-            self.assertIn("main", result.stderr)
+            self.assertEqual(result.returncode, EXIT_CONTRACT, result.stderr)
+            self.assertIn("no branches.default", result.stderr)
+            self.assertEqual(list(dest.glob("*.yaml")), [])
+
+    def test_require_command_refuses_selected_suite_without_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = write_generic_root(Path(tmp))
+            overlay = root / "overlay.yaml"
+            overlay.write_text(
+                overlay.read_text(encoding="utf-8").replace(
+                    "forbid_hosts:",
+                    "require_command: true\nforbid_hosts:",
+                ),
+                encoding="utf-8",
+            )
+            marker = Path(tmp) / "should-not-run"
+            dest = Path(tmp) / "receipts"
+            result = run_overlay(
+                "run",
+                "--branch",
+                "main",
+                "--root",
+                str(root),
+                "--write-receipt",
+                str(dest),
+                "--workdir",
+                str(root),
+            )
+            self.assertEqual(result.returncode, EXIT_CONTRACT, result.stderr)
+            self.assertIn("require_command", result.stderr)
+            self.assertIn("checkout-retry", result.stderr)
+            self.assertFalse(marker.exists())
+            self.assertEqual(list(dest.glob("*.yaml")), [])
 
     def test_workshop_commands_are_not_recursive(self) -> None:
         overlay = (REPO / "suites" / "overlay-select" / "suite.yaml").read_text(encoding="utf-8")
@@ -233,6 +264,34 @@ class RunTests(unittest.TestCase):
         selected = [line for line in result.stdout.splitlines() if line.strip()]
         self.assertEqual(selected, ["overlay-select"])
         self.assertNotIn("forge-apply", result.stdout)
+
+    def test_omitted_branch_run_receipt_uses_resolved_name(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = write_generic_root(Path(tmp))
+            dest = Path(tmp) / "receipts"
+            result = run_overlay(
+                "run",
+                "--root",
+                str(root),
+                "--write-receipt",
+                str(dest),
+                "--workdir",
+                str(root),
+                env={
+                    "GITHUB_BASE_REF": "",
+                    "GITHUB_REF_NAME": "cursor/not-configured",
+                    "GITHUB_RUN_ID": "",
+                    "GITHUB_SHA": "abc123def4567890",
+                },
+            )
+            self.assertEqual(result.returncode, EXIT_OK, result.stderr + result.stdout)
+            self.assertIn("branches.default", result.stderr)
+            files = list(dest.glob("*.yaml"))
+            self.assertEqual(len(files), 1, files)
+            self.assertTrue(files[0].name.startswith("default-run-"), files[0].name)
+            data = yaml.safe_load(files[0].read_text(encoding="utf-8"))
+            self.assertEqual(data["branch"], "default")
+            self.assertEqual(data["wrote_by"], "run")
 
     def test_run_module_has_no_http_client(self) -> None:
         path = REPO / "overlay" / "run.py"

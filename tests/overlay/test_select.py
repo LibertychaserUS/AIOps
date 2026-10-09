@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from overlay.select import Selection, SuiteDoc, assert_selection
+
 from tests.overlay.support import GENERIC_SUITE, LG, REPO, copy_lg, run_overlay, write_generic_root
 
 
@@ -23,15 +24,14 @@ class SelectTests(unittest.TestCase):
             result.stderr,
         )
 
-    def test_unknown_branch_falls_back_to_main(self) -> None:
+    def test_explicit_unknown_branch_is_contract_error(self) -> None:
         result = run_overlay("select", "--branch", "does-not-exist", "--root", str(LG))
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.returncode, 2, result.stderr)
         selected = [line for line in result.stdout.splitlines() if line.strip()]
-        self.assertEqual(selected, ["my-learning"])
-        self.assertTrue(
-            "does-not-exist" in result.stderr and "main" in result.stderr,
-            result.stderr,
-        )
+        self.assertEqual(selected, [])
+        self.assertIn("does-not-exist", result.stderr)
+        self.assertIn("no branches.default", result.stderr)
+        self.assertNotIn("my-learning", result.stdout)
 
     def test_unknown_branch_falls_back_to_branches_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -127,6 +127,36 @@ class SelectTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         selected = [line for line in result.stdout.splitlines() if line.strip()]
         self.assertEqual(selected, ["my-learning"])
+
+    def test_omitted_unconfigured_ref_uses_main(self) -> None:
+        result = run_overlay(
+            "select",
+            "--root",
+            str(LG),
+            env={"GITHUB_BASE_REF": "", "GITHUB_REF_NAME": "cursor/not-configured"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        selected = [line for line in result.stdout.splitlines() if line.strip()]
+        self.assertEqual(selected, ["my-learning"])
+        self.assertIn("using main", result.stderr)
+
+    def test_pull_request_base_unknown_without_default_is_red(self) -> None:
+        result = run_overlay(
+            "select",
+            "--root",
+            str(LG),
+            env={"GITHUB_BASE_REF": "no-such-base", "GITHUB_REF_NAME": "main"},
+        )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("no-such-base", result.stderr)
+        self.assertIn("no branches.default", result.stderr)
+
+    def test_workshop_dev_selects_the_same_suites_as_main(self) -> None:
+        main = run_overlay("select", "--branch", "main", "--root", str(REPO))
+        dev = run_overlay("select", "--branch", "dev", "--root", str(REPO))
+        self.assertEqual(main.returncode, 0, main.stderr)
+        self.assertEqual(dev.returncode, 0, dev.stderr)
+        self.assertEqual(main.stdout, dev.stdout)
 
     def test_branch_defaults_to_main(self) -> None:
         result = run_overlay(

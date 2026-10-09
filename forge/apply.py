@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
+import difflib
 import json
 import os
 import re
 import urllib.error
 import urllib.request
-import difflib
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any
 from urllib.parse import urlparse
 
 from forge import (

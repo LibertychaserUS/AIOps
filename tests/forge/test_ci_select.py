@@ -8,10 +8,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from forge import EXIT_OK
 from forge.__main__ import main
 from forge.apply import load_config
 from forge.ci_select import decide, load_ci_config, path_matches
+
+from forge import EXIT_OK
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -54,8 +55,8 @@ class WorkshopSelectorConfigTests(unittest.TestCase):
 
 class TitleFacetTests(unittest.TestCase):
     def test_overlay_title_runs_overlay_skips_forge(self) -> None:
-        overlay = _select("overlay-check", title="feat(overlay/dev): add cover triad")
-        forge = _select("forge-check", title="feat(overlay/dev): add cover triad")
+        overlay = _select("overlay-check", title="feat(overlay/dev): add cover triad", changed=[])
+        forge = _select("forge-check", title="feat(overlay/dev): add cover triad", changed=[])
         self.assertEqual(overlay[0], EXIT_OK, overlay[2])
         self.assertIn("run: true", overlay[1])
         self.assertIn("reason: title:overlay", overlay[1])
@@ -64,8 +65,8 @@ class TitleFacetTests(unittest.TestCase):
         self.assertIn("reason: title:overlay", forge[1])
 
     def test_forge_title_runs_forge_skips_overlay(self) -> None:
-        overlay = _select("overlay-check", title="feat(forge/dev): add submit middleware")
-        forge = _select("forge-check", title="feat(forge/dev): add submit middleware")
+        overlay = _select("overlay-check", title="feat(forge/dev): add submit middleware", changed=[])
+        forge = _select("forge-check", title="feat(forge/dev): add submit middleware", changed=[])
         self.assertEqual(overlay[0], EXIT_OK, overlay[2])
         self.assertIn("run: false", overlay[1])
         self.assertEqual(forge[0], EXIT_OK, forge[2])
@@ -73,8 +74,8 @@ class TitleFacetTests(unittest.TestCase):
         self.assertIn("reason: title:forge", forge[1])
 
     def test_ci_title_runs_both(self) -> None:
-        overlay = _select("overlay-check", title="ci(ci/dev): wire selectable product gates")
-        forge = _select("forge-check", title="ci(ci/dev): wire selectable product gates")
+        overlay = _select("overlay-check", title="ci(ci/dev): wire selectable product gates", changed=[])
+        forge = _select("forge-check", title="ci(ci/dev): wire selectable product gates", changed=[])
         self.assertEqual(overlay[0], EXIT_OK, overlay[2])
         self.assertIn("run: true", overlay[1])
         self.assertEqual(forge[0], EXIT_OK, forge[2])
@@ -82,18 +83,18 @@ class TitleFacetTests(unittest.TestCase):
         self.assertIn("reason: title:ci", overlay[1])
 
     def test_docs_title_skips_both_products(self) -> None:
-        overlay = _select("overlay-check", title="docs(docs/admin): record CI layering")
-        forge = _select("forge-check", title="docs(docs/admin): record CI layering")
+        overlay = _select("overlay-check", title="docs(docs/admin): record CI layering", changed=[])
+        forge = _select("forge-check", title="docs(docs/admin): record CI layering", changed=[])
         self.assertEqual(overlay[0], EXIT_OK, overlay[2])
         self.assertIn("run: false", overlay[1])
         self.assertEqual(forge[0], EXIT_OK, forge[2])
         self.assertIn("run: false", forge[1])
-        self.assertIn("reason: title:docs", overlay[1])
+        self.assertIn("reason: title:docs\n", overlay[1])
 
     def test_common_never_skips_on_docs_title(self) -> None:
         title = "docs(docs/admin): record CI layering"
         for check in ("pr-title", "sop-lock"):
-            code, out, err = _select(check, title=title)
+            code, out, err = _select(check, title=title, changed=[])
             self.assertEqual(code, EXIT_OK, err)
             self.assertIn("run: true", out)
             self.assertIn("reason: common", out)
@@ -101,7 +102,7 @@ class TitleFacetTests(unittest.TestCase):
     def test_common_never_skips_on_overlay_title(self) -> None:
         title = "feat(overlay/dev): add cover triad"
         for check in ("pr-title", "sop-lock"):
-            code, out, err = _select(check, title=title)
+            code, out, err = _select(check, title=title, changed=[])
             self.assertEqual(code, EXIT_OK, err)
             self.assertIn("run: true", out)
             self.assertIn("reason: common", out)
@@ -139,14 +140,43 @@ class PathFallbackTests(unittest.TestCase):
         self.assertIn("run: true", title[1])
         self.assertIn("run: true", sop[1])
 
-    def test_title_wins_over_paths(self) -> None:
+    def test_docs_title_still_runs_a_hit_product(self) -> None:
         overlay = _select(
             "overlay-check",
             title="docs(docs/dev): mention overlay",
             changed=["overlay/select.py"],
         )
+        forge = _select(
+            "forge-check",
+            title="docs(docs/dev): mention overlay",
+            changed=["overlay/select.py"],
+        )
+        self.assertIn("run: true", overlay[1])
+        self.assertIn("reason: title:docs+paths", overlay[1])
+        self.assertIn("run: false", forge[1])
+
+    def test_title_or_paths_runs_the_other_product(self) -> None:
+        overlay = _select(
+            "overlay-check",
+            title="feat(overlay/dev): add cover triad",
+            changed=["forge/apply.py"],
+        )
+        forge = _select(
+            "forge-check",
+            title="feat(overlay/dev): add cover triad",
+            changed=["forge/apply.py"],
+        )
+        self.assertIn("run: true", overlay[1])
+        self.assertIn("run: true", forge[1])
+        self.assertIn("reason: title:overlay+paths", forge[1])
+
+    def test_docs_title_with_docs_paths_skips_products(self) -> None:
+        changed = ["docs/design.md"]
+        overlay = _select("overlay-check", title="docs(docs/dev): note only", changed=changed)
+        forge = _select("forge-check", title="docs(docs/dev): note only", changed=changed)
         self.assertIn("run: false", overlay[1])
-        self.assertIn("reason: title:docs", overlay[1])
+        self.assertIn("run: false", forge[1])
+        self.assertIn("reason: title:docs\n", overlay[1])
 
     def test_path_match_prefix(self) -> None:
         self.assertTrue(path_matches("overlay/select.py", "overlay/"))
@@ -193,6 +223,8 @@ class GithubOutputTests(unittest.TestCase):
                     "forge-check",
                     "--title",
                     "feat(overlay/dev): x",
+                    "--changed",
+                    "docs/only.md",
                     "--github-output",
                 ],
                 stdout=stdout,
@@ -213,6 +245,17 @@ class DecideUnitTests(unittest.TestCase):
         self.assertTrue(overlay.run)
         self.assertTrue(forge.run)
         self.assertEqual(overlay.reason, "undecided-run-all")
+
+    def test_unknown_check_skips_even_when_paths_hit(self) -> None:
+        config = load_ci_config(ROOT)
+        decision = decide(
+            config,
+            "mystery-check",
+            title="docs(docs/dev): x",
+            changed=["forge/apply.py", "overlay/select.py"],
+        )
+        self.assertFalse(decision.run)
+        self.assertEqual(decision.reason, "unknown-check-skip")
 
     def test_unknown_check_skips(self) -> None:
         config = load_ci_config(ROOT)

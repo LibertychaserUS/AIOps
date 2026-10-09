@@ -9,4 +9,4 @@
 
 代推：`python -m forge check` 必须绿，且持有 `FORGE_SUBMIT_TOKEN`（[`docs/submit-credential.md`](docs/submit-credential.md)；`gh auth` 不够），才能 `submit`。PR 标题过 `pr-title`（工作本 scope 见 `forge.yaml` `title.scopes`）。正文六节见 [`docs/pr-brief.md`](docs/pr-brief.md)。进保护分支 **squash 封顶**，合完 **换底**。
 
-**通用检查 ≠ 产品门。** `pr-title` / `sop-lock` 永远跑；工作本 `unittest` 永远跑。产品门按分支 `required_checks`。程序锁：`python -m forge sop-lock`（不绿不能合）。
+**通用检查 ≠ 产品门。** `pr-title` / `sop-lock` 在合入路径上永远有效：Actions 的 `pr-title` job 只在 `pull_request` 启动，`push` 由 `forge check` lint HEAD 提交 subject。工作本 `unittest` job 与本地 `forge check` 都跑 `python -m unittest discover -s tests -t .`。接入方根不跑这套工作本单测。产品门按分支 `required_checks`。程序锁：`python -m forge sop-lock`（不绿不能合）。Python 内核风格由 `unittest` 里的 ruff 锁住，见 [`docs/sop-lock.md`](docs/sop-lock.md)。

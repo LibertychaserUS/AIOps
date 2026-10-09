@@ -140,15 +140,24 @@ jobs:
       - name: Resolve branch
         id: br
         run: |
+          # Empty input omits --branch. overlay select then uses the PR base,
+          # a configured push ref, branches.default, or main when the ref is
+          # not configured. An explicit input is passed through.
           B="${{ inputs.branch }}"
-          if [ -z "$B" ]; then B="${{ github.base_ref }}"; fi
-          if [ -z "$B" ]; then B="${{ github.ref_name }}"; fi
-          echo "name=$B" >> "$GITHUB_OUTPUT"
+          if [ -n "$B" ]; then
+            echo "name=$B" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: overlay select
         run: |
           mkdir -p receipts
-          python -m overlay select --branch "${{ steps.br.outputs.name }}" --root "${{ inputs.root }}" --write-receipt receipts/
+          if [ -n "${{ steps.br.outputs.name }}" ]; then
+            python -m overlay select --branch "${{ steps.br.outputs.name }}" --root "${{ inputs.root }}" --write-receipt receipts/
+          else
+            python -m overlay select --root "${{ inputs.root }}" --write-receipt receipts/
+          fi
 
       - name: Upload receipt
         uses: actions/upload-artifact@v4
@@ -205,10 +214,13 @@ jobs:
       - name: Resolve branch
         id: br
         run: |
+          # Same resolution as the select job: empty input omits --branch.
           B="${{ inputs.branch }}"
-          if [ -z "$B" ]; then B="${{ github.base_ref }}"; fi
-          if [ -z "$B" ]; then B="${{ github.ref_name }}"; fi
-          echo "name=$B" >> "$GITHUB_OUTPUT"
+          if [ -n "$B" ]; then
+            echo "name=$B" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Install product dependencies
         if: ${{ inputs.setup_command != '' }}
@@ -217,11 +229,18 @@ jobs:
       - name: overlay run
         run: |
           mkdir -p receipts-run
-          python -m overlay run \
-            --branch "${{ steps.br.outputs.name }}" \
-            --root "${{ inputs.root }}" \
-            --workdir "${{ github.workspace }}" \
-            --write-receipt receipts-run/
+          if [ -n "${{ steps.br.outputs.name }}" ]; then
+            python -m overlay run \
+              --branch "${{ steps.br.outputs.name }}" \
+              --root "${{ inputs.root }}" \
+              --workdir "${{ github.workspace }}" \
+              --write-receipt receipts-run/
+          else
+            python -m overlay run \
+              --root "${{ inputs.root }}" \
+              --workdir "${{ github.workspace }}" \
+              --write-receipt receipts-run/
+          fi
 
       - name: Upload run receipt
         if: always()

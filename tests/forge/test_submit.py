@@ -6,7 +6,6 @@ import io
 import unittest
 from pathlib import Path
 
-from forge import EXIT_AUTH, EXIT_CONFIG, EXIT_OK, SUBMIT_TOKEN_ENV
 from forge.__main__ import main
 from forge.check import EXIT_CHECK
 from forge.submit import (
@@ -19,6 +18,7 @@ from forge.submit import (
 )
 from forge.title import EXAMPLE, lint_title
 
+from forge import EXIT_AUTH, EXIT_CONFIG, EXIT_OK, SUBMIT_TOKEN_ENV
 from tests.forge.fake_github import FakeGitHub
 
 FAKE_API = "https://forge.test"
@@ -253,6 +253,28 @@ class LiveFakeApiTests(unittest.TestCase):
         self.assertNotIn(leak, fake.pulls[0]["body"] or "")
         self.assertFalse(any("/merge" in path for _method, path, _body in fake.calls))
         self.assertEqual([c for c in fake.calls if c[0] in {"POST", "PUT"} and "rulesets" in c[1]], [])
+
+    def test_open_pr_on_another_base_is_not_patched(self) -> None:
+        fake = FakeGitHub()
+        fake.pulls.append(
+            {
+                "number": 9,
+                "title": "old",
+                "body": "",
+                "draft": True,
+                "head": {"ref": HEAD},
+                "base": {"ref": "main"},
+            }
+        )
+        fake.next_pr = 10
+        code, out, err, _, _ = _submit(fake=fake)
+        self.assertEqual(code, EXIT_OK, err)
+        self.assertIn("opened draft PR #10", out)
+        self.assertEqual(fake.methods().count("POST"), 1)
+        self.assertEqual(fake.methods().count("PATCH"), 0)
+        opened = next(pull for pull in fake.pulls if pull["number"] == 10)
+        self.assertEqual(opened["base"]["ref"], "dev")
+        self.assertEqual(fake.pulls[0]["title"], "old")
 
     def test_second_submit_patches_existing(self) -> None:
         fake = FakeGitHub()

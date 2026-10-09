@@ -57,7 +57,7 @@ Each `function_id` is a `## <id>` section. The three `###` titles must be these 
 Typical sources (only visible after reading the whole tree):
 
 - 状态机：`blocked` 永不把 overlay-check 染红
-- 跨产品：Forge 不把 Overlay `status` 改成 `blocked`（agent 分支）
+- 跨产品：agent 分支不把 Overlay `status` 改成 `blocked`，也不清掉已有的 `blocked`
 - 安全：不打 `forbid_hosts`；push 不 `generate`
 - 账本：回执只能 `select` / `run` 写
 

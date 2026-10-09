@@ -9,8 +9,10 @@
 #   → human Ops merge
 # Red spec/CI: bounce 打回 + keep ops-debug / receipts for debug.
 # CodeRabbit is never the only merge gate. Never generate. Never forge submit.
-# branch is pinned to main so agent branches still execute the
-# active Overlay tool tests. Forge tests live on forge-check.
+# Workshop job leaves branch empty so a PR uses the base ref (dev) and a
+# push to an unconfigured ref falls back inside overlay select (main when
+# that ref is not a configured branch). The fixture job stays on main.
+# Forge tests live on forge-check.
 
 name: overlay-check
 
@@ -129,7 +131,6 @@ jobs:
     with:
       enable_run: true
       root: "."
-      branch: main
       receipt_prefix: workshop
 
   fixture:

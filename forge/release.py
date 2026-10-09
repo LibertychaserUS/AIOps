@@ -15,11 +15,11 @@ from forge.apply import (
     DEFAULT_API,
     ForgeError,
     GitHubClient,
+    assert_live_repo_allowed,
     default_urlopen,
     load_config,
     parse_repo,
     resolve_token,
-    assert_live_repo_allowed,
 )
 
 VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")

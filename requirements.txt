@@ -1,3 +1,5 @@
-# Overlay (+ later Forge YAML). CPython 3.12+.
-# Slice 1 has no HTTP client. Do not add generate deps to push CI.
+# Overlay (+ Forge YAML). CPython 3.12+.
+# Do not add generate deps to push CI.
 PyYAML>=6.0.1,<7
+# Workshop style gate. unittest runs `python -m ruff check`. Not a new CI job.
+ruff>=0.8,<1

@@ -56,7 +56,7 @@ Forge 规范（程序执行）：
 
 **生成（人点，花钱）**：inbox → `cases.md` + `suite.yaml`；经 PR 合入。未就绪人手标 `blocked` 并写带链接的 reason。
 
-**选择 + 执行（push，不花钱）**：读 `overlay.yaml` → 只留 `active` 且 kind ∈ 该分支 → 跑 `product_command`。未知分支回落 `branches.default` 再到 `main`。
+**选择 + 执行（push，不花钱）**：读 `overlay.yaml` → 只留 `active` 且 kind ∈ 该分支 → 跑 `product_command`。显式未知分支没有 `branches.default` 时退出 2；省略分支名时，未配置的 ref 才用 `main`。
 
 后一刀在**调用方 checkout**跑命令，不从本工作本 clone 外国产品仓。`setup_command` 先装产品工具链。
 

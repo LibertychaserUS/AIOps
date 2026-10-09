@@ -6,7 +6,7 @@
 
 | 锁 | 命令 | 挡住什么 |
 |---|---|---|
-| **代推锁（提交前）** | `python -m forge check` 绿，且持有 `FORGE_SUBMIT_TOKEN`（`submit` 先探测再跑 check） | 不绿或缺 `FORGE_SUBMIT_TOKEN`则 **不 push、不开 PR**（含 `--dry-run`） |
+| **代推锁（提交前）** | `python -m forge check` 绿，且持有 `FORGE_SUBMIT_TOKEN`（`submit` 先跑 check，再要求密钥） | 不绿或缺 `FORGE_SUBMIT_TOKEN`则 **不 push、不开 PR**（含 `--dry-run`） |
 | **合入锁** | GitHub required checks / Ruleset | 不绿则 **不能合** |
 
 GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge check` 才是开发侧代推门。
@@ -41,7 +41,7 @@ GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge
 | `blocked` 要带链接的 `blocked_reason` | `overlay validate` → **`overlay-check`** | reason 是不是真人写的 | |
 | 内核 `function_id` 不冻产品号段；schema 不写产品域名 | `schema/check.py`（`overlay-check` + `sop-lock`） | 接入方编号好不好 | |
 | Overlay 内核 `.py` 不含产品生产域名 / 产品仓路径 | `python -m forge sop-lock` → **`sop-lock`** | 文档里点名禁令 | fixture 在 `examples/` |
-| push workflow 不跑 `overlay generate`、不设 `OPENAI_API_KEY` | `sop-lock` 扫 `.github/workflows` | dispatch / 人点 generate（未交付） | |
+| push workflow 不跑 `overlay generate`、不设 `OPENAI_API_KEY` | `sop-lock` 扫 `.github/workflows` | 人在本机点 generate；不挂 push | |
 | 不 `workflow_call` 产品构建 workflow；不 checkout 外国产品仓 | `sop-lock` | 改别的仓的构建门 | |
 | reusable `uses:` 不钉浮动 `main`/`master`/`HEAD`/`latest` | `sop-lock` | 接入方仓是否 pin | 相对路径合法 |
 | Overlay push 上不另开旁路 `unittest discover` | `sop-lock` | — | Overlay 单测进 Overlay `product_command`；Forge 单测进 **`forge-check`**；`ci.yml` 的 `unittest` job 放行 |
@@ -66,8 +66,9 @@ GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge
 | 发新版本：两条 tag，仅 `workflow_dispatch` / `forge release` | `sop-lock` 扫 `release.yml` + `docs/release.md`；`python -m forge release --dry-run` | 人是否真点发布 | 不在 push 上自动发 |
 | Codex/Cursor/Claude Code 能发现 `use-forge` / `use-overlay` | `sop-lock` 扫 `.agents/skills` `.cursor/skills` `.claude/skills` → `skills/` | 外来仓是否 `gh skill install` | 不 vendor 工具包 |
 | 不自建管理端门户 / 第二套 RBAC | — | **仅人审** | |
-| Agent 同一 PR 把套件标 `blocked` | `suite_guard` | 人枝只记录 | |
+| Agent 同一 PR 把套件标成 `blocked`，或把已有 `blocked` 改回 `active` / 删掉 | `suite_guard` | 人枝只记录 | |
 | 用例文案是否真测到角 | — | **仅人审** | `cover` 只看技法标题与 token |
+| Python 内核风格（语法、未使用导入、导入顺序、3.12 升级） | `unittest` → `tests/style/test_ruff.py` | 散文好不好读 | 配置在 `pyproject.toml` `[tool.ruff]`。不另开 CI job，不装 husky |
 
 ---
 

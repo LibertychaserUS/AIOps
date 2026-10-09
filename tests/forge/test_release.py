@@ -7,9 +7,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from forge import EXIT_API, EXIT_AUTH, EXIT_CONFIG, EXIT_OK
 from forge.__main__ import main
 from forge.release import parse_products, parse_version, product_tag, run_release
+
+from forge import EXIT_API, EXIT_AUTH, EXIT_CONFIG, EXIT_OK
 from tests.forge.fake_github import FakeGitHub
 
 ROOT = Path(__file__).resolve().parents[2]
