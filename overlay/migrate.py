@@ -61,7 +61,7 @@ def rewrite_suite_text(text: str) -> str:
                 if token in MULTILINE_INDICATORS or token == "":
                     skip_indent = len(indent)
                 continue
-            if key == "status" and rest.strip() in OLD_STATUSES:
+            if key == "status" and _scalar(rest) in OLD_STATUSES:
                 out.append(f"{indent}status: active")
                 continue
         out.append(line)
@@ -71,6 +71,14 @@ def rewrite_suite_text(text: str) -> str:
     if had_nl:
         result += "\n"
     return result
+
+
+def _scalar(rest: str) -> object:
+    """Value after `key:` as YAML reads it, so `"draft"` and `draft  # x` match."""
+    try:
+        return yaml.safe_load(rest)
+    except yaml.YAMLError:
+        return rest.strip()
 
 
 def rewrite_overlay_yaml(text: str) -> str:

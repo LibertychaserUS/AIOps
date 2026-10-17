@@ -8,7 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from overlay.generate import run_generate
+import yaml
+from overlay.generate import render_suite, run_generate
 
 from overlay import EXIT_CONTRACT, EXIT_MISSING_KEY, EXIT_OK
 from tests.overlay.support import run_overlay, write_generic_root
@@ -193,6 +194,11 @@ class GenerateTests(unittest.TestCase):
             suite = (root / "suites" / "checkout-retry" / "suite.yaml").read_text(encoding="utf-8")
             self.assertIn("status: active", suite)
             self.assertNotIn("reviewed_by", suite)
+
+
+    def test_scoped_package_names_stay_valid_yaml(self) -> None:
+        text = render_suite(suite_id="web", title="Web", packages=["@acme/web", "src/x"])
+        self.assertEqual(yaml.safe_load(text)["packages"], ["@acme/web", "src/x"])
 
 
 if __name__ == "__main__":
