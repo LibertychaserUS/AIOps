@@ -11,6 +11,11 @@ Never applies a Ruleset. Ops (manage-repo + required checks) merges.
 Requires env FORGE_SUBMIT_TOKEN (PAT / fine-grained / GitHub App token).
 No GITHUB_TOKEN fallback, no FORGE_GITHUB_TOKEN fallback, no gh auth.
 Missing or empty secret exits 2 even on --dry-run. Never print the token.
+
+check runs on this worktree, so submit refuses a --head that is not the
+checked-out branch and a dirty tree, then pushes the exact HEAD sha it
+checked via an explicit `<sha>:refs/heads/<head>` refspec (no ref DWIM).
+The token reaches git through GIT_CONFIG_* env, never argv.
 """
 
 from __future__ import annotations
@@ -46,6 +51,9 @@ DEFAULT_REMOTE = "origin"
 GITHUB_HTTPS_EXTRAHEADER = "http.https://github.com/.extraheader"
 GitRunner = Callable[..., str]
 Pusher = Callable[[str, str], None]
+SHA_RE = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
+# Names git would DWIM onto another ref (HEAD, heads/dev -> refs/heads/dev, ...).
+AMBIGUOUS_HEAD_PREFIXES = ("heads/", "refs/", "tags/")
 
 
 def _redact_secrets(text: str) -> str:
@@ -55,6 +63,7 @@ def _redact_secrets(text: str) -> str:
 def default_git_runner(
     args: Sequence[str],
     cwd: Path | str | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> str:
     result = subprocess.run(
         ["git", *args],
@@ -62,6 +71,7 @@ def default_git_runner(
         capture_output=True,
         text=True,
         check=False,
+        env=None if env is None else {**os.environ, **env},
     )
     if result.returncode != 0:
         err = (result.stderr or result.stdout or "").strip() or f"exit {result.returncode}"
@@ -70,20 +80,64 @@ def default_git_runner(
     return (result.stdout or "").strip()
 
 
+def token_git_env(
+    token: str,
+    environ: Mapping[str, str] | os._Environ[str] | None = None,
+) -> dict[str, str]:
+    """GIT_CONFIG_* entries for the bearer header (git >= 2.31). Never argv (ps).
+
+    Appended after any ambient GIT_CONFIG_COUNT entries. The empty value first
+    resets inherited extraheaders (e.g. actions/checkout's GITHUB_TOKEN) so
+    only FORGE_SUBMIT_TOKEN is sent.
+    """
+    env = os.environ if environ is None else environ
+    try:
+        start = max(int(str(env.get("GIT_CONFIG_COUNT") or "0")), 0)
+    except ValueError:
+        start = 0
+    values = ("", f"AUTHORIZATION: bearer {token}")
+    out = {"GIT_CONFIG_COUNT": str(start + len(values))}
+    for offset, value in enumerate(values):
+        out[f"GIT_CONFIG_KEY_{start + offset}"] = GITHUB_HTTPS_EXTRAHEADER
+        out[f"GIT_CONFIG_VALUE_{start + offset}"] = value
+    return out
+
+
+def push_refspec(sha: str, head: str) -> str:
+    return f"{sha}:refs/heads/{head}"
+
+
 def default_pusher(
     remote: str,
-    ref: str,
+    refspec: str,
     *,
     cwd: Path | str | None = None,
     git_runner: GitRunner | None = None,
     token: str | None = None,
 ) -> None:
     runner = default_git_runner if git_runner is None else git_runner
-    args: list[str] = []
+    args = ["push", remote, refspec]
     if token:
-        args.extend(["-c", f"{GITHUB_HTTPS_EXTRAHEADER}=AUTHORIZATION: bearer {token}"])
-    args.extend(["push", "-u", remote, ref])
-    runner(args, cwd=cwd)
+        runner(args, cwd=cwd, env=token_git_env(token))
+    else:
+        runner(args, cwd=cwd)
+    # `push -u` does not set upstream for a sha source; record it like -u would.
+    _src, _sep, dest = refspec.partition(":")
+    if dest.startswith("refs/heads/"):
+        branch = dest[len("refs/heads/") :]
+        runner(["config", f"branch.{branch}.remote", remote], cwd=cwd)
+        runner(["config", f"branch.{branch}.merge", dest], cwd=cwd)
+
+
+def submit_branch(name: str) -> str:
+    """A plain branch name. HEAD and heads/ refs/ tags/ would resolve onto another ref."""
+    text = name.strip()
+    if text == "HEAD" or text.startswith(AMBIGUOUS_HEAD_PREFIXES):
+        raise ForgeError(
+            EXIT_CONFIG,
+            f"refusing --head {name!r}; pass the plain feature branch name",
+        )
+    return normalize_branch(text)
 
 
 def resolve_head(
@@ -93,18 +147,49 @@ def resolve_head(
     git_runner: GitRunner | None = None,
     environ: Mapping[str, str] | os._Environ[str] | None = None,
 ) -> str:
-    if head and head.strip():
-        return normalize_branch(head)
+    """The checked-out branch (check runs on it). --head must name the same branch."""
+    explicit = submit_branch(head) if head and head.strip() else None
     runner = default_git_runner if git_runner is None else git_runner
-    raw = runner(["rev-parse", "--abbrev-ref", "HEAD"], cwd=cwd)
+    raw = (runner(["rev-parse", "--abbrev-ref", "HEAD"], cwd=cwd) or "").strip()
+    current: str | None = None
     if raw and raw != "HEAD":
-        return normalize_branch(raw)
-    env = {} if environ is None else environ
-    for key in ("GITHUB_HEAD_REF", "GITHUB_REF_NAME"):
-        candidate = str(env.get(key) or "").strip()
-        if candidate and candidate != "HEAD":
-            return normalize_branch(candidate)
-    raise ForgeError(EXIT_CONFIG, "refusing detached HEAD; pass a feature branch")
+        current = submit_branch(raw)
+    else:
+        env = {} if environ is None else environ
+        for key in ("GITHUB_HEAD_REF", "GITHUB_REF_NAME"):
+            candidate = str(env.get(key) or "").strip()
+            if candidate and candidate != "HEAD":
+                current = submit_branch(candidate)
+                break
+    if current is None:
+        raise ForgeError(EXIT_CONFIG, "refusing detached HEAD; check out the feature branch")
+    if explicit is not None and explicit != current:
+        raise ForgeError(
+            EXIT_CONFIG,
+            f"refusing --head {explicit!r}: checked-out branch is {current!r} "
+            "(check runs on this worktree; check out the branch you submit)",
+        )
+    return current
+
+
+def resolve_clean_head_sha(
+    *,
+    cwd: Path | str | None = None,
+    git_runner: GitRunner | None = None,
+) -> str:
+    """HEAD sha of a clean tree (untracked included). That sha is what gets pushed."""
+    runner = default_git_runner if git_runner is None else git_runner
+    dirty = runner(["status", "--porcelain", "--untracked-files=all"], cwd=cwd)
+    if (dirty or "").strip():
+        raise ForgeError(
+            EXIT_CONFIG,
+            "refusing dirty worktree (uncommitted or untracked files); "
+            "commit or stash first so check sees what is pushed",
+        )
+    sha = (runner(["rev-parse", "HEAD"], cwd=cwd) or "").strip().lower()
+    if not SHA_RE.fullmatch(sha):
+        raise ForgeError(EXIT_CONFIG, f"cannot resolve HEAD sha: {sha!r}")
+    return sha
 
 
 def resolve_commit_subject(
@@ -169,6 +254,7 @@ def _print_plan(
     stdout: TextIO,
     repo: str,
     head: str,
+    sha: str,
     base: str,
     title: str,
     dry_run: bool,
@@ -178,6 +264,7 @@ def _print_plan(
     print(f"repo: {repo}", file=stdout)
     print(f"remote: {DEFAULT_REMOTE}", file=stdout)
     print(f"head: {head}", file=stdout)
+    print(f"sha: {sha}", file=stdout)
     print(f"base: {base}", file=stdout)
     print(f"title: {title}", file=stdout)
     print("body headings:", file=stdout)
@@ -211,10 +298,11 @@ def _open_or_update_draft(
                 break
     if existing and existing.get("number") is not None:
         number = int(existing["number"])
+        # Title only: the body is the author's 解说; never overwrite it with the template.
         client.request(
             "PATCH",
             f"/repos/{owner}/{name}/pulls/{number}",
-            {"title": title, "body": body},
+            {"title": title},
         )
         return "updated", number
     created = client.request(
@@ -264,6 +352,7 @@ def run_submit(
             head, cwd=cwd, git_runner=git_runner, environ=environ
         )
         assert_head_not_protect(resolved_head, config.protect)
+        head_sha = resolve_clean_head_sha(cwd=cwd, git_runner=git_runner)
         locked = {normalize_branch(item) for item in (config.protect or list(DEFAULT_PROTECT))}
         resolved_base = (
             normalize_branch(base)
@@ -300,6 +389,7 @@ def run_submit(
             stdout=out,
             repo=f"{owner}/{name}",
             head=resolved_head,
+            sha=head_sha,
             base=resolved_base,
             title=resolved_title,
             dry_run=dry_run,
@@ -317,17 +407,17 @@ def run_submit(
         push = pusher
         if push is None:
 
-            def push(remote: str, ref: str) -> None:
+            def push(remote: str, refspec: str) -> None:
                 default_pusher(
                     remote,
-                    ref,
+                    refspec,
                     cwd=cwd,
                     git_runner=git_runner,
                     token=resolved_token,
                 )
 
-        push(DEFAULT_REMOTE, resolved_head)
-        print(f"pushed {DEFAULT_REMOTE} {resolved_head}", file=out)
+        push(DEFAULT_REMOTE, push_refspec(head_sha, resolved_head))
+        print(f"pushed {DEFAULT_REMOTE} {resolved_head} ({head_sha[:12]})", file=out)
         client = GitHubClient(resolved_token, urlopen=urlopen, base_url=base_url)
         action, number = _open_or_update_draft(
             client,

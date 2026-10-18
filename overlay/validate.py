@@ -550,8 +550,13 @@ def validate_suite_file(
 
     function_ids = cases_function_ids(cases_text)
     techniques = cases_techniques(cases_text)
+    seen_headings: set[str] = set()
     for heading in H2_RE.finditer(cases_text):
         token = parse_function_id(heading.group(1))
+        if token is not None and token in seen_headings:
+            issues.append(Issue(cases_rel, f"duplicate ## {token}; function_id must be unique"))
+        if token is not None:
+            seen_headings.add(token)
         if token is None:
             issues.append(Issue(cases_rel, f"## heading needs a non-empty function_id without whitespace: {heading.group(1)!r}"))
     if status == "active" and not function_ids:

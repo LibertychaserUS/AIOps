@@ -297,6 +297,40 @@ class ReleaseWriteTests(unittest.TestCase):
             self.assertEqual(code, EXIT_CONFIG, err)
             self.assertIn("__version__", err)
 
+    def test_missing_product_init_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _workshop_copy(tmp)
+            (root / "overlay" / "__init__.py").unlink()
+            (root / "forge" / "__init__.py").write_text('__version__ = "0.0.1"\n', encoding="utf-8")
+            code, _, err, _ = _release(
+                version="1.1.0", products="forge", dry_run=True, environ={}, root=root
+            )
+            self.assertEqual(code, EXIT_CONFIG, err)
+            self.assertIn("__version__", err)
+            (root / "forge" / "__init__.py").unlink()
+            code, _, err, _ = _release(
+                version="1.1.0", products="forge", dry_run=True, environ={}, root=root
+            )
+            self.assertEqual(code, EXIT_CONFIG, err)
+            self.assertIn("cannot read", err)
+
+    def test_both_preflights_every_tag_before_publishing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _workshop_copy(tmp)
+            (root / "overlay" / "__init__.py").write_text('__version__ = "1.1.0"\n', encoding="utf-8")
+            (root / "CHANGELOG.md").write_text(
+                "## [overlay-1.1.0]\n\n- o\n\n## [forge-1.1.0]\n\n- f\n", encoding="utf-8"
+            )
+            fake = FakeGitHub()
+            fake.releases.append({"tag_name": "forge-v1.1.0"})
+            code, _, err, _ = _release(
+                fake=fake, version="1.1.0", products="both", sha="abc1234deadbeef", root=root
+            )
+            self.assertEqual(code, EXIT_API, err)
+            self.assertIn("forge-v1.1.0 already exists", err)
+            self.assertEqual([r["tag_name"] for r in fake.releases], ["forge-v1.1.0"])
+            self.assertEqual(fake.methods().count("POST"), 0)
+
 
 class WorkshopReleaseWorkflowTests(unittest.TestCase):
     def test_release_workflow_is_dispatch_only(self) -> None:

@@ -6,6 +6,7 @@ Parse failure writes nothing. Never clears blocked.
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import re
@@ -23,8 +24,11 @@ from overlay.validate import Issue, load_json_schema, load_overlay_config, valid
 UrlOpen = Callable[..., Any]
 DEFAULT_MODEL = "gpt-4o-mini"
 DEFAULT_BASE = "https://api.openai.com/v1"
+OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 FUNCTION_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9-]*$")
 FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
+# Leaf text must not open a new heading or fence: that would mint function_ids or techniques.
+LEAF_STRUCTURE_RE = re.compile(r"^\s{0,3}(#{1,6}\s|```|~~~)", re.MULTILINE)
 
 
 def prompts_dir() -> Path:
@@ -42,7 +46,11 @@ def resolve_api_key(environ: Mapping[str, str] | None = None) -> str | None:
 
 def chat_url(environ: Mapping[str, str] | None = None) -> str:
     env = os.environ if environ is None else environ
-    base = (env.get("OPENAI_BASE_URL") or DEFAULT_BASE).strip().rstrip("/")
+    default = DEFAULT_BASE
+    if not (env.get("OPENAI_API_KEY") or "").strip() and (env.get("OPENROUTER_API_KEY") or "").strip():
+        # Never send an OpenRouter key to api.openai.com.
+        default = OPENROUTER_BASE
+    base = (env.get("OPENAI_BASE_URL") or default).strip().rstrip("/")
     if base.endswith("/chat/completions"):
         return base
     return base + "/chat/completions"
@@ -84,7 +92,9 @@ def _post_chat(
     user: str,
     urlopen: UrlOpen,
     timeout: float = 60,
+    failures: list[str] | None = None,
 ) -> dict[str, Any] | None:
+    failures = [] if failures is None else failures
     payload = {
         "model": model,
         "temperature": temperature,
@@ -94,19 +104,30 @@ def _post_chat(
         ],
     }
     raw = json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(
-        url,
-        data=raw,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
+    if not url.startswith(("https://", "http://")):
+        failures.append(f"chat URL must start with http(s)://: {url!r}")
+        return None
+    try:
+        request = urllib.request.Request(
+            url,
+            data=raw,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+    except ValueError as exc:
+        failures.append(f"bad chat URL: {exc}")
+        return None
     try:
         with urlopen(request, timeout=timeout) as response:
             body = response.read()
-    except (OSError, urllib.error.URLError, TimeoutError):
+    except urllib.error.HTTPError as exc:
+        failures.append(f"HTTP {exc.code} from {url}")
+        return None
+    except (OSError, urllib.error.URLError, TimeoutError, http.client.HTTPException) as exc:
+        failures.append(f"request failed: {type(exc).__name__}: {exc}")
         return None
     try:
         decoded = json.loads(body.decode("utf-8"))
@@ -163,6 +184,8 @@ def _cases_from_model(
         if FUNCTION_ID_RE.fullmatch(fid) is None or not heading:
             return None
         if not functional or not negative or not edge:
+            return None
+        if any(LEAF_STRUCTURE_RE.search(text) for text in (functional, negative, edge)):
             return None
         by_id[fid] = {
             "id": fid,
@@ -223,15 +246,18 @@ def render_suite(
     )
 
 
+UNREADABLE = "<unreadable>"
+
+
 def _existing_status(path: Path) -> str | None:
     if not path.is_file():
         return None
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
     except yaml.YAMLError:
-        return ""
+        return UNREADABLE
     if not isinstance(data, dict):
-        return ""
+        return UNREADABLE
     status = str(data.get("status") or "").strip()
     return status or "active"
 
@@ -292,6 +318,16 @@ def run_generate(
 
     suite_yaml = root / "suites" / doc.inbox_id / "suite.yaml"
     existing = _existing_status(suite_yaml)
+    if existing == UNREADABLE:
+        # Cannot prove it is not blocked; --force must not clear what we cannot read.
+        print(
+            f"overlay generate: refusing to write {doc.inbox_id}: "
+            "suite.yaml does not parse; fix it by hand first",
+            file=err,
+        )
+        return EXIT_CONTRACT
+    if existing is None and suite_yaml.parent.is_dir() and any(suite_yaml.parent.iterdir()):
+        existing = "active"
     if existing == "blocked":
         print(
             "overlay generate: refusing to write "
@@ -322,7 +358,9 @@ def run_generate(
     model = (env.get("OPENAI_MODEL") or DEFAULT_MODEL).strip() or DEFAULT_MODEL
     url = chat_url(env)
     inbox_text = inbox_file.read_text(encoding="utf-8")
+    failures: list[str] = []
     extracted = _post_chat(
+        failures=failures,
         url=url,
         api_key=api_key,
         model=model,
@@ -332,14 +370,17 @@ def run_generate(
         urlopen=opener,
     )
     if extracted is None:
-        print("overlay generate: extract response was not JSON; wrote nothing", file=err)
+        reason = "; ".join(failures) or "response was not JSON"
+        print(f"overlay generate: extract {reason}; wrote nothing", file=err)
         return EXIT_CONTRACT
     functions = _functions_from_extract(extracted)
     if functions is None:
         print("overlay generate: extract JSON failed the contract; wrote nothing", file=err)
         return EXIT_CONTRACT
     cases_user = json.dumps({"inbox": inbox_text, "functions": functions}, ensure_ascii=False)
+    failures: list[str] = []
     generated = _post_chat(
+        failures=failures,
         url=url,
         api_key=api_key,
         model=model,
@@ -349,7 +390,8 @@ def run_generate(
         urlopen=opener,
     )
     if generated is None:
-        print("overlay generate: cases response was not JSON; wrote nothing", file=err)
+        reason = "; ".join(failures) or "response was not JSON"
+        print(f"overlay generate: cases {reason}; wrote nothing", file=err)
         return EXIT_CONTRACT
     parsed = _cases_from_model(generated, [item["id"] for item in functions])
     if parsed is None:

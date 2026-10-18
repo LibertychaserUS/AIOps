@@ -1,6 +1,6 @@
 schema: overlay-suite/v2
 id: overlay-generate
-title: Overlay generate (not shipped)
+title: Overlay generate (manual, never on push)
 status: blocked
 kind: functional
 subject: product

@@ -216,8 +216,8 @@ def run_release(
         assert_release_allowed(owner, name, config.forbidden_live_repos)
         ver = parse_version(version)
         chosen = parse_products(products)
-        if (workshop / "overlay" / "__init__.py").is_file():
-            assert_versions_match(workshop, ver, chosen)
+        # Every chosen product must carry <product>/__init__.py __version__ == --version.
+        assert_versions_match(workshop, ver, chosen)
         sections = {product: changelog_section(workshop, product, ver) for product in chosen}
         planned = [
             release_payload(product, ver, (sha or "").strip() or "main", sections[product])
@@ -235,12 +235,19 @@ def run_release(
         opener = urlopen or default_urlopen
         client = GitHubClient(resolved, urlopen=opener, base_url=base_url)
         target = resolve_sha(client, owner, name, sha)
+        # Preflight every chosen tag before the first POST so `both` never half-publishes.
+        attach_only: dict[str, bool] = {}
         for product in chosen:
             tag = product_tag(product, ver)
             found = existing_release(client, owner, name, tag)
             if found is not None:
                 raise ForgeError(EXIT_API, f"release {tag} already exists")
-            if assert_tag_matches_target(tag, existing_tag_sha(client, owner, name, tag), target):
+            attach_only[product] = assert_tag_matches_target(
+                tag, existing_tag_sha(client, owner, name, tag), target
+            )
+        for product in chosen:
+            tag = product_tag(product, ver)
+            if attach_only[product]:
                 print(f"tag {tag} exists at {target}; attaching the Release only", file=out)
             payload = release_payload(product, ver, target, sections[product])
             created = client.request("POST", f"/repos/{owner}/{name}/releases", payload)

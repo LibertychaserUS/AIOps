@@ -198,6 +198,65 @@ class PromoteTests(unittest.TestCase):
             self.assertIn("dry-run", dout)
             self.assertEqual(fake_dry.writes(), [])
 
+    def test_target_without_promote_from_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _repo(tmp)
+            code, _, err, fake = _promote(
+                path=root / "forge.yaml",
+                cwd=root,
+                from_branch="main",
+                to_branch="dev",
+                dry_run=True,
+            )
+            self.assertEqual(code, EXIT_CONFIG)
+            self.assertIn("promote_from is unset", err)
+            self.assertEqual(fake.calls, [])
+
+    def test_source_outside_protect_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _repo(tmp)
+            (root / "forge.yaml").write_text(
+                YAML.replace("    promote_from: dev\n", "    promote_from: feature/x\n"),
+                encoding="utf-8",
+            )
+            code, _, err, fake = _promote(
+                path=root / "forge.yaml",
+                cwd=root,
+                from_branch="feature/x",
+                dry_run=True,
+            )
+            self.assertEqual(code, EXIT_CONFIG)
+            self.assertIn("--from must be protect", err)
+            self.assertEqual(fake.calls, [])
+
+    def test_forbidden_repo_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _repo(tmp)
+            for repo in ("First-Light-TechHK/LearningGuidePortal", "first-light-techhk/learningguideportal"):
+                with self.subTest(repo=repo):
+                    code, _, err, fake = _promote(path=root / "forge.yaml", cwd=root, repo=repo)
+                    self.assertEqual(code, EXIT_CONFIG)
+                    self.assertIn("refusing to promote", err)
+                    self.assertEqual(fake.calls, [])
+            (root / "forge.yaml").write_text(
+                YAML + "forbidden_live_repos:\n  - Acme/Widget\n", encoding="utf-8"
+            )
+            code, _, err, fake = _promote(path=root / "forge.yaml", cwd=root)
+            self.assertEqual(code, EXIT_CONFIG)
+            self.assertIn("refusing to promote", err)
+            self.assertEqual(fake.calls, [])
+
+    def test_live_promote_refuses_unknown_branch_dry_run_allowed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _repo(tmp)
+            _git(root, "checkout", "--detach")
+            code, _out, err, fake = _promote(path=root / "forge.yaml", cwd=root)
+            self.assertEqual(code, EXIT_CONFIG)
+            self.assertIn("current branch unknown", err)
+            self.assertEqual(fake.writes(), [])
+            dry, _dout, derr, _ = _promote(path=root / "forge.yaml", cwd=root, dry_run=True)
+            self.assertEqual(dry, EXIT_OK, derr)
+
 
 if __name__ == "__main__":
     unittest.main()
