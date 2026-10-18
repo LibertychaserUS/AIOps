@@ -35,6 +35,16 @@ class ValidateTests(unittest.TestCase):
                 result.stderr,
             )
 
+    def test_non_string_status_exit_2_not_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = copy_lg(Path(tmp))
+            path = root / "suites" / "payment" / "suite.yaml"
+            text = path.read_text(encoding="utf-8").replace("status: blocked", "status: [blocked]")
+            path.write_text(text, encoding="utf-8")
+            result = run_overlay("validate", "--root", str(root))
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+
     def test_removed_fields_exit_2_with_migrate_hint(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = write_generic_root(Path(tmp))

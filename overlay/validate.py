@@ -491,7 +491,9 @@ def validate_suite_file(
         status = "active"
     else:
         status = status_raw
-        if status in REMOVED_STATUSES:
+        if not isinstance(status, str):
+            issues.append(Issue(rel, f"illegal status {status!r}"))
+        elif status in REMOVED_STATUSES:
             issues.append(
                 Issue(
                     rel,
