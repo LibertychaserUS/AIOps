@@ -196,7 +196,8 @@ class GithubOutputTests(unittest.TestCase):
             stdout = io.StringIO()
             stderr = io.StringIO()
             code = main(
-                ["ci-select", "--root", str(ROOT), "--check", "forge-check"],
+                # --changed pins the diff: a depth-1 checkout has no HEAD~1 and runs all.
+                ["ci-select", "--root", str(ROOT), "--check", "forge-check", "--changed", "docs/x.md"],
                 stdout=stdout,
                 stderr=stderr,
                 environ={
