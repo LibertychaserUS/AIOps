@@ -21,6 +21,7 @@
 - `overlay select` / `run` 写回执时用解析后的分支名（省略 `--branch`：`GITHUB_BASE_REF`，否则已配置的 ref，否则 `branches.default`，再否则 `main`）。文件名不再收到 `None`。
 - live `forge promote` 在 `agent_branch_prefixes`（`cursor/`、`copilot/`、`agent/`）上拒绝；`--dry-run` 仍可。人 / ops 分支不变。
 - 工作本 `forge check` 跑与 CI 相同的 `python -m unittest discover -s tests -t .`。没有 `overlay/__init__.py` 的根不跑这套单测。
+- `scripts/gen_cli_docs.py --check` 按词比对。CPython 3.13 的 argparse 换行与 3.12 不同，原先在 3.13 上 `unittest`（及工作本 `forge check`）假红。
 - `ci-select`：产品门在标题选中 **或** 路径命中时跑。标题 `docs` 不再挡住碰到 `forge/` / `overlay/` 的 diff。未声明检查名仍 skip-success。
 - 显式 `select --branch` / `run --branch` 的名字不在 `overlay.yaml` 且没有 `branches.default` 时退出 2。已配置分支选出 0 个套件仍退出 0。省略 `--branch` 时，PR 用 base ref；push 到已配置分支用该名；否则 `branches.default`，再否则仅当 ref 未配置时用 `main`。
 - 工作本 Overlay CI 不再写死 `branch: main`。`overlay.yaml` 的 `dev` 与 `main` 同 kind。fixture job 仍传 `main`。

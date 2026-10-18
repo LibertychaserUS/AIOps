@@ -51,6 +51,10 @@ def _subcommands(help_text: str) -> list[str]:
     return out
 
 
+def _words(text: str) -> list[str]:
+    return text.split()
+
+
 def build() -> str:
     forge_help = _help("forge")
     overlay_help = _help("overlay")
@@ -123,7 +127,9 @@ def main(argv: list[str] | None = None) -> int:
     text = build()
     path = Path(args.out)
     if args.check:
-        if not path.is_file() or path.read_text(encoding="utf-8") != text:
+        # argparse wraps usage lines differently across CPython 3.12 / 3.13+;
+        # compare words so a supported interpreter does not go false red.
+        if not path.is_file() or _words(path.read_text(encoding="utf-8")) != _words(text):
             sys.stderr.write("docs/cli.md is stale; run python3 scripts/gen_cli_docs.py\n")
             return 1
         sys.stdout.write("ok\n")
