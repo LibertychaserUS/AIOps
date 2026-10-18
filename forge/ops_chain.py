@@ -131,9 +131,8 @@ def collect_bot_sightings(
                 login = ""
                 if isinstance(user, dict):
                     login = str(user.get("login") or "")
-                body = str(comment.get("body") or "")
-                hay = f"{login} {body}"
-                if _is_bot_name(hay):
+                # Author login only: a human writing "coderabbit" in a comment is not a bot review.
+                if login and _is_bot_name(login):
                     found.append(
                         BotSighting("comment", login or "comment", source)
                     )
@@ -259,6 +258,17 @@ def run_bounce(
         print("bounce: no GITHUB_TOKEN; report kept, no PR comment", file=stderr)
         return EXIT_OK
     api = base_url.rstrip("/")
+    try:
+        existing = _request(
+            urlopen, "GET", f"{api}/repos/{repo}/issues/{pr}/comments?per_page=100", token
+        )
+    except Exception:
+        existing = None
+    if isinstance(existing, list) and any(
+        isinstance(item, dict) and BOUNCE_MARK in str(item.get("body") or "") for item in existing
+    ):
+        print(f"bounce: PR #{pr} already 打回 ({BOUNCE_MARK}); no duplicate comment", file=stdout)
+        return EXIT_OK
     try:
         _request(
             urlopen,

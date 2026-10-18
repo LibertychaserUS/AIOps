@@ -218,3 +218,42 @@ class WorkflowDagTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OpsDedupeTests(unittest.TestCase):
+    def test_bounce_does_not_repost_marker_comment(self) -> None:
+        fake = FakeGitHub()
+        with tempfile.TemporaryDirectory() as tmp:
+            for _ in range(3):
+                code = run_bounce(
+                    repo="LibertychaserUS/AIOps",
+                    pr=7,
+                    failed=["overlay"],
+                    write_report=Path(tmp),
+                    urlopen=fake.urlopen,
+                    base_url=API,
+                    environ={"GITHUB_TOKEN": "t"},
+                    stdout=io.StringIO(),
+                    stderr=io.StringIO(),
+                )
+                self.assertEqual(code, EXIT_OK)
+        self.assertEqual(len(fake.issue_comments), 1)
+
+    def test_human_comment_naming_a_bot_is_not_a_sighting(self) -> None:
+        fake = FakeGitHub()
+        fake.issue_comments.append({"user": {"login": "alice"}, "body": "I disabled coderabbit"})
+        with tempfile.TemporaryDirectory() as tmp:
+            run_review_bots(
+                repo="LibertychaserUS/AIOps",
+                sha="",
+                pr=7,
+                write_report=Path(tmp),
+                urlopen=fake.urlopen,
+                base_url=API,
+                environ={"GITHUB_TOKEN": "t"},
+                stdout=io.StringIO(),
+                stderr=io.StringIO(),
+                wait_s=0,
+            )
+            text = (Path(tmp) / "review-bots.yaml").read_text(encoding="utf-8")
+        self.assertIn("seen: []", text)

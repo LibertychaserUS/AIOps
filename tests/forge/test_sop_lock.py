@@ -309,3 +309,134 @@ class ExitCodeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HardenedLockTests(unittest.TestCase):
+    def _ci_issues(self, mutate) -> list[str]:
+        from forge.sop_lock import _check_workshop_ci
+
+        text = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root / ".github" / "workflows" / "ci.yml", mutate(text))
+            return [item.message for item in _check_workshop_ci(root)]
+
+    def test_workshop_ci_is_green(self) -> None:
+        self.assertEqual(self._ci_issues(lambda text: text), [])
+
+    def test_fail_open_ci_jobs_are_red(self) -> None:
+        cases = {
+            "job continue-on-error": lambda t: t.replace(
+                "  sop-lock:\n    name: sop-lock\n",
+                "  sop-lock:\n    name: sop-lock\n    continue-on-error: true\n",
+            ),
+            "step continue-on-error": lambda t: t.replace(
+                "      - name: sop-lock\n",
+                "      - name: sop-lock\n        continue-on-error: true\n",
+            ),
+            "|| true": lambda t: t.replace(
+                "python -m forge sop-lock --root .", "python -m forge sop-lock --root . || true"
+            ),
+            "; exit 0": lambda t: t.replace(
+                "python3 -m unittest discover -s tests -t . -q",
+                "python3 -m unittest discover -s tests -t . -q; exit 0",
+            ),
+            "set +e": lambda t: t.replace(
+                "run: python -m forge pr-title --root .",
+                "run: |\n          set +e\n          python -m forge pr-title --root .",
+            ),
+            "pr-title if": lambda t: t.replace(
+                "if: github.event_name == 'pull_request'",
+                "if: github.event_name == 'pull_request' || always()",
+            ),
+            "sop-lock if": lambda t: t.replace(
+                "  sop-lock:\n    name: sop-lock\n",
+                "  sop-lock:\n    name: sop-lock\n    if: false\n",
+            ),
+            "renamed check": lambda t: t.replace("    name: unittest\n", "    name: unit\n"),
+        }
+        for label, mutate in cases.items():
+            with self.subTest(label):
+                issues = self._ci_issues(mutate)
+                self.assertTrue(issues, label)
+
+    def test_pr_title_if_quoting_variants_are_green(self) -> None:
+        for variant in (
+            'if: "github.event_name == \'pull_request\'"',
+            "if: ${{ github.event_name=='pull_request' }}",
+            'if: github.event_name == "pull_request"',
+        ):
+            with self.subTest(variant):
+                issues = self._ci_issues(
+                    lambda t, v=variant: t.replace("if: github.event_name == 'pull_request'", v)
+                )
+                self.assertEqual(issues, [])
+
+    def _rule_issues(self, yaml_text: str) -> list[str]:
+        from forge.sop_lock import _check_workshop_branch_rules
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "forge.yaml"
+            path.write_text(yaml_text, encoding="utf-8")
+            return [item.message for item in _check_workshop_branch_rules(path)]
+
+    def test_workshop_forge_yaml_branch_rules_are_green(self) -> None:
+        self.assertEqual(self._rule_issues((ROOT / "forge.yaml").read_text(encoding="utf-8")), [])
+
+    def test_check_names_only_in_comments_or_other_branch_are_red(self) -> None:
+        checks = "      - overlay-check\n      - pr-title\n      - forge-check\n      - sop-lock\n      - unittest\n"
+        text = (
+            "schema: forge-config/v1\n"
+            "# overlay-check pr-title forge-check sop-lock unittest\n"
+            "protect:\n  - dev\n  - main\nbranches:\n"
+            "  dev:\n    required_checks:\n      - unittest\n    approvals: 0\n"
+            "  main:\n    required_checks:\n" + checks + "    approvals: 1\n    code_owners: true\n"
+        )
+        issues = self._rule_issues(text)
+        self.assertTrue(any("branches.dev.required_checks" in m for m in issues), issues)
+
+    def test_main_review_weakened_is_red(self) -> None:
+        base = (ROOT / "forge.yaml").read_text(encoding="utf-8")
+        for label, old, new in (
+            ("approvals", "    approvals: 1\n    code_owners: true\n", "    approvals: 0\n    code_owners: true\n"),
+            ("code_owners", "    approvals: 1\n    code_owners: true\n", "    approvals: 1\n    code_owners: false\n"),
+        ):
+            with self.subTest(label):
+                self.assertIn(old, base)
+                issues = self._rule_issues(base.replace(old, new))
+                self.assertTrue(any(f"branches.main.{label}" in m for m in issues), issues)
+
+    def test_floating_uses_refs_are_red(self) -> None:
+        from forge.sop_lock import floating_uses_ref
+
+        for ref in (
+            "actions/checkout@main",
+            "actions/checkout@master",
+            "acme/x/.github/workflows/w.yml@refs/heads/main",
+            "acme/x/.github/workflows/w.yml@dev",
+            "actions/checkout@HEAD",
+            "actions/checkout",
+        ):
+            with self.subTest(ref):
+                self.assertIsNotNone(floating_uses_ref(ref))
+        for ref in (
+            "actions/checkout@v4",
+            "actions/setup-python@v5.1.0",
+            "LibertychaserUS/AIOps/.github/workflows/overlay.yml@overlay-v2.0.0",
+            "actions/checkout@" + "a" * 40,
+            "./.github/workflows/overlay.yml",
+            "docker://alpine:3.20",
+        ):
+            with self.subTest(ref):
+                self.assertIsNone(floating_uses_ref(ref))
+
+    def test_floating_action_in_workflow_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(
+                root / ".github" / "workflows" / "bad.yml",
+                "name: bad\non:\n  pull_request:\njobs:\n  x:\n    runs-on: ubuntu-latest\n"
+                "    steps:\n      - uses: actions/checkout@main\n",
+            )
+            issues = collect_issues(root)
+            self.assertTrue(any("pin" in item.message for item in issues), issues)

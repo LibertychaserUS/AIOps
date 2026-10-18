@@ -68,7 +68,7 @@ options:
   -h, --help     show this help message and exit
   --repo REPO    OWNER/NAME
   --root ROOT    repo root (default: .)
-  --path PATH    forge.yaml (optional)
+  --path PATH    forge.yaml (default: <root>/forge.yaml)
   --write WRITE  write a generated Chinese status page (e.g. docs/STATE.md)
   --check-state  fail if docs/STATE.md is missing or stale vs forge.yaml + git
 ```

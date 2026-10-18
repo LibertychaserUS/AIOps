@@ -57,6 +57,10 @@ class StatusTests(unittest.TestCase):
                     "id": 4,
                     "name": branch_ruleset_name("main"),
                     "target": "branch",
+                    "enforcement": "active",
+                    "bypass_actors": [],
+                    "source_type": "Repository",
+                    "node_id": "RRS_x",
                     "conditions": {"ref_name": {"include": ["refs/heads/main"], "exclude": []}},
                     "rules": [
                         {"type": "deletion"},
@@ -67,6 +71,8 @@ class StatusTests(unittest.TestCase):
                                 "required_approving_review_count": 1,
                                 "require_code_owner_review": False,
                                 "dismiss_stale_reviews_on_push": True,
+                                "require_last_push_approval": False,
+                                "allowed_merge_methods": ["merge", "squash", "rebase"],
                             },
                         },
                         {
@@ -231,3 +237,191 @@ class StatusTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _status(fake: FakeGitHub, root: Path, **kwargs):
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    code = run_status(
+        repo=REPO,
+        urlopen=fake.urlopen,
+        base_url=FAKE_API,
+        stdout=stdout,
+        stderr=stderr,
+        environ=kwargs.pop("environ", {"GITHUB_TOKEN": "t"}),
+        root=root,
+        **kwargs,
+    )
+    return code, stdout.getvalue(), stderr.getvalue()
+
+
+class StatusDriftTests(unittest.TestCase):
+    def _applied(self, root: Path) -> FakeGitHub:
+        from forge.apply import run_apply
+
+        (root / "forge.yaml").write_text(SIMPLE_YAML, encoding="utf-8")
+        fake = FakeGitHub()
+        code = run_apply(
+            repo=REPO,
+            path=root / "forge.yaml",
+            token="t",
+            urlopen=fake.urlopen,
+            base_url=FAKE_API,
+            stdout=io.StringIO(),
+            stderr=io.StringIO(),
+        )
+        self.assertEqual(code, EXIT_OK)
+        return fake
+
+    def test_fresh_apply_is_installed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fake = self._applied(root)
+            for item in fake.rulesets:
+                item.update(
+                    {
+                        "source_type": "Repository",
+                        "source": REPO,
+                        "node_id": "RRS_1",
+                        "created_at": "2026-01-01T00:00:00Z",
+                        "updated_at": "2026-01-01T00:00:00Z",
+                        "_links": {"self": {"href": "x"}},
+                        "current_user_can_bypass": "never",
+                    }
+                )
+            code, out, err = _status(fake, root)
+            self.assertEqual(code, EXIT_OK, err)
+            self.assertIn(f"{branch_ruleset_name('main')}: installed", out)
+            self.assertIn(f"{TAG_RULESET_NAME}: installed", out)
+
+    def test_weakened_live_rulesets_are_drifted(self) -> None:
+        tampers = {
+            "enforcement": lambda rs: rs.update(enforcement="disabled"),
+            "evaluate": lambda rs: rs.update(enforcement="evaluate"),
+            "bypass": lambda rs: rs.update(
+                bypass_actors=[{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}]
+            ),
+            "exclude": lambda rs: rs["conditions"]["ref_name"].update(exclude=["~ALL"]),
+            "last_push": lambda rs: [
+                rule["parameters"].update(require_last_push_approval=True)
+                for rule in rs["rules"]
+                if rule["type"] == "pull_request"
+            ],
+            "integration_id": lambda rs: [
+                rule["parameters"].update(
+                    required_status_checks=[
+                        {"context": c["context"], "integration_id": 999}
+                        for c in rule["parameters"]["required_status_checks"]
+                    ]
+                )
+                for rule in rs["rules"]
+                if rule["type"] == "required_status_checks"
+            ],
+            "extra_rule": lambda rs: rs["rules"].append({"type": "update"}),
+        }
+        for label, tamper in tampers.items():
+            with self.subTest(label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                fake = self._applied(root)
+                main = next(rs for rs in fake.rulesets if rs["name"] == branch_ruleset_name("main"))
+                tamper(main)
+                code, out, err = _status(fake, root)
+                self.assertEqual(code, EXIT_OK, err)
+                self.assertIn(f"{branch_ruleset_name('main')}: drifted", out)
+                self.assertIn(f"{TAG_RULESET_NAME}: installed", out)
+
+    def test_check_order_does_not_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "forge.yaml").write_text(
+                "schema: forge-config/v1\nprotect: [main]\nrequired_checks: [unit, lint]\n",
+                encoding="utf-8",
+            )
+            from forge.apply import run_apply
+
+            fake = FakeGitHub()
+            run_apply(
+                repo=REPO, path=root / "forge.yaml", token="t", urlopen=fake.urlopen,
+                base_url=FAKE_API, stdout=io.StringIO(), stderr=io.StringIO(),
+            )
+            for rs in fake.rulesets:
+                for rule in rs["rules"]:
+                    if rule["type"] == "required_status_checks":
+                        rule["parameters"]["required_status_checks"].reverse()
+            code, out, _ = _status(fake, root)
+            self.assertIn(f"{branch_ruleset_name('main')}: installed", out)
+
+    def test_paged_listing_finds_rulesets_past_page_one(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fake = FakeGitHub()
+            fake.rulesets.extend(
+                {"id": 1000 + i, "name": f"other-{i}", "target": "branch", "rules": []}
+                for i in range(5)
+            )
+            fake.next_id = 2000
+            (root / "forge.yaml").write_text(SIMPLE_YAML, encoding="utf-8")
+            from forge.apply import run_apply
+
+            run_apply(
+                repo=REPO, path=root / "forge.yaml", token="t", urlopen=fake.urlopen,
+                base_url=FAKE_API, stdout=io.StringIO(), stderr=io.StringIO(),
+            )
+            fake.ruleset_page_size = 2
+            code, out, err = _status(fake, root)
+            self.assertEqual(code, EXIT_OK, err)
+            self.assertIn(f"{branch_ruleset_name('main')}: installed", out)
+            self.assertIn(f"{TAG_RULESET_NAME}: installed", out)
+
+
+class StatusConfigPathTests(unittest.TestCase):
+    def test_explicit_missing_path_is_exit_3(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            code, _, err = _status(FakeGitHub(), Path(tmp), path=Path(tmp) / "nope.yaml", environ={})
+            self.assertEqual(code, 3)
+            self.assertIn("not found", err)
+
+    def test_default_path_is_root_not_cwd(self) -> None:
+        import os
+
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as cwd:
+            Path(cwd, "forge.yaml").write_text(
+                "schema: forge-config/v1\nprotect: [elsewhere]\n", encoding="utf-8"
+            )
+            old = os.getcwd()
+            os.chdir(cwd)
+            try:
+                code, out, err = _status(FakeGitHub(), Path(tmp), environ={})
+            finally:
+                os.chdir(old)
+            self.assertEqual(code, EXIT_OK, err)
+            self.assertIn(branch_ruleset_name("main"), out)
+            self.assertNotIn("elsewhere", out)
+
+
+class CheckStateRuleTests(unittest.TestCase):
+    YAML = (
+        "schema: forge-config/v1\nprotect:\n  - dev\n  - main\nbranches:\n"
+        "  dev:\n    required_checks: [unit]\n    approvals: 0\n"
+        "  main:\n    required_checks: [unit]\n    approvals: 1\n    code_owners: true\n"
+        "    promote_from: dev\n"
+    )
+
+    def test_rule_changes_make_state_stale(self) -> None:
+        edits = {
+            "approvals": ("    approvals: 1\n", "    approvals: 2\n"),
+            "code_owners": ("    code_owners: true\n", "    code_owners: false\n"),
+            "promote_from": ("    promote_from: dev\n", ""),
+        }
+        for label, (old, new) in edits.items():
+            with self.subTest(label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                (root / "forge.yaml").write_text(self.YAML, encoding="utf-8")
+                code, _, err = _status(FakeGitHub(), root, environ={}, write="docs/STATE.md")
+                self.assertEqual(code, EXIT_OK, err)
+                code, _, err = _status(FakeGitHub(), root, environ={}, check_state=True)
+                self.assertEqual(code, EXIT_OK, err)
+                (root / "forge.yaml").write_text(self.YAML.replace(old, new), encoding="utf-8")
+                code, _, err = _status(FakeGitHub(), root, environ={}, check_state=True)
+                self.assertEqual(code, EXIT_STATE, label)
+                self.assertIn("保护分支", err)

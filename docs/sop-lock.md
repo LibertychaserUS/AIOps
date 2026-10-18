@@ -43,9 +43,10 @@ GitHub required checks 锁的是 merge，不是 submit。本地 `python -m forge
 | Overlay 内核 `.py` 不含产品生产域名 / 产品仓路径 | `python -m forge sop-lock` → **`sop-lock`** | 文档里点名禁令 | fixture 在 `examples/` |
 | push workflow 不跑 `overlay generate`、不设 `OPENAI_API_KEY` | `sop-lock` 扫 `.github/workflows` | 人在本机点 generate；不挂 push | |
 | 不 `workflow_call` 产品构建 workflow；不 checkout 外国产品仓 | `sop-lock` | 改别的仓的构建门 | |
-| reusable `uses:` 不钉浮动 `main`/`master`/`HEAD`/`latest` | `sop-lock` | 接入方仓是否 pin | 相对路径合法 |
+| `uses:` 只钉 40 位 SHA 或版本 tag（`v4`、`v4.1.0`、`overlay-v2.0.0`）；分支名（`main`、`dev`、`refs/heads/*`）、`HEAD`、无 ref 都红 | `sop-lock` | 接入方仓是否 pin | `./` 本地路径与 `docker://` 合法 |
 | Overlay push 上不另开旁路 `unittest discover` | `sop-lock` | — | Overlay 单测进 Overlay `product_command`；Forge 单测进 **`forge-check`**；`ci.yml` 的 `unittest` job 放行 |
-| 本工作本 `forge.yaml` 列出产品门与通用检查；`apply` 写入 Ruleset；CodeRabbit 不能当唯一门 | `sop-lock` + `forge apply --dry-run` | 目标仓是否真跑过 apply | 不 live apply 禁仓 |
+| 本工作本 `forge.yaml` 列出产品门与通用检查；`apply` 写入 Ruleset；CodeRabbit 不能当唯一门 | `sop-lock` + `forge apply --dry-run` | 目标仓是否真跑过 apply | 不 live apply 禁仓。按解析后的配置判：每条 `protect` 分支的 required checks 都含五个工作本检查名；`main` 的 `approvals ≥ 1` 且 `code_owners: true`。注释里出现名字不算 |
+| `ci.yml` 的 `pr-title` / `sop-lock` / `unittest` 不能假绿 | `sop-lock`（PyYAML 解析） | — | job / step 不得 `continue-on-error`；`run` 不得 `\|\| true`、`; exit 0`、`set +e`；`pr-title` 的 `if:` 必须正好是 `github.event_name == 'pull_request'`（引号、空格、`${{ }}` 可变）；另两个 job 不得有 `if:`；check 名 = job id |
 | 每个 `skills/*/SKILL.md` 有 `## Lock` 并指向程序 | `sop-lock` | Lock 段落写得清不清 | |
 | PR 标题 Conventional Commits | `python -m forge pr-title` → **`pr-title`** | 祈使句好不好读 | `[开发][Overlay]` 红 |
 | 进保护分支的 PR 必须封顶；squash 后换底；不从即将被压掉的旧头再叠 | `sop-lock` 扫 `pr-brief` / skill；`submit` base=`protect` | GitHub UI 是否把 PR base 指到另一条功能枝 | 提交内容规格化；默认 squash。不 NLP 验「这单够不够封顶」 |

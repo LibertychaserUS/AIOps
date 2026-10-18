@@ -370,3 +370,88 @@ class DryRunAndAuthTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LiveRepoGuardTests(unittest.TestCase):
+    def test_builtin_forbidden_repo_refused_with_target_config(self) -> None:
+        lg = ROOT / "examples" / "learning-guide" / "forge.yaml"
+        code, _, err, fake = _apply(repo="First-Light-TechHK/LearningGuidePortal", path=lg)
+        self.assertEqual(code, EXIT_CONFIG)
+        self.assertIn("refusing", err)
+        self.assertEqual(fake.calls, [])
+
+    def test_builtin_forbidden_repo_refused_without_path(self) -> None:
+        import os
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old = os.getcwd()
+            os.chdir(tmp)
+            try:
+                code, _, err, fake = _apply(repo="first-light-techhk/learningguideportal")
+            finally:
+                os.chdir(old)
+            self.assertEqual(code, EXIT_CONFIG)
+            self.assertIn("refusing", err)
+            self.assertEqual(fake.calls, [])
+
+    def test_url_forms_in_forbidden_list_match(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "forge.yaml"
+            path.write_text(
+                SIMPLE_YAML
+                + "forbidden_live_repos:\n  - \"https://github.com/Acme/Prod\"\n"
+                "  - acme/prod2.git\n  - github.com/acme/prod3/\n",
+                encoding="utf-8",
+            )
+            for repo in ("acme/prod", "ACME/prod2", "acme/prod3"):
+                with self.subTest(repo):
+                    code, _, err, fake = _apply(repo=repo, path=path)
+                    self.assertEqual(code, EXIT_CONFIG, err)
+                    self.assertIn("refusing", err)
+                    self.assertEqual(fake.writes(), [])
+
+    def test_malformed_forbidden_entry_is_config_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "forge.yaml"
+            path.write_text(SIMPLE_YAML + "forbidden_live_repos:\n  - just-a-name\n", encoding="utf-8")
+            code, _, err, fake = _apply(repo="acme/other", path=path)
+            self.assertEqual(code, EXIT_CONFIG)
+            self.assertIn("forbidden_live_repos", err)
+            self.assertEqual(fake.calls, [])
+
+
+class ApplyPaginationTests(unittest.TestCase):
+    def test_reapply_updates_ruleset_on_page_two(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _write_simple(tmp)
+            fake = FakeGitHub()
+            fake.rulesets.extend(
+                {"id": 1000 + i, "name": f"other-{i}", "target": "branch", "rules": []}
+                for i in range(5)
+            )
+            fake.next_id = 2000
+            code, _, err, _ = _apply(fake=fake, path=path)
+            self.assertEqual(code, EXIT_OK, err)
+            before = len(fake.rulesets)
+            fake.ruleset_page_size = 2
+            code, out, err, _ = _apply(fake=fake, path=path)
+            self.assertEqual(code, EXIT_OK, err)
+            self.assertEqual(len(fake.rulesets), before)
+            self.assertNotIn("created", out)
+            list_calls = [p for m, p, _ in fake.calls if m == "GET" and p.endswith("/rulesets")]
+            self.assertGreater(len(list_calls), 2)
+
+    def test_parent_ruleset_with_same_name_is_not_updated(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _write_simple(tmp)
+            fake = FakeGitHub()
+            fake.parent_rulesets.append(
+                {"id": 77, "name": "forge-protected-main", "source_type": "Organization"}
+            )
+            fake.rulesets.append(
+                {"id": 78, "name": "forge-protected-tags", "source_type": "Organization"}
+            )
+            code, out, err, _ = _apply(fake=fake, path=path)
+            self.assertEqual(code, EXIT_OK, err)
+            self.assertFalse(any(m == "PUT" for m in fake.methods()), fake.calls)
+            self.assertEqual(fake.methods().count("POST"), 2)

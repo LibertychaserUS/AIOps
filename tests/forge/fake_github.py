@@ -10,14 +10,14 @@ from urllib.request import Request
 
 
 class FakeResponse:
-    def __init__(self, status: int, payload: object) -> None:
+    def __init__(self, status: int, payload: object, headers: dict[str, str] | None = None) -> None:
         self.status = status
         if isinstance(payload, (bytes, bytearray)):
             raw = bytes(payload)
         else:
             raw = json.dumps(payload).encode("utf-8")
         self._buf = io.BytesIO(raw)
-        self.headers = {"Content-Type": "application/json"}
+        self.headers = {"Content-Type": "application/json", **(headers or {})}
 
     def read(self) -> bytes:
         return self._buf.read()
@@ -49,6 +49,10 @@ class FakeGitHub:
         self.next_release = 1
         self.fail_status: int | None = None
         self.fail_on: set[str] = set()
+        # Ruleset list paging (None = one page) and org-level rulesets that only
+        # show up when includes_parents is not false.
+        self.ruleset_page_size: int | None = None
+        self.parent_rulesets: list[dict] = []
 
     def urlopen(self, req: Request, timeout: int | None = None) -> FakeResponse:
         method = (req.get_method() or "GET").upper()
@@ -144,7 +148,7 @@ class FakeGitHub:
         ruleset_id = int(parts[4]) if len(parts) > 4 else None
 
         if method == "GET" and ruleset_id is None:
-            return FakeResponse(200, list(self.rulesets))
+            return self._list_rulesets(parsed)
         if method == "GET" and ruleset_id is not None:
             found = self._by_id(ruleset_id)
             if found is None:
@@ -252,6 +256,27 @@ class FakeGitHub:
             self.releases.append(created)
             return FakeResponse(201, created)
         raise HTTPError(req.full_url, 405, "method not allowed", hdrs=None, fp=io.BytesIO(b'{"message":"method"}'))
+
+    def _list_rulesets(self, parsed) -> FakeResponse:
+        from urllib.parse import parse_qs
+
+        qs = parse_qs(parsed.query)
+        items = list(self.rulesets)
+        if (qs.get("includes_parents") or ["true"])[0] != "false":
+            items = list(self.parent_rulesets) + items
+        if not self.ruleset_page_size:
+            return FakeResponse(200, items)
+        page = int((qs.get("page") or ["1"])[0])
+        size = self.ruleset_page_size
+        chunk = items[(page - 1) * size : page * size]
+        headers = {}
+        if page * size < len(items):
+            query = "&".join(
+                f"{key}={value[0]}" for key, value in qs.items() if key != "page"
+            )
+            nxt = f"{parsed.scheme}://{parsed.netloc}{parsed.path}?{query}&page={page + 1}"
+            headers["Link"] = f'<{nxt}>; rel="next"'
+        return FakeResponse(200, chunk, headers)
 
     def _pull_by_number(self, number: int) -> dict | None:
         for item in self.pulls:

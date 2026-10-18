@@ -25,6 +25,17 @@
 - `suite_guard`：agent 分支不得把已有 `blocked` 改回 `active` 或删掉。人枝仍只记录。
 - Python 内核增加 ruff 门（`tests/style/test_ruff.py`，随 `unittest` 跑）。没有新的 GitHub job 名。
 - Overlay `select` 断言文案不再把已删除的 `draft` 写成现行状态。
+- `forge status` 的 drifted 比对整条规范化 payload：`enforcement`、`bypass_actors`、`ref_name.exclude`、`require_last_push_approval`、check 的 `integration_id` 都参与。被停用、加了 bypass 或 exclude 的 Ruleset 不再报 installed。check 顺序不再算漂移。
+- live `apply` / `release` 的禁仓守卫总是同时查源码内置 `FORBIDDEN_REPOS`（大小写不敏感）。用目标仓自己的 `forge.yaml` 或不带 `--path` 时不再放行。
+- `forbidden_live_repos` 条目规范化（去 `https://github.com/`、`github.com/`、`.git`、末尾 `/`，转小写）；仍不是 `OWNER/NAME` 的退出 3。
+- `branches.<name>` 与 `review` 的未知键退出 3 并给 did-you-mean；`branches:` 里不在 `protect` 的分支、`promote_from` 指向不在 `protect` 的分支都退出 3。
+- `sop-lock` 用解析后的 `forge.yaml` 判 required checks：每条保护分支都要含五个工作本检查名，`main` 要 `approvals ≥ 1` 且 `code_owners: true`。注释里出现名字不再算。
+- `sop-lock` 用 PyYAML 锁 `ci.yml` 的 `pr-title` / `sop-lock` / `unittest`：拒绝 `continue-on-error`、`|| true`、`; exit 0`、`set +e`；`pr-title` 的 `if:` 必须正好是 `github.event_name == 'pull_request'`；另两个 job 不得有 `if:`。
+- `sop-lock` 浮动 ref 锁：`uses:` 只接受 40 位 SHA 或版本 tag。`actions/checkout@main`、`@dev`、`@refs/heads/main`、无 ref 都红。
+- `status --check-state` 比对完整「保护分支」行（approvals、code_owners、promote_from 也比）。
+- `status --path` 不存在时退出 3；省略时读 `<root>/forge.yaml`，不读 cwd。
+- `apply` / `status` 列 Ruleset 翻完 `Link: rel="next"` 所有页，带 `includes_parents=false`，只认 `source_type: Repository`。第 100 条之后的 Forge Ruleset 不再被重复 POST。
+- `bounce` 已有带 `overlay-ops-bounce` 标记的评论时不再重复发。`ops-review` 只按评论作者 login 认 CodeRabbit / Copilot，人写到 bot 名字不算。
 
 ### Changed
 
