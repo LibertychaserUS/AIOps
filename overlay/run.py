@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -42,14 +43,38 @@ def run_command(
     workdir: Path,
     timeout: int,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    # Own process group so a timeout kills the whole tree, not just bash.
+    # Product output is not ours to vouch for: decode with replace, never crash.
+    proc = subprocess.Popen(
         ["/bin/bash", "-c", command],
         cwd=workdir,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=False,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding="utf-8",
+        errors="replace",
+        start_new_session=True,
     )
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        stdout, stderr = proc.communicate()
+        raise subprocess.TimeoutExpired(
+            proc.args, timeout, output=stdout, stderr=stderr
+        ) from None
+    return subprocess.CompletedProcess(proc.args, proc.returncode, stdout, stderr)
+
+
+def _echo(text: str | bytes | None, stream: TextIO) -> None:
+    if not text:
+        return
+    if isinstance(text, bytes):
+        text = text.decode("utf-8", errors="replace")
+    print(text, file=stream, end="" if text.endswith("\n") else "\n")
 
 
 def _command_sha256(command: str) -> str:
@@ -171,13 +196,13 @@ def run_run(
             result = run_command(command, workdir=workdir, timeout=timeout)
             duration_s = round(time.perf_counter() - started, 3)
             code = result.returncode
-            if result.stdout:
-                print(result.stdout, file=out, end="" if result.stdout.endswith("\n") else "\n")
-            if result.stderr:
-                print(result.stderr, file=err, end="" if result.stderr.endswith("\n") else "\n")
-        except subprocess.TimeoutExpired:
+            _echo(result.stdout, out)
+            _echo(result.stderr, err)
+        except subprocess.TimeoutExpired as exc:
             duration_s = float(timeout)
             code = 124
+            _echo(exc.stdout, out)
+            _echo(exc.stderr, err)
             print(f"overlay run: {suite.suite_id} timed out after {timeout}s", file=err)
         events.append(
             run_events_for_suite(

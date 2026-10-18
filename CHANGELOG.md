@@ -18,6 +18,12 @@
 - `overlay generate`：`packages` 逐项加引号，`@acme/web` 这类 scoped 包名不再写出解析不了的 `suite.yaml`。
 - `overlay migrate`：`status: "draft"`、`status: draft  # 注释` 也会改成 `active`，不再报改写成功却留下旧状态。
 - `overlay validate`：`status` 不是字符串（如 `[blocked]`）时报 `illegal status` 退出 2，不再抛 TypeError。
+- `overlay run`：命令在自己的进程组里跑，超时杀整棵进程树并打印已有输出；stdin 接 `/dev/null`；非 UTF-8 输出按 replace 解码，不再 traceback、也不丢回执。
+- `overlay cover`：trace 里 `relates` 不是列表时报契约错误（退出 2），不再 TypeError。
+- `overlay generate`：只有 `OPENROUTER_API_KEY` 时默认发往 OpenRouter，不把它的 key 发给 api.openai.com；URL 无 scheme、HTTP 4xx/5xx、`IncompleteRead` 都一行报错退出 2；叶子文本里出现 `#` 标题或代码围栏则拒写；`suite.yaml` 解析不了时 `--force` 也拒绝（不能证明不是 `blocked`）；目录里只有 `cases.md` 也算已存在，需要 `--force`。
+- `overlay migrate`：`blocked_reason` 没有链接或登记号时与 validate 同标准，留作待办不改写；`never_red_statuses` 里带引号的 `- "draft"` 也会删除。
+- `overlay validate`：同一 `cases.md` 里重复的 `## <function_id>` 报错。
+- 文档：`use-overlay` 与 `overlay-select` 用例里「未知分支回落并保持绿」改为与 design §4.6 一致（无 `branches.default` 时退出 2）。
 - `overlay select` / `run` 写回执时用解析后的分支名（省略 `--branch`：`GITHUB_BASE_REF`，否则已配置的 ref，否则 `branches.default`，再否则 `main`）。文件名不再收到 `None`。
 - live `forge promote` 在 `agent_branch_prefixes`（`cursor/`、`copilot/`、`agent/`）上拒绝；`--dry-run` 仍可。人 / ops 分支不变。
 - 工作本 `forge check` 跑与 CI 相同的 `python -m unittest discover -s tests -t .`。没有 `overlay/__init__.py` 的根不跑这套单测。
