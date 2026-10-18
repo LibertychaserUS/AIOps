@@ -1,6 +1,6 @@
 # forge.yaml 配置
 
-权威说明。字段名与 `schema: forge-config/v1` 一致。未知顶层键会红，并给出 did-you-mean。
+权威说明。字段名与 `schema: forge-config/v1` 一致。未知顶层键会红，并给出 did-you-mean。`ci`、`ci.products.<name>`、`ci.select` 下的未知键同样退出 3。同一映射里重复的键退出 3（不再后写覆盖前写）。
 
 ## 全字段
 
@@ -78,7 +78,9 @@ CI job `pr-title` 仍只挂 `pull_request`。`forge check` 在 push 上**不**�
 
 工作本 `forge check` 跑与 CI 相同的 `python -m unittest discover -s tests -t .`。没有 `overlay/__init__.py` 的接入方根不跑这套单测。
 
-`ci-select`：产品门在标题选中它，**或**变更路径命中 `ci.products.<name>.paths` 时跑。标题 `docs` 不能挡住已经碰到的产品 diff。未声明的检查名仍是 skip-success。
+`ci-select`：产品门在标题选中它，**或**变更路径命中 `ci.products.<name>.paths` 时跑。标题 `docs` 不能挡住已经碰到的产品 diff。未声明的检查名仍是 skip-success。变更路径取 `HEAD~1..HEAD`，相对 `--root`（monorepo 子目录同 `check`），`--no-renames`：把文件移出产品目录仍选中该产品。算不出变更路径（浅克隆没有 `HEAD~1`、没有 git）时全部产品都跑，有标题也一样。
+
+`pr-title` 读不了 `forge.yaml`（解析失败、字段非法）时退出 3，不会悄悄退回默认 scope 语法。
 
 `apply` 必须带 `--path` 指向**目标仓自己的** `forge.yaml`。不要在工具仓根目录对产品仓 `--repo` live apply：cwd 的工作本配置会把 `pr-title` / `sop-lock` / `unittest` 写进别人的 Ruleset。`--dry-run` 同样要带 `--path` 才能对照。接入方最小例是 [`examples/acme-python/forge.yaml`](../examples/acme-python/forge.yaml)，不要抄工作本根 `forge.yaml`。
 
@@ -90,7 +92,26 @@ docs_sync:
     require: [CHANGELOG.md, docs/forge-config.md]
 ```
 
-`check` 相对 `origin/<protect[0]>` 的 merge-base（含工作区）计算 diff。命中 `paths` 却没有同时改动任一 `require` → 红。
+`check` 相对 `origin/<protect[0]>` 的 merge-base 计算 diff：已提交（merge-base..HEAD）、暂存区、工作区、未跟踪文件取并集。暂存一次回退不能藏住已提交的改动。命中 `paths` 却没有同时改动任一 `require` → 红。
+
+**看不到 base 就红。** 按顺序找 `origin/<name>`、本地 `<name>`（`protect` 逐个），最后 `origin/$GITHUB_BASE_REF`。都没有（单分支克隆、远端不叫 `origin`、CI 浅检出）→ `deny_paths`、agent 枝的 `suite_guard`、有表时的 `docs_sync` 红，提示 `git fetch origin <protect[0]>`。不再退回只比 HEAD 的假绿。
+
+`suite_guard` 认不出分支名（detached HEAD 且没有 `GITHUB_HEAD_REF` / `GITHUB_REF_NAME`）时按 agent 枝处理。`run_check(head_branch=...)` 可显式给出 head。
+
+路径列表一律用 `git -z`：非 ASCII 路径（`secret/密钥.txt`、`suites/中/suite.yaml`）不会被 `core.quotePath` 转义成漏网的 `"\345..."`。
+
+### 路径写法（`deny_paths` 与 `docs_sync.paths` 共用）
+
+| 写法 | 含义 | 例 |
+|---|---|---|
+| 普通路径 | 等于该文件，或以它为目录前缀 | `docs/locked` 命中 `docs/locked/a.md` |
+| 结尾 `/` | 目录前缀 | `secret/` |
+| `*` / `?` / `[...]` | 只在一段内匹配，不跨 `/` | `src/*.py` 不命中 `src/a/b.py` |
+| `**/` | 零或多层目录 | `forge/**/*.py` 命中 `forge/x.py` 与 `forge/a/b.py` |
+| 结尾 `/**` | 该目录及其下全部 | `forge/**` |
+| 不含 `/` 的 glob | 任意深度按文件名匹配（gitignore 规则） | `*.pem` 命中 `a/b/key.pem` |
+
+glob 命中一个目录时，目录下的文件一并命中。路径相对 `--root`，开头的 `/`、`./` 忽略。
 
 内建三条（只扫 git 跟踪且未被 `.gitignore` 忽略的 `*.md`；`node_modules/`、构建产物不算）：
 

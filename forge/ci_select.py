@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, TextIO
 
 from forge import EXIT_CONFIG, EXIT_OK
-from forge.apply import ForgeError, parse_simple_yaml
+from forge.apply import ForgeError, _check_ci_keys, parse_simple_yaml
 from forge.title import lint_title, resolve_spec_title
 
 DEFAULT_COMMON = ("pr-title", "sop-lock")
@@ -89,6 +89,7 @@ def load_ci_config(root: Path, raw: dict[str, Any] | None = None) -> CiConfig:
         )
     if not isinstance(ci, dict):
         raise ForgeError(EXIT_CONFIG, "illegal ci: expected a mapping")
+    _check_ci_keys(ci)
 
     common = tuple(_as_string_list(ci.get("common"), "common") or list(DEFAULT_COMMON))
     products_raw = ci.get("products") or {}
@@ -153,10 +154,14 @@ def products_from_title(title: str | None, title_map: Mapping[str, tuple[str, ..
 
 
 def git_changed(root: Path) -> list[str] | None:
+    """HEAD~1..HEAD under root, root-relative (monorepo --root, like forge check).
+
+    --no-renames keeps the old side of a move, so moving a file out of a product
+    still selects that product. -z avoids core.quotePath escaping non-ASCII paths.
+    """
     try:
         proc = subprocess.run(
-            ["git", "diff", "--name-only", "HEAD~1", "HEAD"],
-            cwd=str(root),
+            ["git", "-C", str(root), "diff", "--name-only", "--no-renames", "--relative", "-z", "HEAD~1", "HEAD"],
             capture_output=True,
             text=True,
             check=False,
@@ -165,7 +170,7 @@ def git_changed(root: Path) -> list[str] | None:
         return None
     if proc.returncode != 0:
         return None
-    return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+    return [item for item in proc.stdout.split("\0") if item.strip()]
 
 
 def select_products(
@@ -174,19 +179,21 @@ def select_products(
     title: str | None,
     changed: Sequence[str] | None,
 ) -> tuple[tuple[str, ...], str, str]:
-    """Title OR paths. A docs title does not hide a product the diff touches."""
+    """Title OR paths. A docs title does not hide a product the diff touches.
+
+    Unknown paths (None) run every product even with a title: the title alone
+    cannot prove the diff stays out of the other product.
+    """
+    if changed is None:
+        return tuple(config.products), "undecided-run-all", "default"
     mapped, reason = products_from_title(title, config.title_map)
-    path_products: tuple[str, ...] = ()
-    if changed is not None:
-        path_products = products_from_paths(changed, config.products)
+    path_products = products_from_paths(changed, config.products)
     if mapped is not None:
         extra = tuple(name for name in path_products if name not in mapped)
         if extra:
             return tuple(mapped) + extra, f"{reason}+paths", "title+paths"
         return mapped, reason, "title"
-    if changed is not None:
-        return path_products, "paths", "paths"
-    return tuple(config.products), "undecided-run-all", "default"
+    return path_products, "paths", "paths"
 
 
 def decide(

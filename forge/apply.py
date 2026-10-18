@@ -265,6 +265,8 @@ def _parse_map(
         rest = rest.strip()
         if not key:
             raise _YamlError(f"line {lineno}: empty key")
+        if key in result:
+            raise _YamlError(f"line {lineno}: duplicate key {key}")
         if rest:
             result[key] = _parse_scalar(rest)
             i += 1
@@ -336,6 +338,8 @@ def _parse_list_mapping_item(
         k, r = k.strip(), r.strip()
         if not k:
             raise _YamlError(f"line {lineno2}: empty key")
+        if k in mapping:
+            raise _YamlError(f"line {lineno2}: duplicate key {k}")
         if r:
             mapping[k] = _parse_scalar(r)
             i += 1
@@ -390,6 +394,36 @@ def _reject_unknown_keys(raw: dict[str, Any], known: Sequence[str], prefix: str)
     for key in raw:
         if key not in known:
             raise ForgeError(EXIT_CONFIG, _unknown_key_message(str(key), known, prefix))
+
+
+CI_KEYS: dict[str, tuple[str, ...]] = {
+    "ci": ("common", "products", "select"),
+    "ci.products.*": ("check", "paths"),
+    "ci.select": ("title",),
+}
+
+
+def _check_ci_keys(raw: Any) -> None:
+    """Unknown keys under ci would silently drop a gate; refuse them (exit 3)."""
+
+    def _refuse(where: str, data: Any, known: tuple[str, ...]) -> None:
+        if not isinstance(data, dict):
+            return
+        for key in data:
+            if key in known:
+                continue
+            hint = difflib.get_close_matches(str(key), known, n=1, cutoff=0.5)
+            tail = f"; did you mean {hint[0]}" if hint else ""
+            raise ForgeError(EXIT_CONFIG, f"unknown key {where}.{key}{tail}")
+
+    _refuse("ci", raw, CI_KEYS["ci"])
+    if not isinstance(raw, dict):
+        return
+    products = raw.get("products")
+    if isinstance(products, dict):
+        for name, spec in products.items():
+            _refuse(f"ci.products.{name}", spec, CI_KEYS["ci.products.*"])
+    _refuse("ci.select", raw.get("select"), CI_KEYS["ci.select"])
 
 
 def _parse_title_scopes(raw: Any) -> str | list[str] | None:
@@ -467,6 +501,7 @@ def validate_config(raw: dict[str, Any]) -> ForgeConfig:
     for key in raw:
         if key not in KNOWN_TOP_LEVEL_KEYS:
             raise ForgeError(EXIT_CONFIG, _unknown_key_message(str(key)))
+    _check_ci_keys(raw.get("ci"))
 
     if "protect" in raw:
         protect = [normalize_branch(item) for item in _string_list(raw["protect"], "protect", allow_empty=False)]

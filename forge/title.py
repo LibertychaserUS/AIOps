@@ -346,8 +346,10 @@ def run_pr_title(
 
             try:
                 resolved_scopes = load_config(yaml_path).title_scopes
-            except ForgeError:
-                resolved_scopes = None
+            except ForgeError as exc:
+                # Dropping title.scopes would lint against the default set: fail.
+                print(exc.message, file=err)
+                return exc.code
     spec = resolve_spec_title(title, env, root)
     if spec.source == "omitted" or spec.text is None:
         return EXIT_OK

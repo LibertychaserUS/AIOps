@@ -19,6 +19,26 @@ from forge import EXIT_OK
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def _needs_workshop_base(fn):
+    """Workshop-root green tests need origin/<protect> visible.
+
+    A shallow pull_request checkout (actions/checkout default) has no
+    origin/dev; forge check then fails closed by design, so these skip there
+    locally. The workshop's own CI checks out full history, so under Actions
+    they always run. NoBaseRefTests covers that red path with fixtures.
+    """
+    import os
+
+    from forge.apply import load_config
+    from forge.check import resolve_protect_ref
+
+    protect = load_config(ROOT / "forge.yaml").protect
+    visible = resolve_protect_ref(ROOT, protect, {}) is not None
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        return fn
+    return unittest.skipUnless(visible, "no origin/<protect[0]> in this checkout")(fn)
+
+
 def _ok(_root: Path, _stdout, _stderr) -> int:
     return EXIT_OK
 
@@ -38,6 +58,7 @@ def _write_minimal_forge(root: Path) -> None:
 
 
 class WorkshopCheckTests(unittest.TestCase):
+    @_needs_workshop_base
     def test_workshop_check_with_title_is_green(self) -> None:
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -59,6 +80,7 @@ class WorkshopCheckTests(unittest.TestCase):
         self.assertIn("sop-lock", out)
         self.assertNotIn("FAIL", out)
 
+    @_needs_workshop_base
     def test_cli_check(self) -> None:
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -71,6 +93,7 @@ class WorkshopCheckTests(unittest.TestCase):
         self.assertEqual(code, EXIT_OK, stderr.getvalue())
         self.assertIn("forge check: ok", stdout.getvalue())
 
+    @_needs_workshop_base
     def test_workshop_unittest_args_match_ci_discover(self) -> None:
         from forge.check import CHECK_ENV, WORKSHOP_UNITTEST_ARGS, workshop_unittest_args
 
@@ -122,6 +145,7 @@ class TitleStepTests(unittest.TestCase):
         self.assertIn("FAIL", stdout.getvalue())
         self.assertIn("red", stderr.getvalue())
 
+    @_needs_workshop_base
     def test_missing_title_skips_pr_title(self) -> None:
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -141,6 +165,7 @@ class TitleStepTests(unittest.TestCase):
         self.assertIn("no spec", stdout.getvalue())
         self.assertIn("pr-body", stdout.getvalue())
 
+    @_needs_workshop_base
     def test_push_blank_pr_title_lints_head_commit(self) -> None:
         # The subject comes from the push event, not this checkout's HEAD.
         # pull_request CI detaches at a "Merge … into …" commit, which is not
@@ -211,6 +236,7 @@ class TitleStepTests(unittest.TestCase):
         self.assertIn("pr-body", stdout.getvalue())
         self.assertIn("FAIL", stdout.getvalue())
 
+    @_needs_workshop_base
     def test_push_blank_body_skips_pr_body(self) -> None:
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -265,6 +291,7 @@ class TitleStepTests(unittest.TestCase):
         self.assertIn("pr-body", stdout.getvalue())
         self.assertIn("FAIL", stdout.getvalue())
 
+    @_needs_workshop_base
     def test_good_body_is_green_when_brief_exists(self) -> None:
         from forge.brief import REQUIRED_H2
 
