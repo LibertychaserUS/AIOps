@@ -21,6 +21,8 @@
 
 `branches:` 出现时优先于顶层 `required_checks` / `review`。旧字段继续接受，等价于给 `protect` 里每个分支套同一规则。
 
+`branches.<name>` 只认 `required_checks`、`approvals`、`code_owners`、`promote_from`；`review` 只认 `min_approvals`、`code_owners`。拼错（`aprovals`、`min_approval`）退出 3 并给 did-you-mean，不再静默回落默认。`branches:` 里的分支必须在 `protect` 里；`promote_from` 指向的分支也必须在 `protect` 里，且不能是自己。
+
 ## 按分支规则
 
 ```yaml
@@ -40,6 +42,12 @@ branches:
 `submit` 只推检查过的提交：`--head` 必须是当前检出分支（不收 `HEAD`、`heads/`、`refs/`、`tags/`），工作树必须干净（含未跟踪文件），推送用 `<sha>:refs/heads/<head>`。更新已有 PR 只改标题，不动正文。`FORGE_GITHUB_API` 必须是 https（仅 `127.0.0.1` / `localhost` 可 http）。
 
 `apply` 为每个保护分支写一条 Ruleset，名 `forge-protected-<branch>`，幂等按名 PUT。另写 `forge-protected-tags`，保护 `refs/tags/overlay-v*` 与 `refs/tags/forge-v*`（可配 `tag_patterns`）。`--dry-run` 打印全部 payload。`status` 逐条报告 installed / missing / drifted。
+
+drifted 按整条 payload 比：`name`、`target`、`enforcement`、`bypass_actors`、`conditions.ref_name.include` / `exclude`、规则类型集合、Forge 写入的每个规则参数（含 `require_last_push_approval`），以及 required checks 的 `context` + `integration_id`（排序后比，顺序不算漂移）。忽略 GitHub 生成的 `id`、`source`、`source_type`、`node_id`、时间戳、`_links`、`current_user_can_bypass`，以及 Forge 没写、GitHub 回显默认值的参数（如 `allowed_merge_methods`）。被停用（`disabled` / `evaluate`）、加了 bypass、加了 exclude 的 Ruleset 报 drifted，不再报 installed。
+
+`apply` / `status` 列 Ruleset 时带 `includes_parents=false` 并按 `Link: rel="next"` 翻完所有页；只认 `source_type` 为 `Repository`（缺该字段视为本仓）的条目。组织级同名 Ruleset 不会被当成本仓的去 PUT。
+
+`status --path` 指向不存在的文件退出 3（与 `apply` 同）。省略 `--path` 时读 `<root>/forge.yaml`，不读 cwd；不存在则用默认值。`status --check-state` 逐行比对 STATE.md 的「保护分支」行（required_checks、approvals、code_owners、promote_from），任一不一致即红。
 
 ## title.scopes
 
@@ -131,3 +139,7 @@ glob 命中一个目录时，目录下的文件一并命中。路径相对 `--ro
 ## forbidden_live_repos
 
 默认空。工作本自己的 `forge.yaml` 列出 `first-light-techhk/learningguideportal`。`apply` / `release` / `promote` 都查这张表（大小写不敏感）。源码里另有一条对工作本产品仓生产域名的硬拒绝（`assert_apply_allowed`），与配置无关。不要把产品仓主机名写进通用说明。
+
+live `apply` / `release` / `promote` 总是**同时**检查配置列表与源码内置的 `FORBIDDEN_REPOS`（`forge/__init__.py`），大小写不敏感。用目标仓自己的 `forge.yaml`（常为 `[]`）或不带 `--path` 时，内置禁仓照样拒绝。
+
+条目先规范化：去掉 `https://github.com/`、`github.com/` 前缀，去掉末尾 `.git` 与 `/`，转小写。规范化后仍不是 `OWNER/NAME` 的条目退出 3。YAML 里写 URL 要加引号（`- "https://github.com/o/n"`），否则冒号会被当成映射，同样退出 3。

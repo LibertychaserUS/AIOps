@@ -12,6 +12,7 @@ from typing import Any
 from forge import EXIT_OK
 from forge.apply import (
     DEFAULT_API,
+    ForgeConfig,
     ForgeError,
     GitHubClient,
     UrlOpen,
@@ -145,6 +146,19 @@ def utc_now() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def render_protect_lines(config: Any) -> list[str]:
+    lines: list[str] = []
+    for branch in config.protect:
+        rule = config.rule_for(branch)
+        owners = "true" if rule.code_owners else "false"
+        checks = ", ".join(rule.required_checks) if rule.required_checks else "(none)"
+        extra = f"；promote_from={rule.promote_from}" if rule.promote_from else ""
+        lines.append(
+            f"- `{branch}`：required_checks=[{checks}]；approvals={rule.approvals}；code_owners={owners}{extra}"
+        )
+    return lines
+
+
 def render_state_markdown(
     *,
     root: Path,
@@ -172,14 +186,7 @@ def render_state_markdown(
         "## 保护分支",
         "",
     ]
-    for branch in config.protect:
-        rule = config.rule_for(branch)
-        owners = "true" if rule.code_owners else "false"
-        checks = ", ".join(rule.required_checks) if rule.required_checks else "(none)"
-        extra = f"；promote_from={rule.promote_from}" if rule.promote_from else ""
-        lines.append(
-            f"- `{branch}`：required_checks=[{checks}]；approvals={rule.approvals}；code_owners={owners}{extra}"
-        )
+    lines.extend(render_protect_lines(config))
     lines.extend(["", "## Ruleset", ""])
     if token_missing:
         for name in expected_ruleset_names(config):
@@ -210,8 +217,8 @@ def render_state_markdown(
     return "\n".join(lines) + "\n"
 
 
-def parse_state_protect(text: str) -> list[str]:
-    branches: list[str] = []
+def parse_state_protect_lines(text: str) -> list[str]:
+    lines: list[str] = []
     in_section = False
     for line in text.splitlines():
         if line.strip() == "## 保护分支":
@@ -220,9 +227,12 @@ def parse_state_protect(text: str) -> list[str]:
         if in_section and line.startswith("## "):
             break
         if in_section and line.startswith("- `"):
-            name = line.split("`", 2)[1]
-            branches.append(name)
-    return branches
+            lines.append(line.rstrip())
+    return lines
+
+
+def parse_state_protect(text: str) -> list[str]:
+    return [line.split("`", 2)[1] for line in parse_state_protect_lines(text)]
 
 
 def parse_state_required_checks(text: str) -> dict[str, list[str]]:
@@ -281,6 +291,11 @@ def state_is_fresh(root: Path, config: Any, text: str) -> tuple[bool, str]:
     protect = parse_state_protect(text)
     if protect != list(config.protect):
         return False, "保护分支与 forge.yaml 不一致；运行 forge status --write"
+    if parse_state_protect_lines(text) != render_protect_lines(config):
+        return False, (
+            "保护分支规则（required_checks / approvals / code_owners / promote_from）"
+            "与 forge.yaml 不一致；运行 forge status --write"
+        )
     recorded = parse_state_required_checks(text)
     expected = required_checks_by_branch(config)
     if recorded != expected:
@@ -339,8 +354,11 @@ def run_status(
     try:
         owner, name = parse_repo(repo)
         workshop = Path(root) if root is not None else Path(".")
-        config_path = Path(path) if path is not None else (workshop / "forge.yaml")
-        config = load_config(config_path if config_path.is_file() else None)
+        if path is not None:
+            config = load_config(Path(path))
+        else:
+            default_path = workshop / "forge.yaml"
+            config = load_config(default_path) if default_path.is_file() else ForgeConfig()
         resolved = token if token is not None else resolve_token(environ)
         token_missing = not bool(resolved)
         rows: list[tuple[str, str]] | None = None

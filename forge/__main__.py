@@ -58,7 +58,7 @@ def _parser() -> argparse.ArgumentParser:
     status_p = sub.add_parser("status", help="read-only: installed / missing / drifted per ruleset")
     status_p.add_argument("--repo", required=True, help="OWNER/NAME")
     status_p.add_argument("--root", default=".", help="repo root (default: .)")
-    status_p.add_argument("--path", default=None, help="forge.yaml (optional)")
+    status_p.add_argument("--path", default=None, help="forge.yaml (default: <root>/forge.yaml)")
     status_p.add_argument(
         "--write",
         default=None,

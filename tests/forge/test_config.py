@@ -140,3 +140,54 @@ class UnknownKeyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StrictNestedKeyTests(unittest.TestCase):
+    def _red(self, raw: dict, needle: str) -> None:
+        with self.assertRaises(ForgeError) as ctx:
+            validate_config({"schema": SCHEMA_ID, **raw})
+        self.assertEqual(ctx.exception.code, EXIT_CONFIG)
+        self.assertIn(needle, ctx.exception.message)
+
+    def test_branch_key_typo_is_red_with_suggestion(self) -> None:
+        self._red(
+            {"protect": ["main"], "branches": {"main": {"aprovals": 2}}},
+            "did you mean branches.main.approvals",
+        )
+        self._red(
+            {"protect": ["main"], "branches": {"main": {"code_owner": True}}},
+            "did you mean branches.main.code_owners",
+        )
+
+    def test_review_key_typo_is_red_with_suggestion(self) -> None:
+        self._red({"review": {"min_approval": 3}}, "did you mean review.min_approvals")
+        self._red({"review": {"codeowners": True}}, "review.codeowners")
+
+    def test_branch_not_in_protect_is_red(self) -> None:
+        self._red(
+            {"protect": ["main"], "branches": {"release": {"approvals": 2}}},
+            "not in protect",
+        )
+
+    def test_promote_from_not_in_protect_is_red(self) -> None:
+        self._red(
+            {"protect": ["main"], "branches": {"main": {"promote_from": "dev"}}},
+            "promote_from",
+        )
+
+    def test_forbidden_repo_entries_are_normalised(self) -> None:
+        config = validate_config(
+            {
+                "schema": SCHEMA_ID,
+                "forbidden_live_repos": [
+                    "https://github.com/Acme/Prod.git",
+                    "github.com/acme/two/",
+                    "Acme/Three",
+                ],
+            }
+        )
+        self.assertEqual(config.forbidden_live_repos, ["acme/prod", "acme/two", "acme/three"])
+
+    def test_forbidden_repo_entry_not_owner_name_is_red(self) -> None:
+        self._red({"forbidden_live_repos": ["https://gitlab.com/a/b"]}, "forbidden_live_repos")
+        self._red({"forbidden_live_repos": ["acme"]}, "forbidden_live_repos")

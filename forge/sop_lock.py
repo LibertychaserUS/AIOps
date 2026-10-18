@@ -30,9 +30,15 @@ UNITTEST_RE = re.compile(r"unittest\s+discover")
 FORGE_UNITTEST_RE = re.compile(r"unittest\s+discover\s+-s\s+tests/forge\b")
 SUBMIT_RUN_RE = re.compile(r"python[0-9.]*\s+-m\s+forge\s+submit")
 CI_SELECT_RE = re.compile(r"python[0-9.]*\s+-m\s+forge\s+ci-select")
-FLOATING_USES_RE = re.compile(
-    r"^[^/]+/[^/]+/.+@(main|master|HEAD|latest)$",
-    re.IGNORECASE,
+PINNED_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+# v4, v4.1, v4.1.0, overlay-v2.0.0, forge-v1.1.3 (optional -rc.1 / +build suffix).
+VERSION_TAG_RE = re.compile(r"^(?:[A-Za-z0-9_.]+(?:-[A-Za-z0-9_.]+)*-)?v[0-9]+(?:\.[0-9]+){0,2}(?:[-+][0-9A-Za-z.-]+)?$")
+LOCKED_CI_JOBS = ("pr-title", "sop-lock", "unittest")
+PR_TITLE_IF_RE = re.compile(r"^github\.event_name\s*==\s*'pull_request'$")
+FAIL_OPEN_RUN_RES = (
+    (re.compile(r"\|\|\s*(?:true\b|:(?=\s|;|$)|exit\s+0\b)"), "|| true"),
+    (re.compile(r";\s*exit\s+0\b"), "; exit 0"),
+    (re.compile(r"\bset\s+\+e\b"), "set +e"),
 )
 BANNED_USES_RE = (
     re.compile(r"LearningGuidePortal", re.IGNORECASE),
@@ -59,6 +65,19 @@ def is_workshop_root(root: Path) -> bool:
         and (root / "skills" / "use-overlay" / "SKILL.md").is_file()
         and (root / "docs" / "sop.md").is_file()
     )
+
+
+def floating_uses_ref(uses: str) -> str | None:
+    """Return the offending ref when `uses:` is not pinned to a SHA or version tag."""
+    text = uses.strip()
+    if text.startswith("./") or text.startswith("docker://"):
+        return None
+    if "@" not in text:
+        return "(no ref)"
+    ref = text.rsplit("@", 1)[1].strip()
+    if PINNED_SHA_RE.fullmatch(ref) or VERSION_TAG_RE.fullmatch(ref):
+        return None
+    return ref or "(no ref)"
 
 
 def _rel(root: Path, path: Path) -> str:
@@ -199,8 +218,11 @@ def check_workflows(root: Path) -> list[Issue]:
                         Issue(rel, f"must not workflow_call product ci.yml / Verify ({ref})")
                     )
                     break
-            if FLOATING_USES_RE.match(ref):
-                issues.append(Issue(rel, f"reusable workflow uses: must pin tag or SHA, not {ref}"))
+            floating = floating_uses_ref(ref)
+            if floating is not None:
+                issues.append(
+                    Issue(rel, f"uses: must pin a version tag or 40-hex SHA, not {floating} ({ref})")
+                )
         for script in runs:
             if SUBMIT_RUN_RE.search(script):
                 issues.append(
@@ -286,6 +308,33 @@ def _job_runs(job: Any) -> list[str]:
 COMMON_LEFTOVER_WORKFLOWS = ("pr-title.yml", "sop-lock.yml")
 
 
+def _is_pull_request_only(when: Any) -> bool:
+    if not isinstance(when, str):
+        return False
+    text = when.strip()
+    if text.startswith("${{") and text.endswith("}}"):
+        text = text[3:-2].strip()
+    text = " ".join(text.replace('"', "'").split())
+    return PR_TITLE_IF_RE.fullmatch(text) is not None
+
+
+def _fail_open_issues(rel: str, job_id: str, job: dict[str, Any]) -> list[Issue]:
+    """Locked jobs must be able to go red: no continue-on-error, no swallowed exit codes."""
+    issues: list[Issue] = []
+    steps = job.get("steps") if isinstance(job.get("steps"), list) else []
+    holders: list[Any] = [job, *steps]
+    if any(
+        isinstance(item, dict) and item.get("continue-on-error", False) is not False
+        for item in holders
+    ):
+        issues.append(Issue(rel, f"{job_id} job must not set continue-on-error"))
+    for script in _job_runs(job):
+        for pattern, label in FAIL_OPEN_RUN_RES:
+            if pattern.search(script):
+                issues.append(Issue(rel, f"{job_id} job run must not swallow failures ({label})"))
+    return issues
+
+
 def _check_workshop_ci(root: Path) -> list[Issue]:
     """Common checks live in ci.yml. Product doors stay in their own files."""
     path = root / ".github" / "workflows" / "ci.yml"
@@ -308,45 +357,39 @@ def _check_workshop_ci(root: Path) -> list[Issue]:
     on_field = (data or {}).get("on") or (data or {}).get(True)
     if _has_path_filter(on_field):
         issues.append(Issue(rel, "must not path-filter on: (workflow must start; skip jobs with success)"))
-    if "pull_request" not in text:
+    if not _on_has(on_field, "pull_request"):
         issues.append(Issue(rel, "must run on pull_request"))
     jobs = (data or {}).get("jobs")
     if not isinstance(jobs, dict):
         issues.append(Issue(rel, "ci.yml must define jobs"))
         return issues
-    for check_name in COMMON_CHECKS:
-        if f"name: {check_name}" not in text:
-            issues.append(Issue(rel, f"must keep check name {check_name}"))
-    pr_job = jobs.get("pr-title")
-    if not isinstance(pr_job, dict):
-        issues.append(Issue(rel, "must have job pr-title"))
-    else:
-        when = str(pr_job.get("if") or "")
-        if "pull_request" not in when:
-            issues.append(Issue(rel, "pr-title job must run only on pull_request"))
-        runs = _job_runs(pr_job)
-        if not any("python -m forge pr-title" in script for script in runs):
-            issues.append(Issue(rel, "pr-title job must run python -m forge pr-title"))
+    for job_id in LOCKED_CI_JOBS:
+        job = jobs.get(job_id)
+        if not isinstance(job, dict):
+            issues.append(Issue(rel, f"must have job {job_id}"))
+            continue
+        if str(job.get("name") or job_id) != job_id:
+            issues.append(Issue(rel, f"must keep check name {job_id}"))
+        issues.extend(_fail_open_issues(rel, job_id, job))
+        runs = _job_runs(job)
         if any(CI_SELECT_RE.search(script) for script in runs):
-            issues.append(Issue(rel, "common pr-title must always run (no ci-select skip)"))
-    sop_job = jobs.get("sop-lock")
-    if not isinstance(sop_job, dict):
-        issues.append(Issue(rel, "must have job sop-lock"))
-    else:
-        runs = _job_runs(sop_job)
-        if not any("python -m forge sop-lock" in script for script in runs):
-            issues.append(Issue(rel, "sop-lock job must run python -m forge sop-lock"))
-        if any(CI_SELECT_RE.search(script) for script in runs):
-            issues.append(Issue(rel, "common sop-lock must always run (no ci-select skip)"))
-    unit_job = jobs.get("unittest")
-    if not isinstance(unit_job, dict):
-        issues.append(Issue(rel, "must have job unittest"))
-    else:
-        runs = _job_runs(unit_job)
-        if not any(UNITTEST_RE.search(script) for script in runs):
-            issues.append(Issue(rel, "unittest job must run python3 -m unittest discover"))
-        if any(CI_SELECT_RE.search(script) for script in runs):
-            issues.append(Issue(rel, "common unittest must always run (no ci-select skip)"))
+            issues.append(Issue(rel, f"common {job_id} must always run (no ci-select skip)"))
+        if job_id == "pr-title":
+            if not _is_pull_request_only(job.get("if")):
+                issues.append(
+                    Issue(rel, "pr-title job if: must be exactly github.event_name == 'pull_request'")
+                )
+            if not any("python -m forge pr-title" in script for script in runs):
+                issues.append(Issue(rel, "pr-title job must run python -m forge pr-title"))
+        else:
+            if "if" in job:
+                issues.append(Issue(rel, f"{job_id} job must not have if: (it always runs)"))
+            if job_id == "sop-lock" and not any(
+                "python -m forge sop-lock" in script for script in runs
+            ):
+                issues.append(Issue(rel, "sop-lock job must run python -m forge sop-lock"))
+            if job_id == "unittest" and not any(UNITTEST_RE.search(script) for script in runs):
+                issues.append(Issue(rel, "unittest job must run python3 -m unittest discover"))
     if SUBMIT_RUN_RE.search(text):
         issues.append(Issue(rel, "must not call forge submit"))
     if GENERATE_RUN_RE.search(text):
@@ -382,6 +425,35 @@ def _check_product_workflow(root: Path, filename: str, check_name: str) -> list[
             if GENERATE_RUN_RE.search(script):
                 issues.append(Issue(rel, "must not run overlay generate"))
                 break
+    return issues
+
+
+def _check_workshop_branch_rules(forge_yaml: Path) -> list[Issue]:
+    """Parsed config, not substrings: every protect branch carries the workshop checks."""
+    from forge.apply import ForgeError, load_config
+
+    try:
+        config = load_config(forge_yaml)
+    except ForgeError as exc:
+        return [Issue("forge.yaml", f"not loadable: {exc.message}")]
+    issues: list[Issue] = []
+    for branch in config.protect:
+        checks = config.rule_for(branch).required_checks
+        missing = [name for name in WORKSHOP_REQUIRED_CHECKS if name not in checks]
+        if missing:
+            issues.append(
+                Issue("forge.yaml", f"branches.{branch}.required_checks must list " + ", ".join(missing))
+            )
+        if checks and all("coderabbit" in name.lower() for name in checks):
+            issues.append(Issue("forge.yaml", "CodeRabbit must not be the only required check"))
+    if "main" not in config.protect:
+        issues.append(Issue("forge.yaml", "protect must include main"))
+    else:
+        main = config.rule_for("main")
+        if main.approvals < 1:
+            issues.append(Issue("forge.yaml", "branches.main.approvals must be >= 1"))
+        if not main.code_owners:
+            issues.append(Issue("forge.yaml", "branches.main.code_owners must be true"))
     return issues
 
 
@@ -426,16 +498,9 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
         issues.append(Issue("forge.yaml", "missing workshop forge.yaml"))
     else:
         raw = forge_yaml.read_text(encoding="utf-8")
-        missing = [name for name in WORKSHOP_REQUIRED_CHECKS if name not in raw]
-        if missing:
-            issues.append(Issue("forge.yaml", "required_checks must list " + ", ".join(missing)))
+        issues.extend(_check_workshop_branch_rules(forge_yaml))
         if "ci:" not in raw or "common:" not in raw or "products:" not in raw:
             issues.append(Issue("forge.yaml", "must declare ci.common and ci.products selector"))
-        names = [line.split("-", 1)[1].strip() for line in raw.splitlines() if line.strip().startswith("- ")]
-        check_names = [name for name in names if name in raw]
-        non_cr = [name for name in check_names if "coderabbit" not in name.lower()]
-        if any("coderabbit" in name.lower() for name in check_names) and not non_cr:
-            issues.append(Issue("forge.yaml", "CodeRabbit must not be the only required check"))
         try:
             from forge.ci_select import PRODUCT_NAMES, load_ci_config
 

@@ -226,7 +226,10 @@ class PromoteTests(unittest.TestCase):
                 dry_run=True,
             )
             self.assertEqual(code, EXIT_CONFIG)
-            self.assertIn("--from must be protect", err)
+            # validate_config now rejects promote_from outside protect before
+            # promote's own --from guard runs; either way it is exit 3, no calls.
+            self.assertIn("feature/x", err)
+            self.assertIn("protect", err)
             self.assertEqual(fake.calls, [])
 
     def test_forbidden_repo_is_refused(self) -> None:

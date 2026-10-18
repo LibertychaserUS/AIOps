@@ -126,6 +126,20 @@ def parse_repo(repo: str) -> tuple[str, str]:
     return match.group(1), match.group(2)
 
 
+def normalize_repo_entry(entry: str) -> str:
+    """`https://github.com/O/N.git` / `github.com/O/N/` / `O/N` -> `o/n` (no validation)."""
+    text = entry.strip()
+    lowered = text.lower()
+    for prefix in ("https://github.com/", "http://github.com/", "github.com/"):
+        if lowered.startswith(prefix):
+            text = text[len(prefix) :]
+            break
+    text = text.rstrip("/")
+    if text.lower().endswith(".git"):
+        text = text[: -len(".git")]
+    return text.rstrip("/").lower()
+
+
 def assert_live_repo_allowed(
     owner: str,
     name: str,
@@ -133,9 +147,13 @@ def assert_live_repo_allowed(
     *,
     action: str = "apply",
 ) -> None:
-    """Refuse repos listed in forge.yaml.forbidden_live_repos plus the LG hostname."""
+    """Refuse forge.yaml.forbidden_live_repos, the built-in FORBIDDEN_REPOS, and the LG hostname.
+
+    The built-in list applies whatever config was loaded (target's own forge.yaml, or none).
+    """
     key = f"{owner}/{name}".lower()
-    listed = {item.lower() for item in (forbidden or ())}
+    listed = {normalize_repo_entry(item) for item in (forbidden or ()) if isinstance(item, str)}
+    listed.update(item.lower() for item in FORBIDDEN_REPOS)
     if key in listed:
         raise ForgeError(EXIT_CONFIG, f"refusing to {action} to {owner}/{name}")
     if "ilovelearningguide" in key:
@@ -359,11 +377,23 @@ def normalize_branch(name: str) -> str:
     return match.group(1)
 
 
-def _unknown_key_message(key: str) -> str:
-    suggestions = difflib.get_close_matches(key, KNOWN_TOP_LEVEL_KEYS, n=1, cutoff=0.5)
+KNOWN_BRANCH_KEYS = ("required_checks", "approvals", "code_owners", "promote_from")
+KNOWN_REVIEW_KEYS = ("min_approvals", "code_owners")
+
+
+def _unknown_key_message(
+    key: str, known: Sequence[str] = KNOWN_TOP_LEVEL_KEYS, prefix: str = ""
+) -> str:
+    suggestions = difflib.get_close_matches(key, known, n=1, cutoff=0.5)
     if suggestions:
-        return f"unknown key {key}; did you mean {suggestions[0]}"
-    return f"unknown key {key}"
+        return f"unknown key {prefix}{key}; did you mean {prefix}{suggestions[0]}"
+    return f"unknown key {prefix}{key}"
+
+
+def _reject_unknown_keys(raw: dict[str, Any], known: Sequence[str], prefix: str) -> None:
+    for key in raw:
+        if key not in known:
+            raise ForgeError(EXIT_CONFIG, _unknown_key_message(str(key), known, prefix))
 
 
 CI_KEYS: dict[str, tuple[str, ...]] = {
@@ -436,6 +466,7 @@ def _parse_branch_rule(
 ) -> BranchRule:
     if not isinstance(raw, dict):
         raise ForgeError(EXIT_CONFIG, f"illegal branches.{name}: expected a mapping")
+    _reject_unknown_keys(raw, KNOWN_BRANCH_KEYS, f"branches.{name}.")
     if "required_checks" in raw:
         checks = _string_list(raw["required_checks"], f"branches.{name}.required_checks", allow_empty=True)
     else:
@@ -499,6 +530,7 @@ def validate_config(raw: dict[str, Any]) -> ForgeConfig:
         review = {}
     if not isinstance(review, dict):
         raise ForgeError(EXIT_CONFIG, "illegal review: expected a mapping")
+    _reject_unknown_keys(review, KNOWN_REVIEW_KEYS, "review.")
 
     min_approvals = review.get("min_approvals", 1)
     if isinstance(min_approvals, bool) or not isinstance(min_approvals, int) or min_approvals < 0:
@@ -515,6 +547,11 @@ def validate_config(raw: dict[str, Any]) -> ForgeConfig:
             raise ForgeError(EXIT_CONFIG, "illegal branches: expected a mapping")
         for name, item in branches_raw.items():
             branch = normalize_branch(str(name))
+            if branch not in protect:
+                raise ForgeError(
+                    EXIT_CONFIG,
+                    f"illegal branches.{branch}: not in protect ({', '.join(protect)})",
+                )
             branches[branch] = _parse_branch_rule(
                 branch,
                 item,
@@ -522,6 +559,16 @@ def validate_config(raw: dict[str, Any]) -> ForgeConfig:
                 fallback_approvals=min_approvals,
                 fallback_owners=code_owners,
             )
+        for branch, rule in branches.items():
+            if rule.promote_from is not None and rule.promote_from not in protect:
+                raise ForgeError(
+                    EXIT_CONFIG,
+                    f"illegal branches.{branch}.promote_from: {rule.promote_from} is not in protect",
+                )
+            if rule.promote_from == branch:
+                raise ForgeError(
+                    EXIT_CONFIG, f"illegal branches.{branch}.promote_from: cannot promote from itself"
+                )
 
     if "tag_patterns" in raw:
         tag_patterns = _string_list(raw["tag_patterns"], "tag_patterns", allow_empty=False)
@@ -529,9 +576,16 @@ def validate_config(raw: dict[str, Any]) -> ForgeConfig:
         tag_patterns = list(DEFAULT_TAG_PATTERNS)
 
     if "forbidden_live_repos" in raw:
-        forbidden = _string_list(
+        forbidden = []
+        for item in _string_list(
             raw["forbidden_live_repos"], "forbidden_live_repos", allow_empty=True
-        )
+        ):
+            entry = normalize_repo_entry(item)
+            if not REPO_RE.fullmatch(entry):
+                raise ForgeError(
+                    EXIT_CONFIG, f"illegal forbidden_live_repos item: {item!r} (use OWNER/NAME)"
+                )
+            forbidden.append(entry)
     else:
         forbidden = []
 
@@ -663,49 +717,93 @@ def expected_ruleset_names(config: ForgeConfig) -> list[str]:
     return [branch_ruleset_name(branch) for branch in config.protect] + [TAG_RULESET_NAME]
 
 
+RULESET_VOLATILE_KEYS = frozenset(
+    {
+        "id",
+        "source",
+        "source_type",
+        "node_id",
+        "created_at",
+        "updated_at",
+        "_links",
+        "current_user_can_bypass",
+    }
+)
+
+
+def _normalise_checks(raw: Any) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for check in raw if isinstance(raw, list) else []:
+        if isinstance(check, dict):
+            out.append({"context": check.get("context"), "integration_id": check.get("integration_id")})
+        else:
+            out.append({"context": check, "integration_id": None})
+    out.sort(key=lambda row: (str(row["context"]), str(row["integration_id"])))
+    return out
+
+
+def _normalise_bypass(raw: Any) -> list[Any]:
+    items = raw if isinstance(raw, list) else ([] if raw is None else [raw])
+    return sorted(items, key=lambda row: json.dumps(row, sort_keys=True, default=str))
+
+
+def _normalise_conditions(raw: Any) -> dict[str, Any]:
+    conditions = dict(raw) if isinstance(raw, dict) else {}
+    ref_name = conditions.get("ref_name")
+    ref = dict(ref_name) if isinstance(ref_name, dict) else {}
+    for key in ("include", "exclude"):
+        value = ref.get(key)
+        ref[key] = sorted(str(item) for item in value) if isinstance(value, list) else []
+    conditions["ref_name"] = ref
+    return conditions
+
+
 def ruleset_fingerprint(item: dict[str, Any]) -> dict[str, Any]:
-    """Comparable subset used to detect drift (ignore GitHub ids)."""
-    conditions = item.get("conditions") if isinstance(item.get("conditions"), dict) else {}
-    ref_name = conditions.get("ref_name") if isinstance(conditions, dict) else {}
-    include = list(ref_name.get("include") or []) if isinstance(ref_name, dict) else []
+    """Normalised ruleset for drift checks: GitHub ids/timestamps dropped, lists sorted.
+
+    Enforcement, bypass actors, both ref_name lists and every rule parameter are kept.
+    """
+    out = {key: value for key, value in item.items() if key not in RULESET_VOLATILE_KEYS}
+    out["target"] = item.get("target") or "branch"
+    out["enforcement"] = item.get("enforcement")
+    out["bypass_actors"] = _normalise_bypass(item.get("bypass_actors"))
+    out["conditions"] = _normalise_conditions(item.get("conditions"))
     rules_out: list[dict[str, Any]] = []
     for rule in item.get("rules") or []:
         if not isinstance(rule, dict):
+            rules_out.append({"type": None, "parameters": {"raw": rule}})
             continue
-        kind = rule.get("type")
-        params = rule.get("parameters") if isinstance(rule.get("parameters"), dict) else {}
-        if kind == "pull_request":
-            rules_out.append(
-                {
-                    "type": kind,
-                    "required_approving_review_count": params.get("required_approving_review_count"),
-                    "require_code_owner_review": params.get("require_code_owner_review"),
-                    "dismiss_stale_reviews_on_push": params.get("dismiss_stale_reviews_on_push"),
-                }
-            )
-        elif kind == "required_status_checks":
-            contexts = []
-            for check in params.get("required_status_checks") or []:
-                if isinstance(check, dict) and check.get("context"):
-                    contexts.append(check["context"])
-                elif isinstance(check, str):
-                    contexts.append(check)
-            rules_out.append(
-                {
-                    "type": kind,
-                    "strict": params.get("strict_required_status_checks_policy"),
-                    "contexts": contexts,
-                }
-            )
-        else:
-            rules_out.append({"type": kind})
+        params = dict(rule.get("parameters")) if isinstance(rule.get("parameters"), dict) else {}
+        if rule.get("type") == "required_status_checks":
+            params["required_status_checks"] = _normalise_checks(params.get("required_status_checks"))
+        rules_out.append({"type": rule.get("type"), "parameters": params})
     rules_out.sort(key=lambda row: str(row.get("type")))
-    return {
-        "name": item.get("name"),
-        "target": item.get("target") or "branch",
-        "include": include,
-        "rules": rules_out,
-    }
+    out["rules"] = rules_out
+    return out
+
+
+def _params_match(expected: dict[str, Any], live: dict[str, Any]) -> bool:
+    # GitHub echoes defaults for parameters Forge never sends (e.g. allowed_merge_methods);
+    # every parameter Forge sends must match exactly.
+    return all(live.get(key) == value for key, value in expected.items())
+
+
+def ruleset_matches(expected: dict[str, Any], installed: dict[str, Any]) -> bool:
+    want = ruleset_fingerprint(expected)
+    have = ruleset_fingerprint(installed)
+    for key, value in want.items():
+        if key == "rules":
+            continue
+        if have.get(key) != value:
+            return False
+    want_rules = want["rules"]
+    have_rules = have["rules"]
+    if [row["type"] for row in want_rules] != [row["type"] for row in have_rules]:
+        return False
+    return all(
+        _params_match(left["parameters"], right["parameters"])
+        for left, right in zip(want_rules, have_rules, strict=True)
+    )
 
 
 def classify_ruleset(
@@ -713,7 +811,7 @@ def classify_ruleset(
 ) -> str:
     if installed is None:
         return "missing"
-    if ruleset_fingerprint(expected) != ruleset_fingerprint(installed):
+    if not ruleset_matches(expected, installed):
         return "drifted"
     return "installed"
 
@@ -775,7 +873,23 @@ class GitHubClient:
         *,
         not_found_ok: bool = False,
     ) -> Any:
-        url = f"{self.base_url}{path}"
+        payload, _ = self._send(method, path, body, not_found_ok=not_found_ok)
+        return payload
+
+    def _send(
+        self,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+        *,
+        not_found_ok: bool = False,
+    ) -> tuple[Any, Any]:
+        if path.startswith(self.base_url + "/"):
+            url = path
+        elif path.startswith("/"):
+            url = f"{self.base_url}{path}"
+        else:
+            raise ForgeError(EXIT_API, f"refusing to follow off-API URL: {path}")
         data = None if body is None else json.dumps(body).encode("utf-8")
         headers = {
             "Accept": "application/vnd.github+json",
@@ -790,11 +904,12 @@ class GitHubClient:
             with self.urlopen(req, timeout=30) as resp:
                 raw = resp.read() or b""
                 status = int(getattr(resp, "status", 200) or 200)
+                headers = getattr(resp, "headers", None)
         except ForgeError:
             raise
         except urllib.error.HTTPError as exc:
             if not_found_ok and exc.code == 404:
-                return None
+                return None, None
             raw = exc.read() or b""
             message = _api_message(raw, fallback=str(exc.reason or exc))
             if exc.code in (401, 403):
@@ -805,15 +920,29 @@ class GitHubClient:
         if status >= 400:
             raise ForgeError(EXIT_API, f"GitHub API {status}: {_api_message(raw)}")
         if not raw.strip():
-            return None
+            return None, headers
         try:
-            return json.loads(raw.decode("utf-8"))
+            return json.loads(raw.decode("utf-8")), headers
         except json.JSONDecodeError as exc:
             raise ForgeError(EXIT_API, f"GitHub API returned non-JSON: {exc}") from exc
 
     def list_rulesets(self, owner: str, repo: str) -> list[dict[str, Any]]:
-        payload = self.request("GET", f"/repos/{owner}/{repo}/rulesets?per_page=100")
-        return _as_ruleset_list(payload)
+        """This repo's own rulesets, every page. Org / parent rulesets are not ours to match."""
+        out: list[dict[str, Any]] = []
+        path: str | None = f"/repos/{owner}/{repo}/rulesets?per_page=100&includes_parents=false"
+        seen: set[str] = set()
+        while path is not None:
+            if path in seen or len(seen) >= MAX_RULESET_PAGES:
+                raise ForgeError(EXIT_API, "ruleset pagination did not terminate")
+            seen.add(path)
+            payload, headers = self._send("GET", path)
+            out.extend(
+                item
+                for item in _as_ruleset_list(payload)
+                if item.get("source_type", "Repository") == "Repository"
+            )
+            path = _next_link(headers)
+        return out
 
     def get_ruleset(self, owner: str, repo: str, ruleset_id: int) -> dict[str, Any]:
         payload = self.request("GET", f"/repos/{owner}/{repo}/rulesets/{ruleset_id}")
@@ -834,6 +963,26 @@ class GitHubClient:
         if not isinstance(updated, dict):
             raise ForgeError(EXIT_API, "GitHub API returned a non-object update result")
         return updated
+
+
+MAX_RULESET_PAGES = 50
+LINK_NEXT_RE = re.compile(r'<([^>]+)>\s*;\s*rel="?next"?')
+
+
+def _next_link(headers: Any) -> str | None:
+    if headers is None:
+        return None
+    try:
+        value = headers.get("Link") or headers.get("link")
+    except AttributeError:
+        return None
+    if not isinstance(value, str):
+        return None
+    for part in value.split(","):
+        match = LINK_NEXT_RE.search(part)
+        if match:
+            return match.group(1).strip()
+    return None
 
 
 def _api_message(raw: bytes, fallback: str = "") -> str:
