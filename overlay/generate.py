@@ -203,7 +203,9 @@ def render_suite(
     packages: list[str],
 ) -> str:
     if packages:
-        package_block = "packages:\n" + "\n".join(f"  - {item}" for item in packages)
+        package_block = "packages:\n" + "\n".join(
+            f"  - {json.dumps(item, ensure_ascii=False)}" for item in packages
+        )
     else:
         package_block = "packages: []"
     safe_title = json.dumps(title, ensure_ascii=False)

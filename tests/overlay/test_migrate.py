@@ -132,5 +132,16 @@ class MigrateTests(unittest.TestCase):
             )
 
 
+    def test_quoted_and_commented_draft_rewritten(self) -> None:
+        for line in ('status: "draft"', "status: draft  # old"):
+            with self.subTest(line=line), tempfile.TemporaryDirectory() as tmp:
+                root = write_generic_root(Path(tmp))
+                path = root / "suites" / "checkout-retry" / "suite.yaml"
+                path.write_text(ARMED_V1.replace("status: armed", line), encoding="utf-8")
+                result = run_overlay("migrate", "--root", str(root))
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                self.assertIn("status: active", path.read_text(encoding="utf-8"))
+
+
 if __name__ == "__main__":
     unittest.main()

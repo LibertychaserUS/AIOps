@@ -14,6 +14,10 @@
 
 ### Fixed
 
+- `overlay review`：`--reason "#123"` 这类登记号写成带引号的 YAML，不再被当成注释读成 null。`--suite` 必须是合法套件 id，`../` 不能改到 `suites/` 外的文件。
+- `overlay generate`：`packages` 逐项加引号，`@acme/web` 这类 scoped 包名不再写出解析不了的 `suite.yaml`。
+- `overlay migrate`：`status: "draft"`、`status: draft  # 注释` 也会改成 `active`，不再报改写成功却留下旧状态。
+- `overlay validate`：`status` 不是字符串（如 `[blocked]`）时报 `illegal status` 退出 2，不再抛 TypeError。
 - `overlay select` / `run` 写回执时用解析后的分支名（省略 `--branch`：`GITHUB_BASE_REF`，否则已配置的 ref，否则 `branches.default`，再否则 `main`）。文件名不再收到 `None`。
 - live `forge promote` 在 `agent_branch_prefixes`（`cursor/`、`copilot/`、`agent/`）上拒绝；`--dry-run` 仍可。人 / ops 分支不变。
 - 工作本 `forge check` 跑与 CI 相同的 `python -m unittest discover -s tests -t .`。没有 `overlay/__init__.py` 的根不跑这套单测。

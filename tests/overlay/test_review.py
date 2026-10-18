@@ -9,6 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
 from overlay.review import run_review
 
 from overlay import EXIT_CONTRACT, EXIT_OK
@@ -145,6 +146,32 @@ class ReviewTests(unittest.TestCase):
                 reason="  ",
             )
             self.assertEqual(code, EXIT_CONTRACT)
+
+
+    def test_hash_register_id_survives_yaml(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = write_generic_root(Path(tmp))
+            path = root / "suites" / "checkout-retry" / "suite.yaml"
+            _init(root, "dev")
+            code = run_review(
+                root=root, i_am="ada", suite="checkout-retry", status="blocked", reason="#123"
+            )
+            self.assertEqual(code, EXIT_OK)
+            data = yaml.safe_load(path.read_text(encoding="utf-8"))
+            self.assertEqual(data["blocked_reason"], "#123")
+
+    def test_suite_outside_suites_dir_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = write_generic_root(Path(tmp))
+            outside = root.parent / "outside" / "suite.yaml"
+            outside.parent.mkdir()
+            outside.write_text("status: active\n", encoding="utf-8")
+            _init(root, "dev")
+            code = run_review(
+                root=root, i_am="ada", suite="../../outside", status="blocked", reason="#1"
+            )
+            self.assertEqual(code, EXIT_CONTRACT)
+            self.assertEqual(outside.read_text(encoding="utf-8"), "status: active\n")
 
 
 if __name__ == "__main__":

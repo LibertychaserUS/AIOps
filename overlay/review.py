@@ -8,16 +8,24 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
+import yaml
+
 from overlay import EXIT_CONTRACT, EXIT_OK
 from overlay.validate import BLOCKED_REASON_REF_RE
 
+SUITE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 KEY_RE = re.compile(r"^(\s*)([A-Za-z0-9_]+)\s*:(.*)$")
 MULTILINE_INDICATORS = frozenset({">", "|", ">-", "|-", ">+", "|+"})
 
 
 def yaml_scalar(value: str) -> str:
+    # Bare only when YAML reads it back unchanged: "#123" is a comment, "@x" a reserved token.
     if re.fullmatch(r"[A-Za-z0-9_./:#@+-]+", value):
-        return value
+        try:
+            if yaml.safe_load(value) == value:
+                return value
+        except yaml.YAMLError:
+            pass
     return json.dumps(value, ensure_ascii=False)
 
 
@@ -130,6 +138,9 @@ def run_review(
         print(refusal, file=err)
         return EXIT_CONTRACT
     suite_id = suite.strip()
+    if SUITE_ID_RE.fullmatch(suite_id) is None:
+        print(f"overlay review: illegal suite id {suite_id!r}", file=err)
+        return EXIT_CONTRACT
     path = overlay_root / "suites" / suite_id / "suite.yaml"
     if not path.is_file():
         print(f"overlay review: missing {path.as_posix()}", file=err)
