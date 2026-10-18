@@ -55,7 +55,10 @@ def sibling_hints(inboxes: list[InboxDoc], suites: list[SuiteDoc]) -> list[str]:
             continue
         related: set[str] = set()
         for item in suite.trace_items:
-            for other in item.get("relates") or []:
+            relates = item.get("relates")
+            if not isinstance(relates, list):
+                continue
+            for other in relates:
                 if isinstance(other, str):
                     related.add(other)
         leaves = suite.function_ids

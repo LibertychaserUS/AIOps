@@ -39,6 +39,8 @@ branches:
     promote_from: dev
 ```
 
+`submit` 只推检查过的提交：`--head` 必须是当前检出分支（不收 `HEAD`、`heads/`、`refs/`、`tags/`），工作树必须干净（含未跟踪文件），推送用 `<sha>:refs/heads/<head>`。更新已有 PR 只改标题，不动正文。`FORGE_GITHUB_API` 必须是 https（仅 `127.0.0.1` / `localhost` 可 http）。
+
 `apply` 为每个保护分支写一条 Ruleset，名 `forge-protected-<branch>`，幂等按名 PUT。另写 `forge-protected-tags`，保护 `refs/tags/overlay-v*` 与 `refs/tags/forge-v*`（可配 `tag_patterns`）。`--dry-run` 打印全部 payload。`status` 逐条报告 installed / missing / drifted。
 
 drifted 按整条 payload 比：`name`、`target`、`enforcement`、`bypass_actors`、`conditions.ref_name.include` / `exclude`、规则类型集合、Forge 写入的每个规则参数（含 `require_last_push_approval`），以及 required checks 的 `context` + `integration_id`（排序后比，顺序不算漂移）。忽略 GitHub 生成的 `id`、`source`、`source_type`、`node_id`、时间戳、`_links`、`current_user_can_bypass`，以及 Forge 没写、GitHub 回显默认值的参数（如 `allowed_merge_methods`）。被停用（`disabled` / `evaluate`）、加了 bypass、加了 exclude 的 Ruleset 报 drifted，不再报 installed。
@@ -56,7 +58,9 @@ drifted 按整条 payload 比：`name`、`target`、`enforcement`、`bypass_acto
 
 `forge promote` 的标题：列表里有 `ci/agent`，或 `scopes: any` 时，用 `chore(ci/agent):`。`ci` 让两扇产品门都跑。封闭列表没有 `ci/agent` 时用第一项，避免写出调用方没允许的 scope。
 
-当前 git 分支命中 `agent_branch_prefixes` 时，live `promote` 拒绝（退出 3）。`--dry-run` 仍要 `FORGE_SUBMIT_TOKEN`，但不写 GitHub。人 / ops 分支行为不变。分工仍是 Ruleset + 人合入；agent 只开草稿。
+`promote` 只走配置好的晋升：目标分支必须有 `branches.<to>.promote_from`，`--from` 必须等于它且在 `protect` 里；否则退出 3（没有 `promote_from` 就不走晋升）。仓在 `forbidden_live_repos` 或源码硬拒名单里也退出 3。
+
+当前 git 分支命中 `agent_branch_prefixes`，或解析不出当前分支（detached HEAD 且无 `GITHUB_HEAD_REF` / `GITHUB_REF_NAME`）时，live `promote` 拒绝（退出 3）。`--dry-run` 仍要 `FORGE_SUBMIT_TOKEN`，但不写 GitHub。人 / ops 分支行为不变。分工仍是 Ruleset + 人合入；agent 只开草稿。
 
 PR 规格机器检查是 `python -m forge pr-title`（`forge check` 嵌同一把锁）。来源按事件取，不是「空白就 skip」：
 
@@ -113,8 +117,8 @@ docs_sync:
 
 ## forbidden_live_repos
 
-默认空。工作本自己的 `forge.yaml` 列出 `first-light-techhk/learningguideportal`。源码里另有一条对工作本产品仓生产域名的硬拒绝（`assert_apply_allowed`），与配置无关。不要把产品仓主机名写进通用说明。
+默认空。工作本自己的 `forge.yaml` 列出 `first-light-techhk/learningguideportal`。`apply` / `release` / `promote` 都查这张表（大小写不敏感）。源码里另有一条对工作本产品仓生产域名的硬拒绝（`assert_apply_allowed`），与配置无关。不要把产品仓主机名写进通用说明。
 
-live `apply` / `release` 总是**同时**检查配置列表与源码内置的 `FORBIDDEN_REPOS`（`forge/__init__.py`），大小写不敏感。用目标仓自己的 `forge.yaml`（常为 `[]`）或不带 `--path` 时，内置禁仓照样拒绝。
+live `apply` / `release` / `promote` 总是**同时**检查配置列表与源码内置的 `FORBIDDEN_REPOS`（`forge/__init__.py`），大小写不敏感。用目标仓自己的 `forge.yaml`（常为 `[]`）或不带 `--path` 时，内置禁仓照样拒绝。
 
 条目先规范化：去掉 `https://github.com/`、`github.com/` 前缀，去掉末尾 `.git` 与 `/`，转小写。规范化后仍不是 `OWNER/NAME` 的条目退出 3。YAML 里写 URL 要加引号（`- "https://github.com/o/n"`），否则冒号会被当成映射，同样退出 3。

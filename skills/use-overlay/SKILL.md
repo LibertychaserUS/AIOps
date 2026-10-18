@@ -57,7 +57,7 @@ PYTHONPATH=<tool> python3 -m overlay cover --root .
 PYTHONPATH=<tool> python3 -m overlay select --root .
 ```
 
-`--branch` 缺省：`GITHUB_BASE_REF` → `GITHUB_REF_NAME` → `main`。未知分支回落 `branches.default` 再到 `main`。
+`--branch` 缺省与回落规则见 [`docs/design.md`](../../docs/design.md) §4.6。显式或 PR 基线分支不在 `overlay.yaml` 且没有 `branches.default` 时**退出 2**，不是绿。
 
 6. `blocked` 需要带链接或登记编号的 `blocked_reason`。Agent 不要把 `active` 改成 `blocked`，也不要清掉已有的 `blocked`（那是人审 / `$manage-repo`）。
 7. **Keep** the product’s existing overlay-check shape if it already works (reusable caller **or** inline). Never pin `main`.

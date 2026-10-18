@@ -4,6 +4,10 @@ Needs FORGE_SUBMIT_TOKEN (same secret as submit). If an open PR already
 exists with head=from and base=to, PATCH title/body; otherwise POST a
 non-draft PR. Body uses the six 解说规格 headings; 做了什么 is filled
 from `git log to..from --format=- %s`.
+
+Fail-closed (ADR 0003): no branches.<to>.promote_from means no promotion;
+--from must equal it and be protect. Refuses forbidden_live_repos plus the
+hard-coded upstream. Live promote needs a resolvable current branch.
 """
 
 from __future__ import annotations
@@ -14,12 +18,13 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, TextIO
 
-from forge import EXIT_AUTH, EXIT_CONFIG, EXIT_OK
+from forge import EXIT_AUTH, EXIT_CONFIG, EXIT_OK, FORBIDDEN_REPOS
 from forge.apply import (
     DEFAULT_API,
     ForgeError,
     GitHubClient,
     UrlOpen,
+    assert_live_repo_allowed,
     load_config,
     normalize_branch,
     parse_repo,
@@ -138,17 +143,31 @@ def run_promote(
         owner, name = parse_repo(repo)
         config_path = None if path is None else Path(path)
         config = load_config(config_path)
+        assert_live_repo_allowed(
+            owner,
+            name,
+            [*config.forbidden_live_repos, *FORBIDDEN_REPOS],
+            action="promote",
+        )
         source = normalize_branch(from_branch)
         target = normalize_branch(to_branch)
         locked = {normalize_branch(item) for item in config.protect}
         if target not in locked:
             raise ForgeError(EXIT_CONFIG, f"refusing to promote onto {target!r}; --to must be protect")
         rule = config.rule_for(target)
-        if rule.promote_from and rule.promote_from != source:
+        if not rule.promote_from:
+            raise ForgeError(
+                EXIT_CONFIG,
+                f"refusing promote onto {target!r}; branches.{target}.promote_from is unset "
+                "(没有 promote_from 就不走晋升)",
+            )
+        if rule.promote_from != source:
             raise ForgeError(
                 EXIT_CONFIG,
                 f"refusing promote {source!r} → {target!r}; branches.{target}.promote_from is {rule.promote_from!r}",
             )
+        if source not in locked:
+            raise ForgeError(EXIT_CONFIG, f"refusing to promote from {source!r}; --from must be protect")
         runner = default_git_runner if git_runner is None else git_runner
         short_sha = runner(["rev-parse", "--short", source], cwd=cwd) or "unknown"
         log = runner(["log", f"{target}..{source}", "--format=- %s"], cwd=cwd)
@@ -159,6 +178,12 @@ def run_promote(
             raise ForgeError(EXIT_CONFIG, message)
         work = Path.cwd() if cwd is None else Path(cwd)
         branch = resolve_branch(work, environ)
+        if branch is None and not dry_run:
+            raise ForgeError(
+                EXIT_CONFIG,
+                "refusing live promote: current branch unknown (detached HEAD, no "
+                "GITHUB_HEAD_REF / GITHUB_REF_NAME); --dry-run is allowed",
+            )
         prefix = matching_agent_prefix(branch, config.agent_branch_prefixes)
         if prefix and not dry_run:
             raise ForgeError(

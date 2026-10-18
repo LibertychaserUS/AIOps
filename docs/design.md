@@ -103,11 +103,11 @@ PR 的 review 和 merge 由 **GitHub Ruleset + 有写权限的人** 管理。RBA
 
 `check`（不写 GitHub）：overlay validate / cover；pr-title / pr-body 按事件取值（本地未设才 skip；`pull_request` 空白红；`push` lint HEAD 提交）；deny_paths；`suite_guard`（agent 分支把套件改成 `blocked`，或清掉已有 `blocked` → 红）；`docs_sync`；工作本另加 sop-lock / schema / 与 CI 相同的 `python -m unittest discover -s tests -t .`。接入方根目录（没有 `overlay/__init__.py`）不跑这套工作本单测，也不打印 workshop-only skip。
 
-`submit`：先 `check`；必须 `FORGE_SUBMIT_TOKEN`（缺则含 `--dry-run` 也红）；推功能枝并开/更新 draft PR；base = `protect[0]`；`--base` 必须在 `protect`。永不 merge，永不 approve，永不 apply。`gh auth login` / `GH_TOKEN` / extraheader / `GITHUB_TOKEN` 都不够。见 [`submit-credential.md`](submit-credential.md)。
+`submit`：`--head` 必须是当前检出分支、工作树必须干净（否则退出 3）；先 `check`；必须 `FORGE_SUBMIT_TOKEN`（缺则含 `--dry-run` 也红）；把检查过的 sha 推到 `refs/heads/<head>` 并开 draft PR，已有则只改标题；base = `protect[0]`；`--base` 必须在 `protect`。永不 merge，永不 approve，永不 apply。`gh auth login` / `GH_TOKEN` / extraheader / `GITHUB_TOKEN` 都不够。见 [`submit-credential.md`](submit-credential.md)。
 
 `apply`：每个保护分支一条 `forge-protected-<branch>`；另有 `forge-protected-tags`。认证 `FORGE_GITHUB_TOKEN`。`--dry-run` 打印全部 payload。
 
-`promote`：需要 `FORGE_SUBMIT_TOKEN`。当前 git 分支命中 `agent_branch_prefixes` 时 **live 拒绝**（退出 3）；`--dry-run` 仍可。人 / ops 分支：已有 open PR（head 与 base 都对上）则更新，否则创建（非 draft）。标题 `chore(ci/agent):`，两扇产品门都跑。永不 merge。分工是 GitHub Ruleset + 人合入；agent 只开草稿。
+`promote`：需要 `FORGE_SUBMIT_TOKEN`。目标没有 `promote_from`、`--from` 不等于它或不在 `protect`、禁仓：退出 3。当前 git 分支命中 `agent_branch_prefixes` 或解析不出时 **live 拒绝**（退出 3）；`--dry-run` 仍可。人 / ops 分支：已有 open PR（head 与 base 都对上）则更新，否则创建（非 draft）。标题 `chore(ci/agent):`，两扇产品门都跑。永不 merge。分工是 GitHub Ruleset + 人合入；agent 只开草稿。
 
 进保护分支默认 **squash 封顶**；合完 **换底**。不要从即将被压掉的旧头再叠。
 
