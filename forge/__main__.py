@@ -9,6 +9,7 @@ import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, TextIO
+from urllib.parse import urlparse
 
 from forge import EXIT_CONFIG, EXIT_OK
 from forge.apply import DEFAULT_API, default_urlopen, run_apply
@@ -17,6 +18,21 @@ from forge.check import run_check
 from forge.status import run_status
 from forge.submit import run_submit
 from forge.title import resolve_spec_body, resolve_spec_title, run_pr_title
+
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+API_COMMANDS = frozenset({"apply", "status", "submit", "promote", "ops-review", "release", "bounce"})
+
+
+def api_base_error(api: str) -> str | None:
+    """The bearer token only goes over https (http only to a loopback test server)."""
+    parsed = urlparse(api)
+    scheme = (parsed.scheme or "").lower()
+    host = (parsed.hostname or "").lower()
+    if scheme == "https" and host:
+        return None
+    if scheme == "http" and host in LOOPBACK_HOSTS:
+        return None
+    return f"refusing FORGE_GITHUB_API {api!r}; must be https:// (token is never sent over http)"
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -91,7 +107,7 @@ def _parser() -> argparse.ArgumentParser:
     submit_p.add_argument(
         "--head",
         default=None,
-        help="Feature branch to submit. Default: current HEAD, else GITHUB_HEAD_REF.",
+        help="Feature branch to submit; must be the checked-out branch. Default: current branch, else GITHUB_HEAD_REF.",
     )
     submit_p.add_argument(
         "--base",
@@ -254,6 +270,7 @@ def main(
     credential_probe: Any | None = None,
     pusher: Any | None = None,
     pr_create: Any | None = None,
+    git_runner: Any | None = None,
 ) -> int:
     env: Mapping[str, str] = os.environ if environ is None else environ
     out = sys.stdout if stdout is None else stdout
@@ -271,6 +288,10 @@ def main(
 
     opener = urlopen or default_urlopen
     api = base_url or str(env.get("FORGE_GITHUB_API") or DEFAULT_API)
+    api_error = api_base_error(api) if args.command in API_COMMANDS else None
+    if api_error is not None:
+        print(api_error, file=err)
+        return EXIT_CONFIG
     env_dict = dict(env)
 
     if args.command == "apply":
@@ -321,6 +342,7 @@ def main(
             environ=env_dict,
             check_fn=check_fn,
             pusher=pusher,
+            git_runner=git_runner,
         )
     if args.command in {"pr-title", "title"}:
         title = args.title

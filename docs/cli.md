@@ -100,8 +100,8 @@ options:
   --repo REPO    OWNER/NAME
   --title TITLE  PR title. Must pass python -m forge pr-title.
   --path PATH    forge.yaml (optional; defaults protect=main)
-  --head HEAD    Feature branch to submit. Default: current HEAD, else
-                 GITHUB_HEAD_REF.
+  --head HEAD    Feature branch to submit; must be the checked-out branch.
+                 Default: current branch, else GITHUB_HEAD_REF.
   --base BASE    PR base. Default: protect[0]. Must be a protect branch.
   --dry-run      print intended remote branch + PR title/body headings; no
                  push. Still requires FORGE_SUBMIT_TOKEN (fail-closed if

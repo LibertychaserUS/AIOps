@@ -37,6 +37,8 @@ branches:
     promote_from: dev
 ```
 
+`submit` 只推检查过的提交：`--head` 必须是当前检出分支（不收 `HEAD`、`heads/`、`refs/`、`tags/`），工作树必须干净（含未跟踪文件），推送用 `<sha>:refs/heads/<head>`。更新已有 PR 只改标题，不动正文。`FORGE_GITHUB_API` 必须是 https（仅 `127.0.0.1` / `localhost` 可 http）。
+
 `apply` 为每个保护分支写一条 Ruleset，名 `forge-protected-<branch>`，幂等按名 PUT。另写 `forge-protected-tags`，保护 `refs/tags/overlay-v*` 与 `refs/tags/forge-v*`（可配 `tag_patterns`）。`--dry-run` 打印全部 payload。`status` 逐条报告 installed / missing / drifted。
 
 ## title.scopes
@@ -48,7 +50,9 @@ branches:
 
 `forge promote` 的标题：列表里有 `ci/agent`，或 `scopes: any` 时，用 `chore(ci/agent):`。`ci` 让两扇产品门都跑。封闭列表没有 `ci/agent` 时用第一项，避免写出调用方没允许的 scope。
 
-当前 git 分支命中 `agent_branch_prefixes` 时，live `promote` 拒绝（退出 3）。`--dry-run` 仍要 `FORGE_SUBMIT_TOKEN`，但不写 GitHub。人 / ops 分支行为不变。分工仍是 Ruleset + 人合入；agent 只开草稿。
+`promote` 只走配置好的晋升：目标分支必须有 `branches.<to>.promote_from`，`--from` 必须等于它且在 `protect` 里；否则退出 3（没有 `promote_from` 就不走晋升）。仓在 `forbidden_live_repos` 或源码硬拒名单里也退出 3。
+
+当前 git 分支命中 `agent_branch_prefixes`，或解析不出当前分支（detached HEAD 且无 `GITHUB_HEAD_REF` / `GITHUB_REF_NAME`）时，live `promote` 拒绝（退出 3）。`--dry-run` 仍要 `FORGE_SUBMIT_TOKEN`，但不写 GitHub。人 / ops 分支行为不变。分工仍是 Ruleset + 人合入；agent 只开草稿。
 
 PR 规格机器检查是 `python -m forge pr-title`（`forge check` 嵌同一把锁）。来源按事件取，不是「空白就 skip」：
 
@@ -105,4 +109,4 @@ docs_sync:
 
 ## forbidden_live_repos
 
-默认空。工作本自己的 `forge.yaml` 列出 `first-light-techhk/learningguideportal`。源码里另有一条对工作本产品仓生产域名的硬拒绝（`assert_apply_allowed`），与配置无关。不要把产品仓主机名写进通用说明。
+默认空。工作本自己的 `forge.yaml` 列出 `first-light-techhk/learningguideportal`。`apply` / `release` / `promote` 都查这张表（大小写不敏感）。源码里另有一条对工作本产品仓生产域名的硬拒绝（`assert_apply_allowed`），与配置无关。不要把产品仓主机名写进通用说明。

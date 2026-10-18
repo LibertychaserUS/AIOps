@@ -25,6 +25,15 @@
 - `suite_guard`：agent 分支不得把已有 `blocked` 改回 `active` 或删掉。人枝仍只记录。
 - Python 内核增加 ruff 门（`tests/style/test_ruff.py`，随 `unittest` 跑）。没有新的 GitHub job 名。
 - Overlay `select` 断言文案不再把已删除的 `draft` 写成现行状态。
+- `submit` 拒绝 `--head HEAD` 以及 `heads/`、`refs/`、`tags/` 开头的名字，推送改用显式 `<sha>:refs/heads/<head>`。`HEAD` / `heads/dev` 不会再被 git 解析到保护分支上。
+- `submit` 只推本工作树检查过的内容：`--head` 与当前检出分支不同、或工作树脏（含未跟踪文件）时退出 3（`--dry-run` 同样拒绝）。check 前记下 HEAD sha，推的就是这个 sha。
+- 再次 `submit` 更新已有 PR 时只 PATCH 标题，不再用空的六节模板覆盖作者写好的正文。
+- `submit` 的 token 经 `GIT_CONFIG_COUNT` / `GIT_CONFIG_KEY_n` / `GIT_CONFIG_VALUE_n` 环境变量交给 git，不再出现在 argv（`ps` 可见）。先写一条空的 `http.https://github.com/.extraheader` 清掉继承的 extraheader（如 actions/checkout 的 `GITHUB_TOKEN`），只发 `FORGE_SUBMIT_TOKEN`。
+- `promote` 按 ADR 0003「没有 `promote_from` 就不走晋升」：目标分支没有 `promote_from`、或 `--from` 不在 `protect` 时退出 3。
+- `promote` 与 `release` 一样拒绝 `forbidden_live_repos` 与源码硬拒的上游仓（大小写不敏感）。
+- live `promote` 在解析不出当前分支（detached HEAD 且无 `GITHUB_HEAD_REF` / `GITHUB_REF_NAME`）时拒绝；`--dry-run` 仍可。
+- `release` 总是核对每个所选产品的 `<product>/__init__.py` `__version__`，缺文件即红（不再只在有 `overlay/__init__.py` 时才查）。`--products both` 先检查全部 tag / Release，再发布，不会半发。
+- 连 GitHub API 的命令拒绝非 https 的 `FORGE_GITHUB_API`（退出 3），token 不走 http。仅 `127.0.0.1` / `localhost` 测试服务允许 http。
 
 ### Changed
 

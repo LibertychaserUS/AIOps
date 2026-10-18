@@ -37,4 +37,4 @@ Overlay「token 只在人点 `generate`」是**另一把密钥**（模型 API：
 
 1. 先跑本地 `python -m forge check`。红 → 退出 2，不 push。check 不读密钥。
 2. 再要求 `FORGE_SUBMIT_TOKEN`。缺或空 → 退出 2，打印 `would require FORGE_SUBMIT_TOKEN` / `missing FORGE_SUBMIT_TOKEN`。`--dry-run` 同样红。
-3. 都过：`--dry-run` 打印计划后退出 0；live 则同一把 `FORGE_SUBMIT_TOKEN` 注入 HTTPS extraheader 推功能分支，并开/更新 **draft** PR。本机已有 extraheader 不是凭证。永不打印 token。永不 merge，永不 approve，永不 apply Ruleset。
+3. 都过：`--dry-run` 打印计划后退出 0；live 则同一把 `FORGE_SUBMIT_TOKEN` 经 `GIT_CONFIG_*` 环境变量注入 HTTPS extraheader（不进 argv；先清空继承的 extraheader）推功能分支，并开 **draft** PR（已有则只改标题）。本机已有 extraheader 不是凭证。永不打印 token。永不 merge，永不 approve，永不 apply Ruleset。
