@@ -14,6 +14,7 @@
 
 ### Fixed
 
+- 工作本 `unittest` 与 `forge-check` 两个 job 的 checkout 改为 `fetch-depth: 0`，让 `forge check` 在 CI 里看得到 `origin/dev`（缺基准时现在按设计变红）。
 - `overlay review`：`--reason "#123"` 这类登记号写成带引号的 YAML，不再被当成注释读成 null。`--suite` 必须是合法套件 id，`../` 不能改到 `suites/` 外的文件。
 - `overlay generate`：`packages` 逐项加引号，`@acme/web` 这类 scoped 包名不再写出解析不了的 `suite.yaml`。
 - `overlay migrate`：`status: "draft"`、`status: draft  # 注释` 也会改成 `active`，不再报改写成功却留下旧状态。
@@ -36,6 +37,16 @@
 - `suite_guard`：agent 分支不得把已有 `blocked` 改回 `active` 或删掉。人枝仍只记录。
 - Python 内核增加 ruff 门（`tests/style/test_ruff.py`，随 `unittest` 跑）。没有新的 GitHub job 名。
 - Overlay `select` 断言文案不再把已删除的 `draft` 写成现行状态。
+- `forge check` 看不到 base（没有 `origin/<protect[0]>` / 本地保护枝 / `origin/$GITHUB_BASE_REF`）时，`deny_paths`、agent 枝 `suite_guard`、`docs_sync` 表**红**，提示 fetch；不再只比工作区与 HEAD 后假绿。
+- `forge check` diff 并入已提交改动（merge-base..HEAD）。暂存回退不能藏住要推送的提交。
+- `suite_guard`：detached HEAD 且无 CI 分支变量时按 agent 枝处理。`run_check` 新增 `head_branch` 参数。
+- `forge check` / `ci-select` 的路径列表用 `git -z`：非 ASCII 路径不再因 `core.quotePath` 转义漏过 `deny_paths` / `suite_guard` / 链接检查。
+- `deny_paths` 与 `docs_sync.paths` 共用 gitignore 式匹配：`**/` 零或多层目录，`*` 不跨 `/`。`deny_paths` 支持 glob；普通前缀写法不变。见 [`docs/forge-config.md`](docs/forge-config.md)。
+- `ci-select`：`--no-renames`（移出产品仍选中该产品）；相对 `--root`（monorepo 子目录）；算不出变更路径时有标题也全跑。
+- `ci`、`ci.products.<name>`、`ci.select` 下的未知键退出 3（did-you-mean）；`forge check` 同样拦下。
+- `forge.yaml` 同一映射重复键退出 3，不再后写覆盖。
+- `pr-title` 读不了 `forge.yaml` 时退出 3，不再悄悄丢掉 `title.scopes`。
+- 没有 git 可执行文件时，`check` 的 git 步骤红（退出 2），不再抛 traceback。
 - `submit` 拒绝 `--head HEAD` 以及 `heads/`、`refs/`、`tags/` 开头的名字，推送改用显式 `<sha>:refs/heads/<head>`。`HEAD` / `heads/dev` 不会再被 git 解析到保护分支上。
 - `submit` 只推本工作树检查过的内容：`--head` 与当前检出分支不同、或工作树脏（含未跟踪文件）时退出 3（`--dry-run` 同样拒绝）。check 前记下 HEAD sha，推的就是这个 sha。
 - 再次 `submit` 更新已有 PR 时只 PATCH 标题，不再用空的六节模板覆盖作者写好的正文。

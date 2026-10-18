@@ -169,8 +169,8 @@ options:
   --title TITLE         PR title. Default: env PR_TITLE. A product gate runs
                         on title or paths.
   --changed [CHANGED ...]
-                        Changed paths. Omit to use git HEAD~1. Union with a
-                        valid title.
+                        Changed paths. Omit to use git HEAD~1 (unavailable:
+                        run all). Union with a valid title.
   --github-output       append run=true|false to $GITHUB_OUTPUT (skip is
                         success)
 ```

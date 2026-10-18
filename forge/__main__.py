@@ -181,7 +181,7 @@ def _parser() -> argparse.ArgumentParser:
         "--changed",
         nargs="*",
         default=None,
-        help="Changed paths. Omit to use git HEAD~1. Union with a valid title.",
+        help="Changed paths. Omit to use git HEAD~1 (unavailable: run all). Union with a valid title.",
     )
     select_p.add_argument(
         "--github-output",

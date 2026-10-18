@@ -75,13 +75,29 @@ def _last_line(text: str) -> str:
     return lines[-1] if lines else ""
 
 
+class GitUnavailable(Exception):
+    """git is not on PATH: a diff gate cannot see anything, so it fails."""
+
+
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", "-C", str(root), *args],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    # quotePath=false: a quoted "secret/\345..." would never match deny_paths.
+    try:
+        return subprocess.run(
+            ["git", "-C", str(root), "-c", "core.quotePath=false", *args],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise GitUnavailable(f"cannot run git ({exc})") from exc
+
+
+def _git_paths(root: Path, *args: str) -> list[str] | None:
+    """NUL-separated path listing (-z): no quoting, no newline ambiguity."""
+    proc = _git(root, args[0], "-z", *args[1:])
+    if proc.returncode != 0:
+        return None
+    return [normalize_repo_path(item) for item in proc.stdout.split("\0") if item.strip()]
 
 
 def is_git_work_tree(root: Path) -> bool:
@@ -99,8 +115,16 @@ def current_branch(root: Path) -> str | None:
     return name
 
 
-def resolve_protect_ref(root: Path, protect: Sequence[str]) -> str | None:
-    """The PR base is the remote protect branch; a stale local copy must not win."""
+def resolve_protect_ref(
+    root: Path,
+    protect: Sequence[str],
+    environ: Mapping[str, str] | None = None,
+) -> str | None:
+    """The PR base is the remote protect branch; a stale local copy must not win.
+
+    Last resort is the Actions PR base (origin/$GITHUB_BASE_REF). None means the
+    diff gates cannot see the base; callers fail closed instead of diffing HEAD.
+    """
     for name in protect:
         for candidate in (
             f"refs/remotes/origin/{name}",
@@ -111,7 +135,21 @@ def resolve_protect_ref(root: Path, protect: Sequence[str]) -> str | None:
             proc = _git(root, "rev-parse", "--verify", "--quiet", candidate)
             if proc.returncode == 0:
                 return candidate
+    env = os.environ if environ is None else environ
+    base = (env.get("GITHUB_BASE_REF") or "").strip()
+    if base:
+        candidate = f"refs/remotes/origin/{base}"
+        if _git(root, "rev-parse", "--verify", "--quiet", candidate).returncode == 0:
+            return candidate
     return None
+
+
+def no_base_detail(protect: Sequence[str]) -> str:
+    name = protect[0] if protect else "main"
+    return (
+        f"cannot see the base: no origin/{name} (or local {name}); "
+        f"run git fetch origin {name} and re-run"
+    )
 
 
 def normalize_repo_path(path: str) -> str:
@@ -121,24 +159,88 @@ def normalize_repo_path(path: str) -> str:
     return rel
 
 
-def path_is_denied(path: str, deny_paths: Sequence[str]) -> bool:
-    rel = normalize_repo_path(path)
-    for deny in deny_paths:
-        target = normalize_repo_path(str(deny))
-        if not target:
+_GLOB_CHARS = frozenset("*?[")
+
+
+def _glob_regex(pattern: str) -> str:
+    """gitignore-style: `**/` = zero or more dirs, `*` / `?` stay inside one segment."""
+    out: list[str] = []
+    i = 0
+    n = len(pattern)
+    while i < n:
+        ch = pattern[i]
+        if pattern.startswith("**", i):
+            at_start = i == 0 or pattern[i - 1] == "/"
+            j = i + 2
+            if at_start and j < n and pattern[j] == "/":
+                out.append("(?:.*/)?")
+                i = j + 1
+                continue
+            if at_start and j == n:
+                # "dir/**" also names dir itself (prior behavior); "**" is everything.
+                if out and out[-1] == "/":
+                    out[-1] = "(?:/.*)?"
+                else:
+                    out.append(".*")
+                i = j
+                continue
+            out.append("[^/]*")
+            i = j
             continue
-        if rel == target:
-            return True
-        if target.endswith("/") and rel.startswith(target):
-            return True
-        if not target.endswith("/") and rel.startswith(target + "/"):
-            return True
-    return False
+        if ch == "*":
+            out.append("[^/]*")
+        elif ch == "?":
+            out.append("[^/]")
+        elif ch == "[":
+            end = pattern.find("]", i + 2 if pattern[i + 1 : i + 2] in ("!", "^") else i + 1)
+            if end == -1:
+                out.append(re.escape(ch))
+            else:
+                body = pattern[i + 1 : end]
+                if body[:1] in ("!", "^"):
+                    body = "^" + body[1:]
+                out.append("[" + body.replace("\\", "\\\\").replace("[", "\\[") + "]")
+                i = end + 1
+                continue
+        elif ch == "/":
+            out.append("/")
+        else:
+            out.append(re.escape(ch))
+        i += 1
+    return "".join(out)
+
+
+def path_matches_pattern(path: str, pattern: str) -> bool:
+    """One matcher for deny_paths and docs_sync.paths (see docs/forge-config.md).
+
+    Plain path: exact file or directory prefix. Trailing `/`: directory prefix.
+    Globs: `**/` matches zero or more directories, `*` and `?` never cross `/`;
+    a glob with no `/` matches a basename at any depth. A glob that names a
+    directory also covers everything under it.
+    """
+    rel = normalize_repo_path(path)
+    pat = normalize_repo_path(str(pattern)).lstrip("/")
+    if pat.endswith("/"):
+        pat = pat.rstrip("/")
+    if not pat or not rel:
+        return False
+    if not _GLOB_CHARS.intersection(pat):
+        return rel == pat or rel.startswith(pat + "/")
+    regex = _glob_regex(pat)
+    if "/" not in pat:
+        regex = "(?:.*/)?" + regex
+    return re.fullmatch(regex + "(?:/.*)?", rel) is not None
+
+
+def path_is_denied(path: str, deny_paths: Sequence[str]) -> bool:
+    return any(path_matches_pattern(path, deny) for deny in deny_paths)
 
 
 def list_changed_paths(root: Path, base_ref: str | None) -> list[str] | None:
     """Changed paths under root vs protect merge-base (or HEAD), relative to root.
 
+    Union of committed (base..HEAD), index and worktree: a staged revert must
+    not hide a committed change that the push still carries.
     --relative keeps a monorepo product's deny_paths meaningful when --root is a
     subdirectory; untracked files from ls-files are already cwd-relative.
     None if not a git work tree.
@@ -146,27 +248,17 @@ def list_changed_paths(root: Path, base_ref: str | None) -> list[str] | None:
     if not is_git_work_tree(root):
         return None
     paths: set[str] = set()
+    diff = ("diff", "--name-only", "--no-renames", "--relative")
     if base_ref:
         merge = _git(root, "merge-base", "HEAD", base_ref)
         base = merge.stdout.strip() if merge.returncode == 0 and merge.stdout.strip() else base_ref
-        for args in (
-            ("diff", "--name-only", "--no-renames", "--relative", base),
-            ("diff", "--name-only", "--no-renames", "--relative", "--cached", base),
-        ):
-            proc = _git(root, *args)
-            if proc.returncode == 0:
-                paths.update(normalize_repo_path(line) for line in proc.stdout.splitlines() if line.strip())
+        listings = ((*diff, base, "HEAD"), (*diff, base), (*diff, "--cached", base))
     else:
-        for args in (
-            ("diff", "--name-only", "--no-renames", "--relative", "HEAD"),
-            ("diff", "--name-only", "--no-renames", "--relative", "--cached"),
-        ):
-            proc = _git(root, *args)
-            if proc.returncode == 0:
-                paths.update(normalize_repo_path(line) for line in proc.stdout.splitlines() if line.strip())
-    untracked = _git(root, "ls-files", "--others", "--exclude-standard")
-    if untracked.returncode == 0:
-        paths.update(normalize_repo_path(line) for line in untracked.stdout.splitlines() if line.strip())
+        listings = ((*diff, "HEAD"), (*diff, "--cached"))
+    for args in (*listings, ("ls-files", "--others", "--exclude-standard")):
+        found = _git_paths(root, *args)
+        if found is not None:
+            paths.update(found)
     return sorted(p for p in paths if p)
 
 
@@ -179,11 +271,16 @@ def matching_agent_prefix(branch: str | None, prefixes: Sequence[str]) -> str | 
     return None
 
 
-def deny_paths_step(root: Path, environ: Mapping[str, str] | None = None) -> Step:
+def deny_paths_step(
+    root: Path,
+    environ: Mapping[str, str] | None = None,
+    *,
+    head_branch: str | None = None,
+) -> Step:
     """Fail when the local diff touches forge.yaml deny_paths. No GitHub write.
 
     agent_branch_prefixes are recorded (design 3.5.2: human branches stay allowed).
-    They are not a local fail in this cut.
+    They are not a local fail in this cut. No visible base fails closed.
     """
     forge_yaml = root / "forge.yaml"
     if not forge_yaml.is_file():
@@ -194,24 +291,33 @@ def deny_paths_step(root: Path, environ: Mapping[str, str] | None = None) -> Ste
         return Step("deny_paths", "fail", exc.message)
     if not is_git_work_tree(root):
         return Step("deny_paths", "skip", "no git work tree")
-    base = resolve_protect_ref(root, config.protect)
+    base = resolve_protect_ref(root, config.protect, environ)
     changed = list_changed_paths(root, base)
     if changed is None:
         return Step("deny_paths", "skip", "no git work tree")
     hits = [path for path in changed if path_is_denied(path, config.deny_paths)]
-    branch = resolve_branch(root, environ)
+    branch = resolve_branch(root, environ, head_branch)
     prefix = matching_agent_prefix(branch, config.agent_branch_prefixes)
     suffix = f"; agent branch {branch}" if prefix and branch else ""
     if hits:
         shown = ", ".join(hits)
         return Step("deny_paths", "fail", f"diff touches {shown}{suffix}")
-    if base:
-        return Step("deny_paths", "ok", f"vs {base}{suffix}")
-    return Step("deny_paths", "ok", f"no protect ref{suffix}")
+    if not base:
+        return Step("deny_paths", "fail", no_base_detail(config.protect))
+    return Step("deny_paths", "ok", f"vs {base}{suffix}")
 
 
-def resolve_branch(root: Path, environ: Mapping[str, str] | None = None) -> str | None:
-    """Branch name locally, or the PR head branch on a detached CI checkout."""
+def resolve_branch(
+    root: Path,
+    environ: Mapping[str, str] | None = None,
+    head_branch: str | None = None,
+) -> str | None:
+    """Explicit head (submit --head), branch name locally, or the CI PR head.
+
+    None when nothing names the branch; suite_guard then treats it as an agent.
+    """
+    if head_branch and head_branch.strip():
+        return head_branch.strip()
     name = current_branch(root)
     if name:
         return name
@@ -223,8 +329,12 @@ def resolve_branch(root: Path, environ: Mapping[str, str] | None = None) -> str 
     return None
 
 
-def resolve_base_commit(root: Path, protect: Sequence[str]) -> str | None:
-    base_ref = resolve_protect_ref(root, protect)
+def resolve_base_commit(
+    root: Path,
+    protect: Sequence[str],
+    environ: Mapping[str, str] | None = None,
+) -> str | None:
+    base_ref = resolve_protect_ref(root, protect, environ)
     if not base_ref:
         return None
     merge = _git(root, "merge-base", "HEAD", base_ref)
@@ -261,8 +371,16 @@ def _show_at(root: Path, base: str, rel: str) -> str | None:
     return proc.stdout if proc.returncode == 0 else None
 
 
-def suite_guard_step(root: Path, environ: Mapping[str, str] | None = None) -> Step:
-    """Agent branches must not set or clear blocked. Humans are recorded."""
+def suite_guard_step(
+    root: Path,
+    environ: Mapping[str, str] | None = None,
+    *,
+    head_branch: str | None = None,
+) -> Step:
+    """Agent branches must not set or clear blocked. Humans are recorded.
+
+    An unnamed branch (detached HEAD, no CI env) is an agent: fail closed.
+    """
     forge_yaml = root / "forge.yaml"
     if not forge_yaml.is_file():
         return Step("suite_guard", "skip", "no forge.yaml")
@@ -272,13 +390,16 @@ def suite_guard_step(root: Path, environ: Mapping[str, str] | None = None) -> St
         return Step("suite_guard", "fail", exc.message)
     if not is_git_work_tree(root):
         return Step("suite_guard", "skip", "no git work tree")
-    branch = resolve_branch(root, environ)
-    prefix = matching_agent_prefix(branch, config.agent_branch_prefixes)
-    if not prefix:
-        shown = branch or "detached HEAD"
-        return Step("suite_guard", "ok", f"human branch {shown}; status changes are reviewed, not blocked")
-    base = resolve_base_commit(root, config.protect)
-    changed = list_changed_paths(root, resolve_protect_ref(root, config.protect)) or []
+    resolved = resolve_branch(root, environ, head_branch)
+    prefix = matching_agent_prefix(resolved, config.agent_branch_prefixes)
+    if resolved and not prefix:
+        return Step("suite_guard", "ok", f"human branch {resolved}; status changes are reviewed, not blocked")
+    branch = resolved or "(detached HEAD, unnamed)"
+    base_ref = resolve_protect_ref(root, config.protect, environ)
+    if not base_ref:
+        return Step("suite_guard", "fail", f"agent branch {branch}: {no_base_detail(config.protect)}")
+    base = resolve_base_commit(root, config.protect, environ)
+    changed = list_changed_paths(root, base_ref) or []
     suites = [path for path in changed if is_suite_yaml(path)]
     if not suites:
         return Step("suite_guard", "ok", f"no suite.yaml changed; agent branch {branch}")
@@ -307,16 +428,7 @@ def suite_guard_step(root: Path, environ: Mapping[str, str] | None = None) -> St
 
 
 def path_matches_glob(path: str, pattern: str) -> bool:
-    from fnmatch import fnmatch
-
-    rel = normalize_repo_path(path)
-    pat = normalize_repo_path(pattern)
-    if pat.endswith("/**"):
-        prefix = pat[:-3]
-        return rel == prefix or rel.startswith(prefix + "/")
-    if pat.endswith("/"):
-        return rel == pat[:-1] or rel.startswith(pat)
-    return rel == pat or rel.startswith(pat + "/") or fnmatch(rel, pat)
+    return path_matches_pattern(path, pattern)
 
 
 def _git_tags(root: Path) -> set[str]:
@@ -343,12 +455,11 @@ def _changelog_headings(root: Path) -> set[str]:
 def _markdown_files(root: Path) -> list[Path]:
     """Tracked + unignored *.md under root (git ls-files); falls back to rglob outside git."""
     if is_git_work_tree(root):
-        proc = _git(root, "ls-files", "--cached", "--others", "--exclude-standard", "--", "*.md", "**/*.md")
-        if proc.returncode == 0:
+        listed = _git_paths(root, "ls-files", "--cached", "--others", "--exclude-standard", "--", "*.md", "**/*.md")
+        if listed is not None:
             seen: set[str] = set()
             out: list[Path] = []
-            for line in proc.stdout.splitlines():
-                rel = line.strip()
+            for rel in listed:
                 if rel and rel not in seen and (root / rel).is_file():
                     seen.add(rel)
                     out.append(root / rel)
@@ -410,7 +521,6 @@ def _pin_mention_failures(root: Path) -> list[str]:
 
 
 def docs_sync_step(root: Path, environ: Mapping[str, str] | None = None) -> Step:
-    del environ
     forge_yaml = root / "forge.yaml"
     if not forge_yaml.is_file():
         return Step("docs_sync", "skip", "no forge.yaml")
@@ -420,10 +530,13 @@ def docs_sync_step(root: Path, environ: Mapping[str, str] | None = None) -> Step
         return Step("docs_sync", "fail", exc.message)
     misses: list[str] = []
     if is_git_work_tree(root):
-        changed = list_changed_paths(root, resolve_protect_ref(root, config.protect)) or []
+        base_ref = resolve_protect_ref(root, config.protect, environ)
+        if config.docs_sync and not base_ref:
+            misses.append(no_base_detail(config.protect))
+        changed = list_changed_paths(root, base_ref) if base_ref else []
         for rule in config.docs_sync:
-            if any(path_matches_glob(path, pattern) for path in changed for pattern in rule.paths):
-                if not any(normalize_repo_path(req) in changed for req in rule.require):
+            if any(path_matches_pattern(path, pattern) for path in changed or [] for pattern in rule.paths):
+                if not any(normalize_repo_path(req) in (changed or []) for req in rule.require):
                     misses.append(
                         "changed "
                         + ", ".join(rule.paths)
@@ -517,6 +630,13 @@ def _default_unittest_runner(
     return EXIT_OK
 
 
+def _git_step(name: str, fn: Callable[[], Step]) -> Step:
+    try:
+        return fn()
+    except GitUnavailable as exc:
+        return Step(name, "fail", str(exc))
+
+
 def _print_checklist(steps: Sequence[Step], stdout: TextIO) -> None:
     print("forge check", file=stdout)
     width = max(len(step.name) for step in steps)
@@ -541,12 +661,14 @@ def run_check(
     overlay_cover: OverlayFn | None = None,
     schema_runner: SchemaFn | None = None,
     unittest_runner: UnittestFn | None = None,
+    head_branch: str | None = None,
 ) -> int:
     """Run the local pre-submit checklist. Exit 0 / 2. Never writes GitHub.
 
     Title/body source is event-aware (``resolve_spec_title`` /
     ``resolve_spec_body``). Local omit skips. pull_request + blank fails.
     push lints the HEAD commit subject; it does not skip the title lock.
+    ``head_branch`` (submit's resolved --head) beats the checkout's branch.
     """
     out = sys.stdout if stdout is None else stdout
     err = sys.stderr if stderr is None else stderr
@@ -618,9 +740,9 @@ def run_check(
     else:
         steps.append(Step("pr-body", "skip", "no docs/pr-brief.md"))
 
-    steps.append(deny_paths_step(root, env))
-    steps.append(suite_guard_step(root, env))
-    steps.append(docs_sync_step(root, env))
+    steps.append(_git_step("deny_paths", lambda: deny_paths_step(root, env, head_branch=head_branch)))
+    steps.append(_git_step("suite_guard", lambda: suite_guard_step(root, env, head_branch=head_branch)))
+    steps.append(_git_step("docs_sync", lambda: docs_sync_step(root, env)))
 
     workshop = is_workshop_root(root)
     if workshop:
