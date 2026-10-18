@@ -10,14 +10,14 @@ from typing import TextIO
 import yaml
 
 from overlay import EXIT_OK
-from overlay.validate import is_blank, iter_suite_paths
+from overlay.validate import BLOCKED_REASON_REF_RE, is_blank, iter_suite_paths
 
 SUITE_SCHEMA_V2 = "overlay-suite/v2"
 REMOVED_KEYS = frozenset({"reviewed_by", "reviewed_at", "armed_reason"})
 OLD_STATUSES = frozenset({"draft", "armed"})
 MULTILINE_INDICATORS = frozenset({">", "|", ">-", "|-", ">+", "|+"})
 KEY_RE = re.compile(r"^(\s*)([A-Za-z0-9_]+)\s*:(.*)$")
-DRAFT_ITEM_RE = re.compile(r"^(\s*)-\s*draft\s*$")
+DRAFT_ITEM_RE = re.compile(r"""^(\s*)-\s*(["']?)draft\2\s*(#.*)?$""")
 NEVER_RED_RE = re.compile(r"^(\s*)never_red_statuses\s*:\s*(.*)$")
 
 
@@ -30,7 +30,9 @@ def _blocked_missing_reason(text: str) -> bool:
         return False
     if str(data.get("status") or "").strip() != "blocked":
         return False
-    return is_blank(data.get("blocked_reason"))
+    reason = data.get("blocked_reason")
+    # Same bar as validate: a reason without a link or register id is still a todo.
+    return is_blank(reason) or BLOCKED_REASON_REF_RE.search(str(reason)) is None
 
 
 def rewrite_suite_text(text: str) -> str:
@@ -152,7 +154,7 @@ def run_migrate(
         text = path.read_text(encoding="utf-8")
         if _blocked_missing_reason(text):
             print(
-                f"{prefix}: skip {rel} (blocked missing blocked_reason; 待办)",
+                f"{prefix}: skip {rel} (blocked needs blocked_reason with a link or register id; 待办)",
                 file=err,
             )
             skipped += 1

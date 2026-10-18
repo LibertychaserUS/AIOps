@@ -18,9 +18,9 @@
 - Expected: dropped with never_red_statuses; exit 0 unless an active command fails
 
 ### Edge
-- Title: unknown branch falls back to main (or branches.default) and stays green
+- Title: unknown branch uses branches.default, otherwise exits 2
 - Steps: select or run a branch not listed in overlay.yaml
-- Expected: fallback note printed; uses branches.default then main; not a failure
+- Expected: with branches.default a fallback note is printed and it is used; without it, exit 2 (config error, not an empty green)
 - Title: command hitting a forbidden host is not started
 - INV-no-prod-host
 - Steps: active product_command contains a forbid_hosts URL
