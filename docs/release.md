@@ -37,6 +37,8 @@ python3 -m forge release --repo OWNER/NAME --version X.Y.Z
 或 GitHub Actions：`release` workflow → **Run workflow** → `version=X.Y.Z` → `products=both`。  
 `on:` 只有 `workflow_dispatch`。
 
+tag 创建锁（`tag_rules.creation`，默认关）是 [ADR 0008](adr/0008-tag-creation-lock.md) 的提议：开了之后 `release` 必须用 admin token 跑。
+
 缺 token 红（live）；已有 Release 红；tag 已存在但指向别的提交红；tag 已存在且就在目标 SHA 上则只补 Release。`make_latest=false`。永不 merge，不 generate，不 submit。禁仓见 `forbidden_live_repos`。
 
 ---

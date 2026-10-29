@@ -106,6 +106,35 @@ class WorkflowLockTests(unittest.TestCase):
             issues = collect_issues(root)
             self.assertFalse(any("unittest" in item.message for item in issues), issues)
 
+    def test_workshop_forge_check_workflow_must_run_forge_check(self) -> None:
+        from forge.sop_lock import check_workshop_docs_and_checks
+
+        issues = check_workshop_docs_and_checks(ROOT)
+        self.assertFalse(any("forge check" in item.message for item in issues), issues)
+        workflow = (
+            "name: forge-check\non:\n  push:\njobs:\n  forge-check:\n"
+            "    runs-on: ubuntu-latest\n    steps:\n"
+            "      - run: python -m forge ci-select --check forge-check --root .\n"
+            "      - run: python3 -m unittest discover -s tests/forge -t .\n"
+            "      - run: python3 -m forge apply --repo o/n --path forge.yaml --dry-run\n"
+            "      - run: python -m forge status --root . --repo o/n --check-state\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for rel in ("overlay/__init__.py", "forge/__init__.py", "skills/use-overlay/SKILL.md", "docs/sop.md"):
+                _write(root / rel, "")
+            _write(root / ".github" / "workflows" / "forge-check.yml", workflow)
+            issues = check_workshop_docs_and_checks(root)
+            self.assertTrue(
+                any("must run python3 -m forge check" in item.message for item in issues), issues
+            )
+            _write(
+                root / ".github" / "workflows" / "forge-check.yml",
+                workflow + "      - run: python3 -m forge check --root .\n",
+            )
+            issues = check_workshop_docs_and_checks(root)
+            self.assertFalse(any("forge check" in item.message for item in issues), issues)
+
     def test_ci_yml_unittest_job_on_push_is_green(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
