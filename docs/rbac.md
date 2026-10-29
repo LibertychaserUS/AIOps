@@ -6,7 +6,7 @@ PR 的 **review 和 merge 由 GitHub 上的人 + Repository Ruleset 管**，不�
 
 - GitHub org **teams**
 - Repository **Ruleset**（禁直推、必须 PR、按分支的批准数与 required checks）。通用检查永远跑；产品门按 `branches:`。代推锁是本地 `python -m forge check`。
-- **CODEOWNERS**（哪条路径必须谁审）。这是 v2 里「人签过字」的落点，取代套件上的审核字段。见 [ADR 0002](adr/0002-remove-armed.md)。
+- **CODEOWNERS**（哪条路径必须谁审）。这是 v2 里「人签过字」的落点，取代套件上的审核字段。见 [ADR 0002](adr/0002-remove-armed.md)。`agent_branch_prefixes` 只是约定（改个分支名就没了），agent 改 `suites/**` / `forge.yaml` / `overlay.yaml` 必须过人，靠的是 CODEOWNERS + Ruleset `code_owners`，工作本由 `sop-lock` 锁住这三条路径有 owner。
 - Overlay `blocked` + 带链接的 `blocked_reason`（隔离未就绪，不是签字）
 
 不要第二套权限库、不要 admin Web、不要数据库 RBAC。协作仍在 **GitHub + CodeRabbit**。CodeRabbit **只建议，不能当唯一 merge 门**。进保护分支默认 squash：**封顶**；合完 **换底**。Forge 不合入。

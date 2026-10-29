@@ -11,6 +11,9 @@
 - `python -m overlay generate`：假 HTTP 可测；缺 API key 退出 3；解析失败不写文件；输出 `status: active`。`blocked` 套件拒绝，`--force` 也不清掉 `blocked`。不挂 push。提示词 `prompts/extract.md`、`prompts/generate-cases.md`（temperature 0）。
 - `overlay review` 在 `--i-am` 非空且当前分支不是 agent 前缀时写套件状态。没有 `forge.yaml` 拒绝。agent 分支不能借此清掉 `blocked`。
 - `overlay.yaml` 可选 `require_command`（缺省 false）。为 true 时，入选套件没有 `product_command` 则 `run` 退出 2、不执行。
+- `forge status --strict`：任一预期 Ruleset（含 `forge-protected-tags`）missing / drifted 退出 2（与 `--check-state` 同码）；缺 token 退出 2 并点名 `FORGE_GITHUB_TOKEN`，不再默默打印「未查询」。不传 `--strict` 行为不变。
+- `forge status` 的 drifted 逐字段列差异（`enforcement`、`bypass_actors`、`ref_name.include/exclude`、规则有无、规则参数、`required checks: +应有 -多出`），终端与 `docs/STATE.md` 都带。
+- `sop-lock`（仅工作本根）：`.github/CODEOWNERS` 必须存在且给 `suites/**`、`forge.yaml`、`overlay.yaml` 指定 owner。分支前缀只是约定，CODEOWNERS + Ruleset 才是锁。工作本 CODEOWNERS 补上 `forge.yaml @LibertychaserUS`。
 - `forge.yaml` 顶层 `checks_app_id`（默认 `15368` = GitHub Actions）：每条 required check 带 `integration_id`，同名 commit status 不能顶替 Actions job；`null` / `none` 不绑。
 - `branches.<name>.merge_methods`（默认 `[squash]`）、`last_push_approval`（默认 `approvals ≥ 1` 时 true）、`resolve_threads`（默认 false），写入 `allowed_merge_methods` / `require_last_push_approval` / `required_review_thread_resolution`。见 [ADR 0004](docs/adr/0004-per-branch-rulesets.md) 修订。
 - `tag_rules.creation`（默认 **false**，opt-in）：tag Ruleset 加 `creation` 并给仓库 admin 一条 bypass。[ADR 0008](docs/adr/0008-tag-creation-lock.md)（提议，未接受；工作本不开）。
@@ -18,6 +21,14 @@
 - `apply` / `status`：`code_owners: true` 但没有 `.github/CODEOWNERS` / `CODEOWNERS` / `docs/CODEOWNERS` 时警告（stderr，不改退出码）。
 
 ### Fixed
+
+- `forge check` / `pr-title` 在 `push` 事件上：HEAD 是合并提交（把保护分支并进功能分支）时，改 lint first-parent 上最近的非合并提交 subject，不再因 `Merge branch 'dev' into …` 报红；功能提交 subject 不合规仍红。
+- GitHub 客户端：幂等 GET 遇 5xx / 429 最多重试 3 次（1s、2s 退避；有 `Retry-After` 按其秒数，封顶 30s）；POST / PUT / PATCH / DELETE 永不重试。
+- GitHub 客户端：`X-RateLimit-Remaining: 0` 或正文含 `rate limit` 的 403 报限流（退出 4，附 `X-RateLimit-Reset` 的重置时间），不再误报「auth failed」。
+- GitHub 客户端：跨主机重定向去掉 `Authorization`；https 跳 http 拒绝；生产域名守卫同样适用于重定向目标，不只看第一个 URL。
+- `forge status` 取 Ruleset 详情失败时报 API 错误（退出 4），不再回落到列表项后误报 drifted。
+- `forge apply` 创建 Ruleset 收到 422（同名已存在）时按名重查并 PUT 到已有 id，不再直接退出 4。假 GitHub 对重名 POST 也返回 422。
+- `ci-select` 新增真实 git 单测：移出产品的重命名、根提交（无 `HEAD~1` → 全跑）、`--root` 子目录、非 ASCII 路径。
 
 - `overlay.yaml` 按 `schema/overlay-config.schema.json` 校验：未知 key（如拼错的 `require_comand`）报错退出 2，不再静默回落默认值。
 - 三件套检查：代码围栏里的 `##` / `### Functional` 不再算结构；每个技法段必须有非空正文才算覆盖。

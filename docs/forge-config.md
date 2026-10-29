@@ -73,6 +73,12 @@ drifted 按整条 payload 比：`name`、`target`、`enforcement`、`bypass_acto
 
 `status --path` 指向不存在的文件退出 3（与 `apply` 同）。省略 `--path` 时读 `<root>/forge.yaml`，不读 cwd；不存在则用默认值。`status --check-state` 逐行比对 STATE.md 的「保护分支」行（required_checks、approvals、code_owners、promote_from），任一不一致即红。
 
+drifted 时逐字段列差异（终端与 `docs/STATE.md` 同样带）：`enforcement: expected active, live disabled`、`bypass_actors: -{...}`、`ref_name.exclude: -refs/heads/x`、`rule deletion: expected, live missing`、`pull_request.required_approving_review_count: expected 1, live 0`、`required checks: +unit -lint`（`+` 应有而无，`-` 多出）。取单条 Ruleset 详情失败是 API 错误（退出 4），不算 drifted。
+
+`status --strict`：任一预期 Ruleset（每条 `protect` 分支的 `forge-protected-<branch>` 与 `forge-protected-tags`）missing / drifted 时退出 2（与 `--check-state` 过期同码：check 红），stderr 列出哪条、什么状态；缺 token 退出 2 并点名 `FORGE_GITHUB_TOKEN`。不传 `--strict` 时只报告、退出 0。工作本 CI 装好 Ruleset 之前不要在 `forge-check.yml` 里加 `--strict`，否则必红。
+
+GitHub 客户端（`apply` / `status` / `submit` / `promote` / `release` / `ops-review` / `bounce` 共用）：幂等 GET 遇 5xx / 429 最多 3 次（1s、2s 退避；`Retry-After` 优先，封顶 30s），写请求永不重试；限流 403（`X-RateLimit-Remaining: 0` 或正文 `rate limit`）与 429 报「rate limit hit … resets at <X-RateLimit-Reset>」退出 4，真正的 401 / 403 才是退出 2；跨主机重定向去掉 `Authorization`，https → http 拒绝，生产域名守卫对重定向目标同样生效。`apply` 创建时收到 422（同名已存在）按名重查并改 PUT。
+
 ## title.scopes
 
 - `any`：只查 Conventional Commits 语法（type、可选 scope、冒号空格、subject 非空、长度 ≤ 72、不以句号结尾）。
@@ -93,7 +99,7 @@ PR 规格机器检查是 `python -m forge pr-title`（`forge check` 嵌同一把
 | `--title` / `--body` 已给（含 `""`） | arg | lint；空参数仍红 |
 | 非空 `PR_TITLE` / `PR_BODY` | env | lint |
 | `GITHUB_EVENT_NAME=pull_request` 且标题/正文空白或未设 | 空 env | 标题红 `empty PR title`；有 `docs/pr-brief.md` 时正文红（缺六个标题） |
-| `push`，或 Actions 把标题写成空串（环境已设、不是 `pull_request`） | HEAD 提交第一行 | lint 该 subject（事件 JSON `head_commit.message`，否则 `git log -1`） |
+| `push`，或 Actions 把标题写成空串（环境已设、不是 `pull_request`） | HEAD 提交第一行 | lint 该 subject（事件 JSON `head_commit.message`，否则 `git log -1`）。HEAD 是合并提交（两个以上父提交，如把 dev 并进功能分支）时，lint first-parent 上最近一个非合并提交的 subject；合并提交本身不算改动 |
 | 本地、无事件、环境未设 | 省略 | `forge check` skip 该步 |
 
 CI job `pr-title` 仍只挂 `pull_request`。`forge check` 在 push 上**不**卸掉标题锁：锁的是提交 subject，不是跳过。叶子 `FN-forge-pr-title`，invariant `INV-pr-spec-event-states`。

@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import io
 import json
+from email.message import Message
 from urllib.error import HTTPError
 from urllib.parse import urlparse
 from urllib.request import Request
+
+from forge.apply import safe_redirect
 
 
 class FakeResponse:
@@ -49,6 +52,16 @@ class FakeGitHub:
         self.next_release = 1
         self.fail_status: int | None = None
         self.fail_on: set[str] = set()
+        # None = fail every matching call; N = fail the first N, then serve normally.
+        self.fail_times: int | None = None
+        # Only paths containing this substring fail (None = every path).
+        self.fail_path_contains: str | None = None
+        self.fail_headers: dict[str, str] = {}
+        self.fail_body: bytes = b'{"message":"synthetic"}'
+        # path -> absolute URL; served as 302 and followed via Forge's redirect rules.
+        self.redirects: dict[str, str] = {}
+        # (url, headers as sent) for every request, redirect hops included.
+        self.requests: list[tuple[str, dict[str, str]]] = []
         # Ruleset list paging (None = one page) and org-level rulesets that only
         # show up when includes_parents is not false.
         self.ruleset_page_size: int | None = None
@@ -67,9 +80,29 @@ class FakeGitHub:
         if req.data:
             body = json.loads(req.data.decode("utf-8"))
         self.calls.append((method, path, body))
+        self.requests.append((req.full_url, dict(req.header_items())))
 
-        if self.fail_status and (not self.fail_on or method in self.fail_on):
-            raise HTTPError(req.full_url, self.fail_status, "synthetic", hdrs=None, fp=io.BytesIO(b'{"message":"synthetic"}'))
+        target = self.redirects.get(path)
+        if target is not None and req.full_url != target:
+            hop = Request(
+                target,
+                method=method,
+                headers={k: v for k, v in req.header_items() if k.lower() not in ("content-length", "content-type")},
+            )
+            return self.urlopen(safe_redirect(req, hop), timeout=timeout)
+
+        if (
+            self.fail_status
+            and (not self.fail_on or method in self.fail_on)
+            and (self.fail_path_contains is None or self.fail_path_contains in path)
+        ):
+            if self.fail_times is None or self.fail_times > 0:
+                if self.fail_times is not None:
+                    self.fail_times -= 1
+                hdrs = Message()
+                for key, value in self.fail_headers.items():
+                    hdrs[key] = value
+                raise HTTPError(req.full_url, self.fail_status, "synthetic", hdrs=hdrs, fp=io.BytesIO(self.fail_body))
 
         parts = [p for p in path.split("/") if p]
         # repos / owner / name / resource [ / id [ / merge ] ]
@@ -155,6 +188,20 @@ class FakeGitHub:
                 raise HTTPError(req.full_url, 404, "not found", hdrs=None, fp=io.BytesIO(b'{"message":"not found"}'))
             return FakeResponse(200, found)
         if method == "POST" and ruleset_id is None:
+            # GitHub: a second repo ruleset with the same name is 422 Validation Failed
+            # (an org-level ruleset of that name does not block a repo one).
+            if any(
+                item.get("name") == (body or {}).get("name")
+                and item.get("source_type", "Repository") == "Repository"
+                for item in self.rulesets
+            ):
+                raise HTTPError(
+                    req.full_url,
+                    422,
+                    "Unprocessable Entity",
+                    hdrs=None,
+                    fp=io.BytesIO(b'{"message":"Validation Failed","errors":["Name has already been taken"]}'),
+                )
             created = dict(body or {})
             created["id"] = self.next_id
             created["_owner"] = owner

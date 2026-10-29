@@ -458,6 +458,78 @@ def _check_workshop_branch_rules(forge_yaml: Path) -> list[Issue]:
     return issues
 
 
+# Paths CODEOWNERS must cover in the workshop: branch prefix is only a convention
+# (`agent/x` renames to `fix-x`); CODEOWNERS + Ruleset `code_owners` is the lock.
+# (pattern shown in the message, a representative path that must match)
+CODEOWNERS_REQUIRED = (
+    ("suites/**", "suites/example/suite.yaml"),
+    ("forge.yaml", "forge.yaml"),
+    ("overlay.yaml", "overlay.yaml"),
+)
+
+
+def _codeowners_regex(pattern: str) -> str:
+    """gitignore-style pattern (as GitHub CODEOWNERS reads it) to a full-path regex."""
+    anchored = pattern.startswith("/") or "/" in pattern.rstrip("/")
+    body = pattern.strip("/")
+    out = ""
+    i = 0
+    while i < len(body):
+        ch = body[i]
+        if body.startswith("**/", i):
+            out += "(?:.*/)?"
+            i += 3
+        elif body.startswith("**", i):
+            out += ".*"
+            i += 2
+        elif ch == "*":
+            out += "[^/]*"
+            i += 1
+        elif ch == "?":
+            out += "[^/]"
+            i += 1
+        else:
+            out += re.escape(ch)
+            i += 1
+    prefix = "" if anchored else "(?:.*/)?"
+    # `dir/` or a bare `dir` owns everything beneath it; `dir/*` only its direct files.
+    suffix = "" if body.endswith("*") else "(?:/.*)?"
+    return f"^{prefix}{out}{suffix}$"
+
+
+def codeowners_covers(pattern: str, path: str) -> bool:
+    return re.match(_codeowners_regex(pattern), path) is not None
+
+
+def codeowners_patterns(text: str) -> list[str]:
+    """Patterns that name at least one owner (a bare pattern unassigns, it owns nothing)."""
+    out: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        parts = stripped.split()
+        if len(parts) >= 2 and any(part.startswith("@") or "@" in part for part in parts[1:]):
+            out.append(parts[0])
+    return out
+
+
+def check_codeowners(root: Path) -> list[Issue]:
+    """Workshop only: `.github/CODEOWNERS` exists and owns suites/**, forge.yaml, overlay.yaml."""
+    if not is_workshop_root(root):
+        return []
+    path = root / ".github" / "CODEOWNERS"
+    rel = ".github/CODEOWNERS"
+    if not path.is_file():
+        return [Issue(rel, "missing; CODEOWNERS + Ruleset is the agent-identity lock, not the branch prefix")]
+    patterns = codeowners_patterns(path.read_text(encoding="utf-8"))
+    issues: list[Issue] = []
+    for shown, sample in CODEOWNERS_REQUIRED:
+        if not any(codeowners_covers(pattern, sample) for pattern in patterns):
+            issues.append(Issue(rel, f"must assign an owner to {shown}"))
+    return issues
+
+
 def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
     if not is_workshop_root(root):
         return []
@@ -766,6 +838,7 @@ def collect_issues(root: Path) -> list[Issue]:
     if is_workshop_root(root):
         issues.extend(check_submit_custody_docs(root))
         issues.extend(check_release_workflow(root))
+        issues.extend(check_codeowners(root))
     issues.extend(check_workshop_docs_and_checks(root))
     issues.sort(key=lambda item: (item.path, item.message))
     return issues
