@@ -21,12 +21,13 @@ from overlay.select import (
     selection_events,
     selection_evidence,
 )
-from overlay.validate import OverlayConfig, SuiteDoc, forbid_host_url_hits, validate_root
+from overlay.validate import OverlayConfig, SuiteDoc, forbid_host_hits, validate_root
 
 DEFAULT_TIMEOUT = 600
 SKIPPED_NO_COMMAND = "skipped_no_command"
 RAN = "ran"
 REFUSED_FORBID_HOSTS = "forbid_hosts"
+NOT_STARTED = "not_started"
 
 
 def _first_function_id(suite: SuiteDoc) -> str | None:
@@ -34,7 +35,7 @@ def _first_function_id(suite: SuiteDoc) -> str | None:
 
 
 def command_forbid_hits(command: str, config: OverlayConfig) -> list[str]:
-    return forbid_host_url_hits(command, config.forbid_hosts)
+    return forbid_host_hits(command, config.forbid_hosts)
 
 
 def run_command(
@@ -96,8 +97,8 @@ def run_events_for_suite(
     if rule == SKIPPED_NO_COMMAND:
         event["type"] = SKIPPED_NO_COMMAND
         return event
-    if rule == REFUSED_FORBID_HOSTS:
-        event["type"] = "refused"
+    if rule in {REFUSED_FORBID_HOSTS, NOT_STARTED}:
+        event["type"] = "refused" if rule == REFUSED_FORBID_HOSTS else NOT_STARTED
         event["rule"] = REFUSED_FORBID_HOSTS
         if command:
             event["command"] = command
@@ -164,6 +165,13 @@ def run_run(
         return EXIT_SELECT_ASSERT
 
     events = selection_events(selection)
+    # Pre-flight every selected command: one forbidden host means nothing starts.
+    refusals: dict[str, list[str]] = {}
+    for suite in selection.selected:
+        if suite.product_command:
+            hits = command_forbid_hits(suite.product_command, config)
+            if hits:
+                refusals[suite.suite_id] = hits
     failed = 0
     skipped = 0
     ran = 0
@@ -178,7 +186,7 @@ def run_run(
             print(f"{suite.suite_id} {SKIPPED_NO_COMMAND}", file=out)
             continue
 
-        hits = command_forbid_hits(command, config)
+        hits = refusals.get(suite.suite_id)
         if hits:
             refused += 1
             events.append(
@@ -189,6 +197,18 @@ def run_run(
                 file=err,
             )
             print(f"{suite.suite_id} {REFUSED_FORBID_HOSTS}", file=out)
+            continue
+
+        if refusals:
+            events.append(
+                run_events_for_suite(suite, command=command, exit_code=None, rule=NOT_STARTED)
+            )
+            print(
+                f"overlay run: not started {suite.suite_id}: another selected command hits "
+                "forbid_hosts",
+                file=err,
+            )
+            print(f"{suite.suite_id} {NOT_STARTED}", file=out)
             continue
 
         try:

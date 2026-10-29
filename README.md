@@ -58,4 +58,4 @@ Or symlink `skills/*` into `.agents/skills`, `.cursor/skills`, or `.claude/skill
 
 Never pin `main`. Never self-merge. Never treat CodeRabbit as the only merge gate.
 
-Overlay reusable `branch` defaults to empty: a pull request uses the base ref; a push uses a configured Overlay branch, then `branches.default`, then `main` only when that git ref is not configured. See [`docs/overlay-ci.md`](docs/overlay-ci.md).
+Overlay reusable workflow callers pass `tool_ref` (the AIOps tag to run, e.g. `overlay-v2.0.0`); without it the workflow fails fast instead of checking out the caller's own commit as the tool. `branch` defaults to empty: a pull request uses the base ref; a push uses a configured Overlay branch, then `branches.default`, then `main` only when that git ref is not configured. See [`docs/overlay-ci.md`](docs/overlay-ci.md).

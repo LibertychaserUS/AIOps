@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "overlay-config/v1",
+  "description": "overlay.yaml. Unknown keys are errors so a typo (require_comand) cannot silently fall back to the default.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "product", "branches"],
+  "properties": {
+    "schema": { "type": "string" },
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repo", "default_ref"],
+      "properties": {
+        "repo": { "type": "string" },
+        "default_ref": { "type": "string" }
+      }
+    },
+    "branches": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["run"],
+        "properties": {
+          "run": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "kinds": { "type": ["object", "null"], "additionalProperties": { "type": "string" } },
+    "never_red_statuses": { "type": ["array", "null"], "items": { "type": "string" } },
+    "forbid_hosts": { "type": ["array", "null"], "items": { "type": "string" } },
+    "require_command": {}
+  }
+}

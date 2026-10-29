@@ -19,11 +19,13 @@ from forge.apply import (
     UrlOpen,
     build_payloads,
     classify_ruleset,
+    config_warnings,
     expected_ruleset_names,
     load_config,
     parse_repo,
     resolve_token,
     ruleset_fingerprint,
+    stale_ruleset_names,
 )
 
 # "check 红" in design §3: STATE.md stale, or --strict and a Ruleset missing / drifted.
@@ -184,6 +186,9 @@ def classify_all(
     rows: list[tuple[str, str]] = []
     for name in expected_ruleset_names(config):
         rows.append((name, classify_ruleset(expected[name], by_name.get(name))))
+    # Left behind by a branch dropped from protect; reported, never deleted.
+    for name in stale_ruleset_names(config, installed):
+        rows.append((name, "stale"))
     return rows
 
 
@@ -444,6 +449,8 @@ def run_status(
         else:
             default_path = workshop / "forge.yaml"
             config = load_config(default_path) if default_path.is_file() else ForgeConfig()
+        for line in config_warnings(config, workshop):
+            print(line, file=err)
         resolved = token if token is not None else resolve_token(environ)
         token_missing = not bool(resolved)
         if strict and token_missing:

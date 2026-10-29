@@ -29,6 +29,16 @@ v1 顶层 `required_checks` / `review.min_approvals` / `review.code_owners` 对 
 
 权威字段表见合入后的 `docs/forge-config.md`。CLI 行为见 [`docs/cli.md`](../cli.md)。
 
+## 修订（2026-10-29）
+
+`pull_request` 规则补齐书面契约里已经写明、但原先没锁的三个参数：
+
+- `allowed_merge_methods` ← `branches.<name>.merge_methods`，默认 `[squash]`（「进保护分支默认 squash 封顶」）。
+- `require_last_push_approval` ← `branches.<name>.last_push_approval`，默认 `approvals ≥ 1` 时 `true`：最后一推必须有人再批，agent 不能在批准后追加提交。
+- `required_review_thread_resolution` ← `branches.<name>.resolve_threads`，默认 `false`。
+
+同时每条 required check 带 `integration_id`（`checks_app_id`，默认 GitHub Actions `15368`）：同名 commit status 不再能顶替 Actions job。`required_checks` 为空的分支不写 `required_status_checks` 规则。这些默认值只把已写在文档里的契约落到 Ruleset，不新增接入方没同意的锁；三个分支键与 `checks_app_id` 都可显式改回。
+
 ## 替代方案
 
 - 组织级 Ruleset 一次罩所有仓：以后再说，第一刀仓级。

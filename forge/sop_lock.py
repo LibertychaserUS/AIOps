@@ -30,6 +30,7 @@ UNITTEST_RE = re.compile(r"unittest\s+discover")
 FORGE_UNITTEST_RE = re.compile(r"unittest\s+discover\s+-s\s+tests/forge\b")
 SUBMIT_RUN_RE = re.compile(r"python[0-9.]*\s+-m\s+forge\s+submit")
 CI_SELECT_RE = re.compile(r"python[0-9.]*\s+-m\s+forge\s+ci-select")
+FORGE_CHECK_RUN_RE = re.compile(r"python[0-9.]*\s+-m\s+forge\s+check\b")
 PINNED_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 # v4, v4.1, v4.1.0, overlay-v2.0.0, forge-v1.1.3 (optional -rc.1 / +build suffix).
 VERSION_TAG_RE = re.compile(r"^(?:[A-Za-z0-9_.]+(?:-[A-Za-z0-9_.]+)*-)?v[0-9]+(?:\.[0-9]+){0,2}(?:[-+][0-9A-Za-z.-]+)?$")
@@ -594,9 +595,11 @@ def check_workshop_docs_and_checks(root: Path) -> list[Issue]:
     forge_check = root / ".github" / "workflows" / "forge-check.yml"
     if forge_check.is_file():
         text = forge_check.read_text(encoding="utf-8")
-        if "unittest discover -s tests/forge" not in text:
+        # `forge check` runs the full discover (covers tests/forge) plus
+        # deny_paths / suite_guard / docs_sync; those only held locally before.
+        if not FORGE_CHECK_RUN_RE.search(text):
             issues.append(
-                Issue(_rel(root, forge_check), "must run python3 -m unittest discover -s tests/forge")
+                Issue(_rel(root, forge_check), "must run python3 -m forge check --root .")
             )
         if "forge apply" not in text or "--dry-run" not in text:
             issues.append(Issue(_rel(root, forge_check), "must run forge apply --dry-run"))

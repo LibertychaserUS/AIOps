@@ -21,6 +21,7 @@ from overlay.validate import (
     parse_function_id,
     token_in_text,
     validate_root,
+    visible_markdown,
 )
 
 
@@ -33,7 +34,7 @@ def function_sections(cases_text: str) -> dict[str, str]:
         if current is not None:
             sections[current] = "\n".join(buf)
 
-    for line in cases_text.splitlines():
+    for line in visible_markdown(cases_text).splitlines():
         heading = H2_RE.match(line)
         if heading is not None:
             flush()

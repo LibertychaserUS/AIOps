@@ -29,7 +29,7 @@
 
 `sop-lock` 放行 `ci.yml` 里的 `unittest` job（不得把旁路 unittest 写进 Overlay push workflow 来绕过 select）。
 
-`forge-check` 另跑 `forge status --check-state`（校验 STATE 新鲜）。
+`forge-check` 选中时跑 `python3 -m forge check --root .`（与本地代推锁同一张清单：deny_paths / suite_guard / docs_sync / pr spec + 全量 `unittest discover -s tests -t .`，已覆盖 `tests/forge`）和 `forge apply --dry-run`；`pull_request` 把 `PR_TITLE` / `PR_BODY` 交给它，`push` 上 lint HEAD 提交 subject。另总是跑 `forge status --check-state`（校验 STATE 新鲜）。
 
 ---
 
