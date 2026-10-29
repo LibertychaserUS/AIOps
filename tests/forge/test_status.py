@@ -71,15 +71,19 @@ class StatusTests(unittest.TestCase):
                                 "required_approving_review_count": 1,
                                 "require_code_owner_review": False,
                                 "dismiss_stale_reviews_on_push": True,
-                                "require_last_push_approval": False,
-                                "allowed_merge_methods": ["merge", "squash", "rebase"],
+                                "require_last_push_approval": True,
+                                "allowed_merge_methods": ["squash"],
+                                "required_review_thread_resolution": False,
+                                # echoed by GitHub, never sent by Forge: not drift
+                                "automatic_copilot_code_review_enabled": False,
                             },
                         },
                         {
                             "type": "required_status_checks",
                             "parameters": {
                                 "strict_required_status_checks_policy": True,
-                                "required_status_checks": [{"context": "unit"}],
+                                "do_not_enforce_on_create": False,
+                                "required_status_checks": [{"context": "unit", "integration_id": 15368}],
                             },
                         },
                     ],
@@ -235,6 +239,39 @@ class StatusTests(unittest.TestCase):
             self.assertIn("forge status --write", stderr.getvalue())
 
 
+class StaleAndWarningTests(unittest.TestCase):
+    def test_stale_forge_rulesets_are_listed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "forge.yaml").write_text(SIMPLE_YAML, encoding="utf-8")
+            fake = FakeGitHub()
+            fake.rulesets.append(
+                {"id": 9, "name": branch_ruleset_name("release"), "target": "branch", "rules": []}
+            )
+            fake.rulesets.append({"id": 10, "name": "someone-elses-rule", "target": "branch", "rules": []})
+            code, out, err = _status(fake, root)
+            self.assertEqual(code, EXIT_OK, err)
+            self.assertIn(f"{branch_ruleset_name('main')}: missing", out)
+            self.assertIn(f"{branch_ruleset_name('release')}: stale", out)
+            self.assertNotIn("someone-elses-rule", out)
+            self.assertEqual(fake.writes(), [])
+
+    def test_code_owners_without_file_warns_on_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "forge.yaml").write_text(
+                SIMPLE_YAML + "review:\n  min_approvals: 1\n  code_owners: true\n", encoding="utf-8"
+            )
+            code, _out, err = _status(FakeGitHub(), root)
+            self.assertEqual(code, EXIT_OK)
+            self.assertIn("warning: code_owners: true but no CODEOWNERS", err)
+            (root / ".github").mkdir()
+            (root / ".github" / "CODEOWNERS").write_text("* @acme/owners\n", encoding="utf-8")
+            code, _out, err = _status(FakeGitHub(), root)
+            self.assertEqual(code, EXIT_OK)
+            self.assertNotIn("warning", err)
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -303,9 +340,23 @@ class StatusDriftTests(unittest.TestCase):
             ),
             "exclude": lambda rs: rs["conditions"]["ref_name"].update(exclude=["~ALL"]),
             "last_push": lambda rs: [
-                rule["parameters"].update(require_last_push_approval=True)
+                rule["parameters"].update(require_last_push_approval=False)
                 for rule in rs["rules"]
                 if rule["type"] == "pull_request"
+            ],
+            "merge_methods": lambda rs: [
+                rule["parameters"].update(allowed_merge_methods=["merge", "squash", "rebase"])
+                for rule in rs["rules"]
+                if rule["type"] == "pull_request"
+            ],
+            "unbound_check": lambda rs: [
+                rule["parameters"].update(
+                    required_status_checks=[
+                        {"context": c["context"]} for c in rule["parameters"]["required_status_checks"]
+                    ]
+                )
+                for rule in rs["rules"]
+                if rule["type"] == "required_status_checks"
             ],
             "integration_id": lambda rs: [
                 rule["parameters"].update(

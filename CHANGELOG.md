@@ -11,6 +11,11 @@
 - `python -m overlay generate`：假 HTTP 可测；缺 API key 退出 3；解析失败不写文件；输出 `status: active`。`blocked` 套件拒绝，`--force` 也不清掉 `blocked`。不挂 push。提示词 `prompts/extract.md`、`prompts/generate-cases.md`（temperature 0）。
 - `overlay review` 在 `--i-am` 非空且当前分支不是 agent 前缀时写套件状态。没有 `forge.yaml` 拒绝。agent 分支不能借此清掉 `blocked`。
 - `overlay.yaml` 可选 `require_command`（缺省 false）。为 true 时，入选套件没有 `product_command` 则 `run` 退出 2、不执行。
+- `forge.yaml` 顶层 `checks_app_id`（默认 `15368` = GitHub Actions）：每条 required check 带 `integration_id`，同名 commit status 不能顶替 Actions job；`null` / `none` 不绑。
+- `branches.<name>.merge_methods`（默认 `[squash]`）、`last_push_approval`（默认 `approvals ≥ 1` 时 true）、`resolve_threads`（默认 false），写入 `allowed_merge_methods` / `require_last_push_approval` / `required_review_thread_resolution`。见 [ADR 0004](docs/adr/0004-per-branch-rulesets.md) 修订。
+- `tag_rules.creation`（默认 **false**，opt-in）：tag Ruleset 加 `creation` 并给仓库 admin 一条 bypass。[ADR 0008](docs/adr/0008-tag-creation-lock.md)（提议，未接受；工作本不开）。
+- `status` 把 GitHub 上多出来、不对应任何 `protect` 分支的 `forge-protected-*` 报 `stale`；`apply` 也列出，不删。
+- `apply` / `status`：`code_owners: true` 但没有 `.github/CODEOWNERS` / `CODEOWNERS` / `docs/CODEOWNERS` 时警告（stderr，不改退出码）。
 
 ### Fixed
 
@@ -75,6 +80,9 @@
 
 ### Changed
 
+- 工作本 `forge-check` 选中时跑 `python3 -m forge check --root .`（`pull_request` 传 `PR_TITLE` / `PR_BODY`，`push` lint HEAD subject）；deny_paths / suite_guard / docs_sync 不再只在本机成立。原来的 `forge unit tests` 步骤去掉：`forge check` 已跑全量 `unittest discover -s tests -t .`。`sop-lock` 改为要求 `forge-check.yml` 跑 `forge check`。
+- 分支 Ruleset 的 `required_status_checks` 带 `integration_id`，`pull_request` 多写 `allowed_merge_methods` / `required_review_thread_resolution`，`require_last_push_approval` 随 `approvals` 默认 true。**已装的 Ruleset 会被 `status` 报成 drifted，重新 `apply` 一次即可。**
+- 保护分支 `required_checks` 为空时不再写一条空 contexts 的 `required_status_checks`，改为省略该规则并警告。
 - 冷启动与 skill 的当前 Forge 针改为已发布的 `forge-v1.1.3`。`overlay-v2.0.0` peel 仍是 Forge 1.1.0（空根 `check` 假绿），必须第二针。不要用 GitHub Release Latest 当针。
 - `apply` 必须 `--path` 指向目标仓自己的 `forge.yaml`。不要在工具仓根对产品仓 live apply。接入方最小例改指 `examples/acme-python/`。
 - ADR 0007 仍是**提议**，未接受。
