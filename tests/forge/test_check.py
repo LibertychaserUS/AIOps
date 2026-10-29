@@ -12,7 +12,7 @@ from pathlib import Path
 
 from forge.__main__ import main
 from forge.check import EXIT_CHECK, deny_paths_step, path_is_denied, run_check, suite_guard_step
-from forge.title import EXAMPLE, head_is_merge
+from forge.title import EXAMPLE
 
 from forge import EXIT_OK
 
@@ -197,10 +197,7 @@ class TitleStepTests(unittest.TestCase):
         self.assertEqual(code, EXIT_OK, stderr.getvalue())
         self.assertNotIn("FAIL", stdout.getvalue())
         self.assertIn("commit:", stdout.getvalue())
-        if not head_is_merge(ROOT):
-            # A checkout sitting on a base-branch merge lints its first-parent
-            # commit instead of the event JSON; that case has its own tests.
-            self.assertIn(EXAMPLE, stdout.getvalue())
+        self.assertIn(EXAMPLE, stdout.getvalue())
 
     def test_pull_request_blank_pr_title_is_red(self) -> None:
         stdout = io.StringIO()
