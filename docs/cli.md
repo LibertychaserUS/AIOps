@@ -334,7 +334,7 @@ options:
                        required
   --workdir WORKDIR    directory to run product_command in (caller checkout;
                        no foreign clone)
-  --timeout TIMEOUT    seconds per command (default 600)
+  --timeout TIMEOUT    seconds per command, > 0 (default 600)
 ```
 
 ## python -m overlay cover

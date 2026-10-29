@@ -18,6 +18,16 @@ from overlay.select import run_select
 from overlay.validate import run_validate
 
 
+def _positive_int(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not an integer: {text!r}") from None
+    if value <= 0:
+        raise argparse.ArgumentTypeError(f"must be > 0, got {value} (0 does not mean the default)")
+    return value
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m overlay",
@@ -84,9 +94,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_p.add_argument(
         "--timeout",
-        type=int,
+        type=_positive_int,
         default=DEFAULT_TIMEOUT,
-        help=f"seconds per command (default {DEFAULT_TIMEOUT})",
+        help=f"seconds per command, > 0 (default {DEFAULT_TIMEOUT})",
     )
 
     cover_p = sub.add_parser("cover", help="print function_id triad + invariant coverage")
@@ -156,7 +166,7 @@ def main(
             stderr=err,
         )
     if args.command == "run":
-        timeout = args.timeout if args.timeout and args.timeout > 0 else DEFAULT_TIMEOUT
+        timeout = args.timeout
         branch = (args.branch or "").strip() or None
         return run_run(
             Path(args.root),

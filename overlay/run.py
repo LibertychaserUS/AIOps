@@ -8,6 +8,7 @@ import signal
 import subprocess
 import sys
 import time
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TextIO
 
@@ -38,6 +39,40 @@ def command_forbid_hits(command: str, config: OverlayConfig) -> list[str]:
     return forbid_host_hits(command, config.forbid_hosts)
 
 
+def tool_root() -> Path:
+    """The checkout that holds this overlay package (what PYTHONPATH points at)."""
+    return Path(__file__).resolve().parent.parent
+
+
+def child_environ(environ: Mapping[str, str] | None = None) -> dict[str, str]:
+    """The product command's environment: inherited, minus the tool root on PYTHONPATH.
+
+    The tool is reached via PYTHONPATH (locally and in the reusable workflow). The
+    product must not import `overlay`, `forge` or `schema` by accident, so those
+    entries go; everything else, secrets included, is the caller's business.
+    """
+    env = dict(os.environ if environ is None else environ)
+    raw = env.get("PYTHONPATH")
+    if raw is None:
+        return env
+    root = tool_root()
+    kept: list[str] = []
+    for entry in raw.split(os.pathsep):
+        if not entry:
+            continue
+        try:
+            same = Path(entry).resolve() == root
+        except OSError:
+            same = False
+        if not same:
+            kept.append(entry)
+    if kept:
+        env["PYTHONPATH"] = os.pathsep.join(kept)
+    else:
+        env.pop("PYTHONPATH")
+    return env
+
+
 def run_command(
     command: str,
     *,
@@ -49,6 +84,7 @@ def run_command(
     proc = subprocess.Popen(
         ["/bin/bash", "-c", command],
         cwd=workdir,
+        env=child_environ(),
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -64,9 +100,7 @@ def run_command(
         except ProcessLookupError:
             pass
         stdout, stderr = proc.communicate()
-        raise subprocess.TimeoutExpired(
-            proc.args, timeout, output=stdout, stderr=stderr
-        ) from None
+        raise subprocess.TimeoutExpired(proc.args, timeout, output=stdout, stderr=stderr) from None
     return subprocess.CompletedProcess(proc.args, proc.returncode, stdout, stderr)
 
 
@@ -154,8 +188,7 @@ def run_run(
         if missing:
             shown = ", ".join(missing)
             print(
-                "overlay run: require_command: selected suite(s) have no product_command: "
-                f"{shown}",
+                f"overlay run: require_command: selected suite(s) have no product_command: {shown}",
                 file=err,
             )
             return EXIT_CONTRACT
@@ -181,7 +214,9 @@ def run_run(
         command = suite.product_command
         if not command:
             skipped += 1
-            events.append(run_events_for_suite(suite, command=None, exit_code=None, rule=SKIPPED_NO_COMMAND))
+            events.append(
+                run_events_for_suite(suite, command=None, exit_code=None, rule=SKIPPED_NO_COMMAND)
+            )
             print(f"overlay run: skipped {suite.suite_id} rule={SKIPPED_NO_COMMAND}", file=err)
             print(f"{suite.suite_id} {SKIPPED_NO_COMMAND}", file=out)
             continue
@@ -190,7 +225,9 @@ def run_run(
         if hits:
             refused += 1
             events.append(
-                run_events_for_suite(suite, command=command, exit_code=None, rule=REFUSED_FORBID_HOSTS)
+                run_events_for_suite(
+                    suite, command=command, exit_code=None, rule=REFUSED_FORBID_HOSTS
+                )
             )
             print(
                 f"overlay run: refused {suite.suite_id} rule={REFUSED_FORBID_HOSTS} hosts={hits}",

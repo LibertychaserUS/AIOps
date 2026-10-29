@@ -47,7 +47,10 @@ def resolve_api_key(environ: Mapping[str, str] | None = None) -> str | None:
 def chat_url(environ: Mapping[str, str] | None = None) -> str:
     env = os.environ if environ is None else environ
     default = DEFAULT_BASE
-    if not (env.get("OPENAI_API_KEY") or "").strip() and (env.get("OPENROUTER_API_KEY") or "").strip():
+    if (
+        not (env.get("OPENAI_API_KEY") or "").strip()
+        and (env.get("OPENROUTER_API_KEY") or "").strip()
+    ):
         # Never send an OpenRouter key to api.openai.com.
         default = OPENROUTER_BASE
     base = (env.get("OPENAI_BASE_URL") or default).strip().rstrip("/")
@@ -224,6 +227,7 @@ def render_suite(
     suite_id: str,
     title: str,
     packages: list[str],
+    product_command: str | None = None,
 ) -> str:
     if packages:
         package_block = "packages:\n" + "\n".join(
@@ -232,6 +236,9 @@ def render_suite(
     else:
         package_block = "packages: []"
     safe_title = json.dumps(title, ensure_ascii=False)
+    command_block = (
+        "null" if product_command is None else json.dumps(product_command, ensure_ascii=False)
+    )
     return (
         "schema: overlay-suite/v2\n"
         f"id: {suite_id}\n"
@@ -242,24 +249,26 @@ def render_suite(
         f"source: inbox/{suite_id}.md\n"
         f"{package_block}\n"
         "blocked_reason: null\n"
-        "product_command: null\n"
+        f"product_command: {command_block}\n"
     )
 
 
 UNREADABLE = "<unreadable>"
 
 
-def _existing_status(path: Path) -> str | None:
+def _existing_suite(path: Path) -> tuple[str | None, str | None]:
+    """(status, product_command) of an existing suite.yaml; status UNREADABLE when it does not parse."""
     if not path.is_file():
-        return None
+        return None, None
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
     except yaml.YAMLError:
-        return UNREADABLE
+        return UNREADABLE, None
     if not isinstance(data, dict):
-        return UNREADABLE
+        return UNREADABLE, None
     status = str(data.get("status") or "").strip()
-    return status or "active"
+    command = data.get("product_command")
+    return status or "active", command if isinstance(command, str) and command.strip() else None
 
 
 def _inbox_path(root: Path, inbox: str) -> Path | None:
@@ -317,7 +326,7 @@ def run_generate(
         return EXIT_CONTRACT
 
     suite_yaml = root / "suites" / doc.inbox_id / "suite.yaml"
-    existing = _existing_status(suite_yaml)
+    existing, kept_command = _existing_suite(suite_yaml)
     if existing == UNREADABLE:
         # Cannot prove it is not blocked; --force must not clear what we cannot read.
         print(
@@ -403,12 +412,22 @@ def run_generate(
         readiness = "unknown"
     packages_raw = doc.front.get("packages") or []
     packages = [str(item) for item in packages_raw] if isinstance(packages_raw, list) else []
-    suite_text = render_suite(suite_id=doc.inbox_id, title=title, packages=packages)
+    # --force replaces the cases, not the wiring: a hand-written product_command survives.
+    suite_text = render_suite(
+        suite_id=doc.inbox_id, title=title, packages=packages, product_command=kept_command
+    )
     cases_text = render_cases(title, readiness, ordered)
     dest = suite_yaml.parent
     dest.mkdir(parents=True, exist_ok=True)
     suite_yaml.write_text(suite_text, encoding="utf-8")
     (dest / "cases.md").write_text(cases_text, encoding="utf-8")
     rel = suite_yaml.relative_to(root).as_posix()
-    print(f"overlay generate: wrote {rel} status=active", file=out)
+    if (dest / "trace.yaml").is_file():
+        print(
+            f"overlay generate: {doc.inbox_id}/trace.yaml kept as is; it may be stale against "
+            "the new cases.md (run `overlay cover`)",
+            file=err,
+        )
+    kept = " product_command=kept" if kept_command else ""
+    print(f"overlay generate: wrote {rel} status=active{kept}", file=out)
     return EXIT_OK
