@@ -62,7 +62,7 @@ options:
 
 ```text
 usage: python -m forge status [-h] --repo REPO [--root ROOT] [--path PATH]
-                              [--write WRITE] [--check-state]
+                              [--write WRITE] [--check-state] [--strict]
 
 options:
   -h, --help     show this help message and exit
@@ -71,6 +71,8 @@ options:
   --path PATH    forge.yaml (default: <root>/forge.yaml)
   --write WRITE  write a generated Chinese status page (e.g. docs/STATE.md)
   --check-state  fail if docs/STATE.md is missing or stale vs forge.yaml + git
+  --strict       exit 2 when any expected ruleset is missing or drifted (needs
+                 a token)
 ```
 
 ## python -m forge check

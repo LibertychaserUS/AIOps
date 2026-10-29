@@ -11,8 +11,17 @@
 - `python -m overlay generate`：假 HTTP 可测；缺 API key 退出 3；解析失败不写文件；输出 `status: active`。`blocked` 套件拒绝，`--force` 也不清掉 `blocked`。不挂 push。提示词 `prompts/extract.md`、`prompts/generate-cases.md`（temperature 0）。
 - `overlay review` 在 `--i-am` 非空且当前分支不是 agent 前缀时写套件状态。没有 `forge.yaml` 拒绝。agent 分支不能借此清掉 `blocked`。
 - `overlay.yaml` 可选 `require_command`（缺省 false）。为 true 时，入选套件没有 `product_command` 则 `run` 退出 2、不执行。
+- `forge status --strict`：任一预期 Ruleset（含 `forge-protected-tags`）missing / drifted 退出 2（与 `--check-state` 同码）；缺 token 退出 2 并点名 `FORGE_GITHUB_TOKEN`，不再默默打印「未查询」。不传 `--strict` 行为不变。
+- `forge status` 的 drifted 逐字段列差异（`enforcement`、`bypass_actors`、`ref_name.include/exclude`、规则有无、规则参数、`required checks: +应有 -多出`），终端与 `docs/STATE.md` 都带。
+- `sop-lock`（仅工作本根）：`.github/CODEOWNERS` 必须存在且给 `suites/**`、`forge.yaml`、`overlay.yaml` 指定 owner。分支前缀只是约定，CODEOWNERS + Ruleset 才是锁。工作本 CODEOWNERS 补上 `forge.yaml @LibertychaserUS`。
 
 ### Fixed
+- GitHub 客户端：幂等 GET 遇 5xx / 429 最多重试 3 次（1s、2s 退避；有 `Retry-After` 按其秒数，封顶 30s）；POST / PUT / PATCH / DELETE 永不重试。
+- GitHub 客户端：`X-RateLimit-Remaining: 0` 或正文含 `rate limit` 的 403 报限流（退出 4，附 `X-RateLimit-Reset` 的重置时间），不再误报「auth failed」。
+- GitHub 客户端：跨主机重定向去掉 `Authorization`；https 跳 http 拒绝；生产域名守卫同样适用于重定向目标，不只看第一个 URL。
+- `forge status` 取 Ruleset 详情失败时报 API 错误（退出 4），不再回落到列表项后误报 drifted。
+- `forge apply` 创建 Ruleset 收到 422（同名已存在）时按名重查并 PUT 到已有 id，不再直接退出 4。假 GitHub 对重名 POST 也返回 422。
+- `ci-select` 新增真实 git 单测：移出产品的重命名、根提交（无 `HEAD~1` → 全跑）、`--root` 子目录、非 ASCII 路径。
 
 - 工作本 `unittest` 与 `forge-check` 两个 job 的 checkout 改为 `fetch-depth: 0`，让 `forge check` 在 CI 里看得到 `origin/dev`（缺基准时现在按设计变红）。
 - `overlay review`：`--reason "#123"` 这类登记号写成带引号的 YAML，不再被当成注释读成 null。`--suite` 必须是合法套件 id，`../` 不能改到 `suites/` 外的文件。

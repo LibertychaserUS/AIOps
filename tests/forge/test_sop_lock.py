@@ -8,7 +8,13 @@ import unittest
 from pathlib import Path
 
 from forge.__main__ import main
-from forge.sop_lock import EXIT_SOP, collect_issues, run_sop_lock
+from forge.sop_lock import (
+    EXIT_SOP,
+    check_codeowners,
+    codeowners_covers,
+    collect_issues,
+    run_sop_lock,
+)
 
 from forge import EXIT_OK
 
@@ -440,3 +446,75 @@ class HardenedLockTests(unittest.TestCase):
             )
             issues = collect_issues(root)
             self.assertTrue(any("pin" in item.message for item in issues), issues)
+
+
+class CodeownersLockTests(unittest.TestCase):
+    """Workshop only: CODEOWNERS must own suites/**, forge.yaml, overlay.yaml."""
+
+    def _workshop(self, root: Path) -> None:
+        for rel in ("overlay/__init__.py", "forge/__init__.py", "skills/use-overlay/SKILL.md", "docs/sop.md"):
+            _write(root / rel, "")
+
+    def test_workshop_codeowners_is_green(self) -> None:
+        self.assertEqual(check_codeowners(ROOT), [])
+        self.assertIn("forge.yaml @", (ROOT / ".github" / "CODEOWNERS").read_text(encoding="utf-8"))
+
+    def test_missing_codeowners_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._workshop(root)
+            messages = [str(issue) for issue in check_codeowners(root)]
+            self.assertEqual(len(messages), 1)
+            self.assertIn(".github/CODEOWNERS: missing", messages[0])
+
+    def test_uncovered_paths_are_named(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._workshop(root)
+            _write(root / ".github" / "CODEOWNERS", "docs/** @team\nsuites/** @team\nforge.yaml\n")
+            messages = [str(issue) for issue in check_codeowners(root)]
+            self.assertEqual(
+                messages,
+                [
+                    ".github/CODEOWNERS: must assign an owner to forge.yaml",
+                    ".github/CODEOWNERS: must assign an owner to overlay.yaml",
+                ],
+            )
+
+    def test_suite_yaml_glob_and_star_owner_are_green(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._workshop(root)
+            _write(
+                root / ".github" / "CODEOWNERS",
+                "# comment\nsuites/**/suite.yaml @a\n/forge.yaml @b\noverlay.yaml @c @d\n",
+            )
+            self.assertEqual(check_codeowners(root), [])
+            _write(root / ".github" / "CODEOWNERS", "* @everyone\n")
+            self.assertEqual(check_codeowners(root), [])
+
+    def test_consumer_root_is_not_checked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(check_codeowners(Path(tmp)), [])
+
+    def test_codeowners_pattern_matching(self) -> None:
+        self.assertTrue(codeowners_covers("suites/**", "suites/x/suite.yaml"))
+        self.assertTrue(codeowners_covers("suites/", "suites/x/suite.yaml"))
+        self.assertTrue(codeowners_covers("suites", "suites/x/suite.yaml"))
+        self.assertTrue(codeowners_covers("suites/**/suite.yaml", "suites/x/suite.yaml"))
+        self.assertTrue(codeowners_covers("*.yaml", "forge.yaml"))
+        self.assertTrue(codeowners_covers("*", "overlay.yaml"))
+        self.assertFalse(codeowners_covers("suites/*", "suites/x/suite.yaml"))
+        self.assertFalse(codeowners_covers("forge/", "forge.yaml"))
+        self.assertFalse(codeowners_covers("docs/**", "suites/x/suite.yaml"))
+        self.assertFalse(codeowners_covers("/overlay/overlay.yaml", "overlay.yaml"))
+
+    def test_sop_lock_cli_reports_missing_owner(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._workshop(root)
+            _write(root / ".github" / "CODEOWNERS", "suites/** @team\noverlay.yaml @team\n")
+            stderr = io.StringIO()
+            code = run_sop_lock(root, stdout=io.StringIO(), stderr=stderr)
+            self.assertEqual(code, EXIT_SOP)
+            self.assertIn("must assign an owner to forge.yaml", stderr.getvalue())

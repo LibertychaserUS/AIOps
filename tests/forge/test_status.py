@@ -9,7 +9,7 @@ from pathlib import Path
 
 from forge.status import EXIT_STATE, GENERATED_HEADER, MISSING_TOKEN_NOTE, run_status
 
-from forge import EXIT_OK, TAG_RULESET_NAME, branch_ruleset_name
+from forge import EXIT_API, EXIT_AUTH, EXIT_OK, TAG_RULESET_NAME, branch_ruleset_name
 from tests.forge.fake_github import FakeGitHub
 
 FAKE_API = "https://forge.test"
@@ -425,3 +425,130 @@ class CheckStateRuleTests(unittest.TestCase):
                 code, _, err = _status(FakeGitHub(), root, environ={}, check_state=True)
                 self.assertEqual(code, EXIT_STATE, label)
                 self.assertIn("保护分支", err)
+
+
+class StrictStatusTests(unittest.TestCase):
+    """--strict: missing / drifted exit 2 with a per-field diff; GET failures are API errors."""
+
+    def _applied(self, root: Path) -> FakeGitHub:
+        from forge.apply import run_apply
+
+        (root / "forge.yaml").write_text(SIMPLE_YAML, encoding="utf-8")
+        fake = FakeGitHub()
+        code = run_apply(
+            repo=REPO,
+            path=root / "forge.yaml",
+            token="t",
+            urlopen=fake.urlopen,
+            base_url=FAKE_API,
+            stdout=io.StringIO(),
+            stderr=io.StringIO(),
+        )
+        self.assertEqual(code, EXIT_OK)
+        return fake
+
+    def test_missing_is_exit_2_only_under_strict(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "forge.yaml").write_text(SIMPLE_YAML, encoding="utf-8")
+            code, out, _ = _status(FakeGitHub(), root)
+            self.assertEqual(code, EXIT_OK)
+            code, out, err = _status(FakeGitHub(), root, strict=True)
+            self.assertEqual(code, EXIT_STATE)
+            self.assertIn(f"{branch_ruleset_name('main')}: missing", out)
+            self.assertIn("strict", err)
+            self.assertIn(f"{branch_ruleset_name('main')}: missing", err)
+
+    def test_installed_is_green_under_strict(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fake = self._applied(root)
+            code, out, err = _status(fake, root, strict=True)
+            self.assertEqual(code, EXIT_OK, err)
+            self.assertNotIn("  - ", out)
+
+    def test_drifted_prints_per_field_diff(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fake = self._applied(root)
+            main_rs = next(rs for rs in fake.rulesets if rs["name"] == branch_ruleset_name("main"))
+            main_rs["enforcement"] = "disabled"
+            main_rs["bypass_actors"] = [{"actor_id": 5, "actor_type": "Team", "bypass_mode": "always"}]
+            main_rs["conditions"]["ref_name"]["exclude"] = ["refs/heads/hotfix/*"]
+            for rule in main_rs["rules"]:
+                if rule["type"] == "required_status_checks":
+                    rule["parameters"]["required_status_checks"] = [{"context": "lint"}]
+                if rule["type"] == "pull_request":
+                    rule["parameters"]["required_approving_review_count"] = 0
+            main_rs["rules"] = [rule for rule in main_rs["rules"] if rule["type"] != "deletion"]
+            code, out, err = _status(fake, root, strict=True)
+            self.assertEqual(code, EXIT_STATE)
+            self.assertIn(f"{branch_ruleset_name('main')}: drifted", out)
+            self.assertIn("  - enforcement: expected 'active', live 'disabled'", out)
+            self.assertIn("  - required checks: +unit -lint", out)
+            self.assertIn("  - bypass_actors: -", out)
+            self.assertIn("  - ref_name.exclude: -refs/heads/hotfix/*", out)
+            self.assertIn("  - pull_request.required_approving_review_count: expected 1, live 0", out)
+            self.assertIn("  - rule deletion: expected, live missing", out)
+            self.assertIn(f"{branch_ruleset_name('main')}: drifted", err)
+
+    def test_diff_lines_also_land_in_state_md(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fake = self._applied(root)
+            next(rs for rs in fake.rulesets if rs["name"] == TAG_RULESET_NAME)["enforcement"] = "evaluate"
+            code, _, err = _status(fake, root, write="docs/STATE.md")
+            self.assertEqual(code, EXIT_OK, err)
+            text = (root / "docs" / "STATE.md").read_text(encoding="utf-8")
+            self.assertIn(f"- `{TAG_RULESET_NAME}`：drifted\n  - enforcement: expected 'active', live 'evaluate'", text)
+
+    def test_strict_without_token_is_exit_2_auth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "forge.yaml").write_text(SIMPLE_YAML, encoding="utf-8")
+            fake = FakeGitHub()
+            code, _, err = _status(fake, root, strict=True, environ={})
+            self.assertEqual(code, EXIT_AUTH)
+            self.assertIn("FORGE_GITHUB_TOKEN", err)
+            self.assertEqual(fake.calls, [])
+
+    def test_strict_with_stale_state_is_red(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fake = self._applied(root)
+            (root / "docs").mkdir()
+            (root / "docs" / "STATE.md").write_text("stale\n", encoding="utf-8")
+            code, _, err = _status(fake, root, strict=True, check_state=True)
+            self.assertEqual(code, EXIT_STATE)
+            self.assertIn("forge status --write", err)
+
+    def test_failed_detail_get_is_an_api_error_not_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fake = self._applied(root)
+            fake.fail_status = 404
+            fake.fail_on = {"GET"}
+            fake.fail_path_contains = "/rulesets/"
+            code, out, err = _status(fake, root)
+            self.assertEqual(code, EXIT_API, err)
+            self.assertNotIn("drifted", out)
+            self.assertIn("404", err)
+
+    def test_cli_strict_flag(self) -> None:
+        from forge.__main__ import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "forge.yaml").write_text(SIMPLE_YAML, encoding="utf-8")
+            fake = FakeGitHub()
+            stderr = io.StringIO()
+            code = main(
+                ["status", "--repo", REPO, "--root", str(root), "--strict"],
+                urlopen=fake.urlopen,
+                base_url=FAKE_API,
+                stdout=io.StringIO(),
+                stderr=stderr,
+                environ={"FORGE_GITHUB_TOKEN": "t"},
+            )
+            self.assertEqual(code, EXIT_STATE, stderr.getvalue())
+            self.assertEqual(fake.writes(), [])

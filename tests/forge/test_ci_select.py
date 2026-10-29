@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
 from forge.__main__ import main
 from forge.apply import load_config
-from forge.ci_select import decide, load_ci_config, path_matches
+from forge.ci_select import decide, git_changed, load_ci_config, path_matches
 
 from forge import EXIT_OK
 
@@ -277,6 +279,116 @@ class DecideUnitTests(unittest.TestCase):
             decision = decide(config, "overlay-check", title=None, changed=["src/a.py"])
             self.assertFalse(decision.run)
             self.assertEqual(decision.reason, "unknown-check-skip")
+
+
+PRODUCT_YAML = (
+    "schema: forge-config/v1\n"
+    "protect:\n"
+    "  - main\n"
+    "ci:\n"
+    "  common:\n"
+    "    - pr-title\n"
+    "    - sop-lock\n"
+    "  products:\n"
+    "    overlay:\n"
+    "      check: overlay-check\n"
+    "      paths:\n"
+    "        - overlay/\n"
+    "    forge:\n"
+    "      check: forge-check\n"
+    "      paths:\n"
+    "        - forge/\n"
+    "        - forge.yaml\n"
+)
+
+GIT_ENV = {
+    **{k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "SYSTEMROOT")},
+    "GIT_AUTHOR_NAME": "t",
+    "GIT_AUTHOR_EMAIL": "t@example.invalid",
+    "GIT_COMMITTER_NAME": "t",
+    "GIT_COMMITTER_EMAIL": "t@example.invalid",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_GLOBAL": os.devnull,
+}
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, env=GIT_ENV)
+
+
+def _commit(repo: Path, message: str, files: dict[str, str]) -> None:
+    for rel, text in files.items():
+        path = repo / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", message)
+
+
+def _init_repo(tmp: str) -> Path:
+    repo = Path(tmp) / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    # core.quotePath=true is the default; pinned so the -z path keeps being exercised.
+    _git(repo, "config", "core.quotePath", "true")
+    return repo
+
+
+class RealGitSelectorTests(unittest.TestCase):
+    """HEAD~1..HEAD from a real repository: no --changed, the selector reads git itself."""
+
+    def test_rename_out_of_product_still_selects_it(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _init_repo(tmp)
+            _commit(repo, "one", {"forge.yaml": PRODUCT_YAML, "forge/a.py": "x = 1\n" * 20})
+            _git(repo, "mv", "forge/a.py", "docs_a.py")
+            _git(repo, "commit", "-q", "-m", "two")
+            self.assertEqual(sorted(git_changed(repo) or []), ["docs_a.py", "forge/a.py"])
+            code, out, err = _select("forge-check", root=repo)
+            self.assertEqual(code, EXIT_OK, err)
+            self.assertIn("run: true", out)
+            self.assertIn("reason: paths", out)
+            overlay = _select("overlay-check", root=repo)
+            self.assertIn("run: false", overlay[1])
+
+    def test_root_commit_runs_every_product(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _init_repo(tmp)
+            _commit(repo, "one", {"forge.yaml": PRODUCT_YAML, "docs/x.md": "hi\n"})
+            self.assertIsNone(git_changed(repo))
+            for check in ("forge-check", "overlay-check"):
+                code, out, err = _select(check, title="docs(docs/dev): only docs", root=repo)
+                self.assertEqual(code, EXIT_OK, err)
+                self.assertIn("run: true", out)
+                self.assertIn("reason: undecided-run-all", out)
+
+    def test_root_subdirectory_paths_are_relative(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _init_repo(tmp)
+            sub = repo / "tools" / "forge-home"
+            _commit(repo, "one", {"tools/forge-home/forge.yaml": PRODUCT_YAML, "README.md": "r\n"})
+            _commit(repo, "two", {"tools/forge-home/forge/b.py": "y = 2\n", "elsewhere/forge/c.py": "z\n"})
+            self.assertEqual(git_changed(sub), ["forge/b.py"])
+            code, out, err = _select("forge-check", root=sub)
+            self.assertEqual(code, EXIT_OK, err)
+            self.assertIn("run: true", out)
+            # Only the sibling tree changes: nothing under --root, so forge is skipped.
+            _commit(repo, "three", {"elsewhere/forge/d.py": "w\n"})
+            self.assertEqual(git_changed(sub), [])
+            code, out, err = _select("forge-check", root=sub)
+            self.assertEqual(code, EXIT_OK, err)
+            self.assertIn("run: false", out)
+
+    def test_non_ascii_path_is_not_escaped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _init_repo(tmp)
+            _commit(repo, "one", {"forge.yaml": PRODUCT_YAML})
+            _commit(repo, "two", {"forge/数据/模型.py": "v = 3\n"})
+            self.assertEqual(git_changed(repo), ["forge/数据/模型.py"])
+            code, out, err = _select("forge-check", root=repo)
+            self.assertEqual(code, EXIT_OK, err)
+            self.assertIn("run: true", out)
+            self.assertIn("reason: paths", out)
 
 
 if __name__ == "__main__":
