@@ -21,6 +21,8 @@
 - `apply` / `status`：`code_owners: true` 但没有 `.github/CODEOWNERS` / `CODEOWNERS` / `docs/CODEOWNERS` 时警告（stderr，不改退出码）。
 
 ### Fixed
+
+- `forge check` / `pr-title` 在 `push` 事件上：HEAD 是合并提交（把保护分支并进功能分支）时，改 lint first-parent 上最近的非合并提交 subject，不再因 `Merge branch 'dev' into …` 报红；功能提交 subject 不合规仍红。
 - GitHub 客户端：幂等 GET 遇 5xx / 429 最多重试 3 次（1s、2s 退避；有 `Retry-After` 按其秒数，封顶 30s）；POST / PUT / PATCH / DELETE 永不重试。
 - GitHub 客户端：`X-RateLimit-Remaining: 0` 或正文含 `rate limit` 的 403 报限流（退出 4，附 `X-RateLimit-Reset` 的重置时间），不再误报「auth failed」。
 - GitHub 客户端：跨主机重定向去掉 `Authorization`；https 跳 http 拒绝；生产域名守卫同样适用于重定向目标，不只看第一个 URL。

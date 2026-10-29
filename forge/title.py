@@ -70,8 +70,40 @@ def event_name(environ: Mapping[str, str]) -> str:
     return (environ.get("GITHUB_EVENT_NAME") or "").strip().lower()
 
 
+def _git_log(root: Path | str, *args: str) -> str | None:
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
+    proc = subprocess.run(
+        ["git", "-C", str(root), "-c", "commit.gpgsign=false", "log", *args],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    if proc.returncode != 0:
+        return None
+    return proc.stdout
+
+
+def head_is_merge(root: Path | str | None) -> bool:
+    """True when HEAD has two or more parents (a base-branch merge, not a change)."""
+    if root is None:
+        return False
+    parents = _git_log(root, "-1", "--format=%P")
+    return bool(parents) and len(parents.split()) >= 2
+
+
 def head_commit_subject(root: Path | str | None, environ: Mapping[str, str]) -> str | None:
-    """First line of the push head commit. Event JSON wins, then git."""
+    """First line of the push head commit. Event JSON wins, then git.
+
+    A merge commit (merging the protect branch into the feature branch) is
+    plumbing, not the change: lint the newest first-parent non-merge commit
+    instead, which is the subject the agent actually wrote.
+    """
+    if head_is_merge(root):
+        out = _git_log(root, "--first-parent", "--no-merges", "-1", "--format=%s")  # type: ignore[arg-type]
+        if out is not None:
+            text = out.strip().splitlines()
+            if text and text[0].strip():
+                return text[0].strip()
     raw_path = environ.get("GITHUB_EVENT_PATH")
     if raw_path:
         try:
@@ -85,16 +117,10 @@ def head_commit_subject(root: Path | str | None, environ: Mapping[str, str]) -> 
                 return message.splitlines()[0].strip()
     if root is None:
         return None
-    env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
-    proc = subprocess.run(
-        ["git", "-C", str(root), "-c", "commit.gpgsign=false", "log", "-1", "--format=%s"],
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-    if proc.returncode != 0:
+    out = _git_log(root, "-1", "--format=%s")
+    if out is None:
         return None
-    subject = (proc.stdout or "").splitlines()
+    subject = out.splitlines()
     if not subject:
         return None
     text = subject[0].strip()

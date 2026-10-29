@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,6 +19,8 @@ from forge.title import (
     TITLE_PATTERN,
     TITLE_RE,
     TYPES,
+    head_commit_subject,
+    head_is_merge,
     lint_title,
     optional_text,
     resolve_arg_or_env,
@@ -240,7 +244,7 @@ class CliTests(unittest.TestCase):
             stdout = io.StringIO()
             stderr = io.StringIO()
             code = main(
-                ["pr-title", "--root", str(ROOT)],
+                ["pr-title", "--root", tmp],
                 stdout=stdout,
                 stderr=stderr,
                 environ={
@@ -370,7 +374,7 @@ class SpecEventStateTests(unittest.TestCase):
                     "GITHUB_EVENT_NAME": "push",
                     "GITHUB_EVENT_PATH": str(event),
                 },
-                root=ROOT,
+                root=tmp,
             )
             self.assertEqual(spec.source, "commit")
             self.assertEqual(spec.text, EXAMPLE)
@@ -392,7 +396,7 @@ class SpecEventStateTests(unittest.TestCase):
                 },
                 stdout=io.StringIO(),
                 stderr=stderr,
-                root=ROOT,
+                root=tmp,
             )
             self.assertEqual(code, EXIT_TITLE)
             self.assertTrue(stderr.getvalue())
@@ -433,3 +437,70 @@ class WorkshopConfigTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PushMergeCommitTests(unittest.TestCase):
+    """A base-branch merge commit at HEAD is plumbing: push lints the agent's own commit."""
+
+    def _git(self, root: Path, *args: str) -> None:
+        subprocess.run(
+            ["git", "-C", str(root), "-c", "commit.gpgsign=false", *args],
+            check=True,
+            capture_output=True,
+            text=True,
+            env={
+                **os.environ,
+                "GIT_AUTHOR_NAME": "t",
+                "GIT_AUTHOR_EMAIL": "t@example.com",
+                "GIT_COMMITTER_NAME": "t",
+                "GIT_COMMITTER_EMAIL": "t@example.com",
+                "GIT_CONFIG_GLOBAL": "/dev/null",
+                "GIT_CONFIG_NOSYSTEM": "1",
+            },
+        )
+
+    def _repo_with_merge_head(self, tmp: str, feature_subject: str) -> Path:
+        root = Path(tmp)
+        self._git(root, "init", "-q", "-b", "dev")
+        (root / "a.txt").write_text("a\n", encoding="utf-8")
+        self._git(root, "add", "a.txt")
+        self._git(root, "commit", "-q", "-m", "chore(ci/dev): base")
+        self._git(root, "checkout", "-q", "-b", "agent/x")
+        (root / "b.txt").write_text("b\n", encoding="utf-8")
+        self._git(root, "add", "b.txt")
+        self._git(root, "commit", "-q", "-m", feature_subject)
+        self._git(root, "checkout", "-q", "dev")
+        (root / "c.txt").write_text("c\n", encoding="utf-8")
+        self._git(root, "add", "c.txt")
+        self._git(root, "commit", "-q", "-m", "fix(ci/dev): base moves")
+        self._git(root, "checkout", "-q", "agent/x")
+        self._git(root, "merge", "-q", "--no-ff", "-m", "Merge branch 'dev' into agent/x", "dev")
+        return root
+
+    def test_merge_head_lints_first_parent_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo_with_merge_head(tmp, EXAMPLE)
+            self.assertTrue(head_is_merge(root))
+            self.assertEqual(head_commit_subject(root, {}), EXAMPLE)
+            code = main(
+                ["pr-title", "--root", str(root)],
+                stdout=io.StringIO(),
+                stderr=io.StringIO(),
+                environ={"PR_TITLE": "", "GITHUB_EVENT_NAME": "push"},
+            )
+            self.assertEqual(code, EXIT_OK)
+
+    def test_merge_head_does_not_hide_bad_feature_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo_with_merge_head(tmp, "wip")
+            stderr = io.StringIO()
+            code = main(
+                ["pr-title", "--root", str(root)],
+                stdout=io.StringIO(),
+                stderr=stderr,
+                environ={"PR_TITLE": "", "GITHUB_EVENT_NAME": "push"},
+            )
+            self.assertEqual(code, EXIT_TITLE, stderr.getvalue())
+
+    def test_plain_head_is_not_merge(self) -> None:
+        self.assertFalse(head_is_merge(None))
