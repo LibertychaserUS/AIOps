@@ -22,7 +22,7 @@
 
 ### Fixed
 
-- `forge check` / `pr-title` 在 `push` 事件上：HEAD 是合并提交（把保护分支并进功能分支）时，改 lint first-parent 上最近的非合并提交 subject，不再因 `Merge branch 'dev' into …` 报红；功能提交 subject 不合规仍红。
+- `forge check` / `pr-title` 在 `push` 事件上：HEAD 是合并提交（把保护分支并进功能分支）且事件 `head_commit` 就是该 HEAD 时，改 lint first-parent 上最近的非合并提交 subject，不再因 `Merge branch 'dev' into …` 报红；功能提交 subject 不合规仍红。
 - `forge.yaml` 里不带引号的 URL（`- https://github.com/o/n`）与 `- a:b` 不再被误读成映射而退出 3；现在按字符串读。
 - `forge submit` 的错误输出统一经 `redact_secrets`：`ghp_` / `github_pat_` / `gho_` / `ghu_` / `ghs_` / `ghr_` token、`AUTHORIZATION: bearer|basic …`、以及 remote URL 里的 `://user:secret@host` 都会被遮蔽；原先只遮 bearer 头，漏掉 git stderr 里带 token 的 URL。
 - `forge/hooks/pr-title` 与 `forge/hooks/pre-submit` 补上子进程单测（好 / 坏标题退出码；非产品根退出 2）。
