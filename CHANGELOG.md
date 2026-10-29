@@ -24,6 +24,9 @@
 - `overlay review` / `migrate`：改写前对比改前改后的解析结果，只允许目标 key 变化（review：`status`、`blocked_reason`；migrate：`schema`、`status`、旧字段），否则拒写并留作待办；写入改为临时文件加原子替换。
 - `forbid_hosts` 按主机边界匹配：裸域名、子域名、`user@host` 都算命中，`example.com` 不再误中 `example.community`；inbox 正文仍只查 URL。`run` 先检查全部入选命令，任一命中则一条都不启动（回执记 `not_started`）。
 - 可复用工作流 `overlay.yml`：接入方未传 `tool_ref` 直接失败（`github.workflow_sha` 是调用方的提交）；总是先装 `_aiops/requirements.txt`，调用方自己的 `requirements.txt` 不再把 PyYAML 挤掉。`docs/overlay-ci.md` 所有示例补上 `tool_ref`。
+- `overlay generate --force`：保留原有的 `product_command`（不再重置为 null），`trace.yaml` 存在时提示可能过期。
+- `overlay run`：子进程 `PYTHONPATH` 去掉指向工具仓自身的那一项，产品命令不再意外 import 到 `overlay` / `forge`；`--timeout` 必须大于 0，`0` 不再静默改成 600。
+- `docs/overlay-contract.md` 新增退出码表（0/2/3/4/5）。
 - 工作本 `unittest` 与 `forge-check` 两个 job 的 checkout 改为 `fetch-depth: 0`，让 `forge check` 在 CI 里看得到 `origin/dev`（缺基准时现在按设计变红）。
 - `overlay review`：`--reason "#123"` 这类登记号写成带引号的 YAML，不再被当成注释读成 null。`--suite` 必须是合法套件 id，`../` 不能改到 `suites/` 外的文件。
 - `overlay generate`：`packages` 逐项加引号，`@acme/web` 这类 scoped 包名不再写出解析不了的 `suite.yaml`。

@@ -81,7 +81,7 @@ python -m overlay select --branch <name> --root .
 
 ## `run`
 
-保持 `bash -c`。`--timeout` 为每条命令秒数（默认 600）。回执里 `ran` 事件记录：
+保持 `bash -c`。`--timeout` 为每条命令秒数，必须大于 0（默认 600；写 `0` 是用法错误，不是“用默认值”）。子进程继承当前环境，但 `PYTHONPATH` 里指向工具仓自身的那一项会被去掉：产品命令不该顺手 import 到 `overlay` / `forge` / `schema`。其余变量（包括密钥）是调用方的事。回执里 `ran` 事件记录：
 
 - `exit`（进程退出码；超时为 124）
 - `duration_s`
@@ -93,6 +93,16 @@ python -m overlay select --branch <name> --root .
 ## `forbid_hosts`
 
 `overlay.yaml` 的 `forbid_hosts` **只是字符串匹配**，用来防手滑把生产域名写进 `product_command`。它不是安全边界，也不是网络隔离。 匹配按主机边界（裸域名、子域名、`user@host`），不会误中更长的域名。`run` 先检查全部入选命令，任一命中则一条都不启动，回执里其余套件记 `not_started`。
+
+## 退出码
+
+| 码 | 含义 | 哪些命令 |
+|---|---|---|
+| 0 | 绿。包括“已配置分支选出 0 个套件”和 `migrate` 留下待办（待办只打印，不红） | 全部 |
+| 2 | 契约红：validate 失败、配错分支、`forbid_hosts` 命中、`require_command` 缺命令、拒写；argparse 用法错误也是 2 | 全部 |
+| 3 | 缺 API key | `generate` |
+| 4 | 选择断言：入选里出现 `blocked` / 已删状态。`select` 本身不会选出它们，这是防御性兜底，正常用不到 | `select` / `run` |
+| 5 | 产品命令非零退出或超时（单条超时在回执里记 `exit: 124`） | `run` |
 
 ## 迁移
 

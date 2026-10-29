@@ -201,6 +201,7 @@ reusable：pin tag/SHA。`setup_command` 在 caller checkout 装产品工具链�
 - 写出 `suites/<id>/suite.yaml` + `cases.md`：`schema: overlay-suite/v2`，`status: active`，不写已删除的审核字段。
 - 目标已是 `blocked`：拒绝，**`--force` 也不清** `blocked`。没有把 `blocked` 改回 `active` 的路径。
 - 目标已存在且不是 `blocked`：无 `--force` 则拒绝；`--force` 覆盖并仍写 `active`。
+- `--force` 只换 `cases.md` 和套件元数据：原来手写的 `product_command` 原样保留（输出 `product_command=kept`）；`trace.yaml` 不动，但会提示它可能已经和新的 `cases.md` 对不上，跑一次 `overlay cover` 确认。
 
 `review`：`--i-am` 非空，且当前 git 分支不命中 `forge.yaml` 的 `agent_branch_prefixes`，才写 `suite.yaml`。没有 `forge.yaml`、或分支对不上，拒绝（退出 2）。人枝可把套件写成 `blocked`（`--reason` 须含链接或登记编号）或 `active`（`--reason` 非空）。agent 枝拒绝，不能靠这条命令清掉 `blocked`。
 
