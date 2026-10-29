@@ -45,6 +45,7 @@ def check_schemas() -> None:
         "suite.schema.json",
         "trace.schema.json",
         "invariants.schema.json",
+        "overlay-config.schema.json",
     ):
         path = ROOT / name
         if not path.is_file():

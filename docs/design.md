@@ -168,7 +168,9 @@ forbid_hosts:
   - prod.example.com
 ```
 
-`forbid_hosts`：只是命令文本的字符串匹配，防手滑，不是安全边界。
+`forbid_hosts`：只是命令文本的字符串匹配，防手滑，不是安全边界。匹配按主机边界：裸域名、子域名、`user@host` 都算命中，`example.com` 不会误中 `example.community`；inbox 正文只查 URL。`run` 先检查全部入选命令，任一命中则一条都不启动。
+
+`overlay.yaml` 按 `schema/overlay-config.schema.json` 校验，未知 key 报错：拼错的 `require_command` 不会被静默忽略。
 
 ### 4.6 `select`
 

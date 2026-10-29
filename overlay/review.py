@@ -11,7 +11,10 @@ from typing import TextIO
 import yaml
 
 from overlay import EXIT_CONTRACT, EXIT_OK
+from overlay.textedit import atomic_write_text, unexpected_changes
 from overlay.validate import BLOCKED_REASON_REF_RE
+
+REVIEW_KEYS = frozenset({"status", "blocked_reason"})
 
 SUITE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 KEY_RE = re.compile(r"^(\s*)([A-Za-z0-9_]+)\s*:(.*)$")
@@ -148,7 +151,11 @@ def run_review(
     original = path.read_text(encoding="utf-8")
     blocked_reason = reason_text if status == "blocked" else None
     updated = rewrite_status(original, status, blocked_reason)
-    path.write_text(updated, encoding="utf-8")
+    refusal = unexpected_changes(original, updated, REVIEW_KEYS)
+    if refusal is not None:
+        print(f"overlay review: {path.as_posix()}: {refusal}; refusing write", file=err)
+        return EXIT_CONTRACT
+    atomic_write_text(path, updated)
     print(
         f"overlay review: i-am={i_am.strip()} suite={suite_id} status={status}",
         file=out,

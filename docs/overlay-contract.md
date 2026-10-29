@@ -92,7 +92,7 @@ python -m overlay select --branch <name> --root .
 
 ## `forbid_hosts`
 
-`overlay.yaml` 的 `forbid_hosts` **只是字符串匹配**，用来防手滑把生产域名写进 `product_command`。它不是安全边界，也不是网络隔离。
+`overlay.yaml` 的 `forbid_hosts` **只是字符串匹配**，用来防手滑把生产域名写进 `product_command`。它不是安全边界，也不是网络隔离。 匹配按主机边界（裸域名、子域名、`user@host`），不会误中更长的域名。`run` 先检查全部入选命令，任一命中则一条都不启动，回执里其余套件记 `not_started`。
 
 ## 迁移
 

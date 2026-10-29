@@ -10,10 +10,13 @@ from typing import TextIO
 import yaml
 
 from overlay import EXIT_OK
+from overlay.textedit import atomic_write_text, unexpected_changes
 from overlay.validate import BLOCKED_REASON_REF_RE, is_blank, iter_suite_paths
 
 SUITE_SCHEMA_V2 = "overlay-suite/v2"
 REMOVED_KEYS = frozenset({"reviewed_by", "reviewed_at", "armed_reason"})
+SUITE_MIGRATE_KEYS = frozenset({"schema", "status", *REMOVED_KEYS})
+CONFIG_MIGRATE_KEYS = frozenset({"never_red_statuses"})
 OLD_STATUSES = frozenset({"draft", "armed"})
 MULTILINE_INDICATORS = frozenset({">", "|", ">-", "|-", ">+", "|+"})
 KEY_RE = re.compile(r"^(\s*)([A-Za-z0-9_]+)\s*:(.*)$")
@@ -143,10 +146,14 @@ def run_migrate(
     if overlay_path.is_file():
         old = overlay_path.read_text(encoding="utf-8")
         new = rewrite_overlay_yaml(old)
-        if new != old:
+        refusal = unexpected_changes(old, new, CONFIG_MIGRATE_KEYS) if new != old else None
+        if refusal is not None:
+            print(f"{prefix}: skip overlay.yaml ({refusal}; 待办)", file=err)
+            skipped += 1
+        elif new != old:
             print(f"{prefix}: overlay.yaml never_red_statuses", file=out)
             if not dry_run:
-                overlay_path.write_text(new, encoding="utf-8")
+                atomic_write_text(overlay_path, new)
             rewritten += 1
 
     for path in iter_suite_paths(root):
@@ -162,9 +169,14 @@ def run_migrate(
         new = rewrite_suite_text(text)
         if new == text:
             continue
+        refusal = unexpected_changes(text, new, SUITE_MIGRATE_KEYS)
+        if refusal is not None:
+            print(f"{prefix}: skip {rel} ({refusal}; 待办)", file=err)
+            skipped += 1
+            continue
         print(f"{prefix}: rewrite {rel}", file=out)
         if not dry_run:
-            path.write_text(new, encoding="utf-8")
+            atomic_write_text(path, new)
         rewritten += 1
 
     print(f"{prefix}: rewritten={rewritten} skipped={skipped}", file=out)
