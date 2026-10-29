@@ -22,11 +22,12 @@ jobs:
   overlay:
     uses: <tool-repo>/.github/workflows/overlay.yml@overlay-v2.0.0
     with:
+      tool_ref: overlay-v2.0.0
       enable_run: true
       root: "."
 ```
 
-`<tool-repo>` 是提供 Overlay 的仓库（本工作本或其 fork）。`tool_ref` 可覆盖 pin。永远 pin 已发布的 tag 或 SHA，不要 pin `main`。
+`<tool-repo>` 是提供 Overlay 的仓库（本工作本或其 fork）。`tool_ref` **必填**，与 `uses:` 后的 pin 写同一个 tag 或 SHA：可复用工作流里 `github.workflow_sha` 是调用方的提交，不是工具仓的 ref，所以留空会在 checkout 工具仓那步直接失败。永远 pin 已发布的 tag 或 SHA，不要 pin `main`。
 
 若产品仓已经有能跑的 inline `overlay-check`（checkout 同一 pin 再跑 `python -m overlay`），不要换成另一种形状。
 
@@ -54,6 +55,7 @@ jobs:
   overlay:
     uses: <tool-repo>/.github/workflows/overlay.yml@overlay-v2.0.0
     with:
+      tool_ref: overlay-v2.0.0
       enable_run: true
       setup_command: npm ci
 ```
@@ -65,6 +67,7 @@ jobs:
   overlay:
     uses: <tool-repo>/.github/workflows/overlay.yml@overlay-v2.0.0
     with:
+      tool_ref: overlay-v2.0.0
       enable_run: true
       setup_command: pip install -r requirements-dev.txt
 ```
@@ -76,6 +79,7 @@ jobs:
   overlay:
     uses: <tool-repo>/.github/workflows/overlay.yml@overlay-v2.0.0
     with:
+      tool_ref: overlay-v2.0.0
       enable_run: true
       setup_command: go mod download
 ```
@@ -87,6 +91,7 @@ jobs:
   overlay:
     uses: <tool-repo>/.github/workflows/overlay.yml@overlay-v2.0.0
     with:
+      tool_ref: overlay-v2.0.0
       enable_run: true
       setup_command: mvn -B -q -DskipTests dependency:go-offline
 ```
