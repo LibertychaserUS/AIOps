@@ -91,40 +91,52 @@ def head_is_merge(root: Path | str | None) -> bool:
     return bool(parents) and len(parents.split()) >= 2
 
 
+def _event_head_subject(environ: Mapping[str, str]) -> str | None:
+    raw_path = environ.get("GITHUB_EVENT_PATH")
+    if not raw_path:
+        return None
+    try:
+        payload = json.loads(Path(raw_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    commit = payload.get("head_commit")
+    message = commit.get("message") if isinstance(commit, dict) else None
+    if isinstance(message, str) and message.strip():
+        return message.splitlines()[0].strip()
+    return None
+
+
+def _git_subject(root: Path | str, *args: str) -> str | None:
+    out = _git_log(root, *args, "-1", "--format=%s")
+    if out is None:
+        return None
+    lines = out.splitlines()
+    text = lines[0].strip() if lines else ""
+    return text or None
+
+
 def head_commit_subject(root: Path | str | None, environ: Mapping[str, str]) -> str | None:
     """First line of the push head commit. Event JSON wins, then git.
 
-    A merge commit (merging the protect branch into the feature branch) is
-    plumbing, not the change: lint the newest first-parent non-merge commit
-    instead, which is the subject the agent actually wrote.
+    When the event's head commit is this checkout's HEAD and HEAD is a merge
+    (the protect branch merged into the feature branch), the merge is plumbing,
+    not the change: lint the newest first-parent non-merge commit instead,
+    which is the subject the agent actually wrote.
     """
-    if head_is_merge(root):
-        out = _git_log(root, "--first-parent", "--no-merges", "-1", "--format=%s")  # type: ignore[arg-type]
-        if out is not None:
-            text = out.strip().splitlines()
-            if text and text[0].strip():
-                return text[0].strip()
-    raw_path = environ.get("GITHUB_EVENT_PATH")
-    if raw_path:
-        try:
-            payload = json.loads(Path(raw_path).read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            payload = None
-        if isinstance(payload, dict):
-            commit = payload.get("head_commit")
-            message = commit.get("message") if isinstance(commit, dict) else None
-            if isinstance(message, str) and message.strip():
-                return message.splitlines()[0].strip()
+    event_subject = _event_head_subject(environ)
+    if root is not None and head_is_merge(root):
+        git_head = _git_subject(root)
+        if event_subject is None or event_subject == git_head:
+            own = _git_subject(root, "--first-parent", "--no-merges")
+            if own is not None:
+                return own
+    if event_subject is not None:
+        return event_subject
     if root is None:
         return None
-    out = _git_log(root, "-1", "--format=%s")
-    if out is None:
-        return None
-    subject = out.splitlines()
-    if not subject:
-        return None
-    text = subject[0].strip()
-    return text or None
+    return _git_subject(root)
 
 
 def resolve_spec_title(

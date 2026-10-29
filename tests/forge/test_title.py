@@ -504,3 +504,22 @@ class PushMergeCommitTests(unittest.TestCase):
 
     def test_plain_head_is_not_merge(self) -> None:
         self.assertFalse(head_is_merge(None))
+
+    def test_event_json_for_another_commit_still_wins_on_merge_head(self) -> None:
+        # pull_request CI checks out a synthetic merge; an event naming a
+        # different commit (or a test fixture) is the spec, not this HEAD.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo_with_merge_head(tmp, "wip")
+            event = root / "event.json"
+            event.write_text(json.dumps({"head_commit": {"message": f"{EXAMPLE}\n"}}), encoding="utf-8")
+            self.assertEqual(head_commit_subject(root, {"GITHUB_EVENT_PATH": str(event)}), EXAMPLE)
+
+    def test_event_json_for_this_merge_head_lints_first_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo_with_merge_head(tmp, EXAMPLE)
+            event = root / "event.json"
+            event.write_text(
+                json.dumps({"head_commit": {"message": "Merge branch 'dev' into agent/x\n"}}),
+                encoding="utf-8",
+            )
+            self.assertEqual(head_commit_subject(root, {"GITHUB_EVENT_PATH": str(event)}), EXAMPLE)
