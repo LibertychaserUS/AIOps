@@ -14,6 +14,9 @@
 
 ### Fixed
 
+- `forge.yaml` 里不带引号的 URL（`- https://github.com/o/n`）与 `- a:b` 不再被误读成映射而退出 3；现在按字符串读。
+- `forge submit` 的错误输出统一经 `redact_secrets`：`ghp_` / `github_pat_` / `gho_` / `ghu_` / `ghs_` / `ghr_` token、`AUTHORIZATION: bearer|basic …`、以及 remote URL 里的 `://user:secret@host` 都会被遮蔽；原先只遮 bearer 头，漏掉 git stderr 里带 token 的 URL。
+- `forge/hooks/pr-title` 与 `forge/hooks/pre-submit` 补上子进程单测（好 / 坏标题退出码；非产品根退出 2）。
 - 工作本 `unittest` 与 `forge-check` 两个 job 的 checkout 改为 `fetch-depth: 0`，让 `forge check` 在 CI 里看得到 `origin/dev`（缺基准时现在按设计变红）。
 - `overlay review`：`--reason "#123"` 这类登记号写成带引号的 YAML，不再被当成注释读成 null。`--suite` 必须是合法套件 id，`../` 不能改到 `suites/` 外的文件。
 - `overlay generate`：`packages` 逐项加引号，`@acme/web` 这类 scoped 包名不再写出解析不了的 `suite.yaml`。
@@ -70,6 +73,10 @@
 
 ### Changed
 
+- `forge.yaml` 改由 PyYAML（safe loader）解析，替换手写的 YAML 子集解析器。任一层级重复键仍退出 3；空文件仍报 `empty document`；未知键 did-you-mean 不变。不带引号的 `1.0` / `2026-01-01` / `yes` / `on` 按字符串读，`true` / `false` 与整数按类型读；`code_owners: yes` 照旧退出 3。
+- PR 标题三种 `title.scopes` 模式（缺省 / 列表 / `any`）统一 subject 规则：整行 ≤ 72 字符、不以 `.` / `。` 结尾、subject 至少一个可见字符（零宽字符不算）。列表模式以列表为允许集，接入方可列 `infra/dev` 这类自定义 `product/actor`；每项必须是 `[a-z][a-z0-9-]*/[a-z][a-z0-9-]*`，否则读配置退出 3 并指出那一项。
+- ADR 0004 加 2026-10-29 修订：`branches.<name>` 对顶层旧字段是**逐键**回落（缺的键取顶层值，再取默认），与代码一致；`docs/forge-config.md` 同句；单测钉住。行为未改。
+- `forge/credential.py` 只剩一个 `redact_secrets`；无人调用的 `probe_write_credential` / `WriteCredential` 删除（`docs/submit-credential.md` 没有探测步骤）。
 - 冷启动与 skill 的当前 Forge 针改为已发布的 `forge-v1.1.3`。`overlay-v2.0.0` peel 仍是 Forge 1.1.0（空根 `check` 假绿），必须第二针。不要用 GitHub Release Latest 当针。
 - `apply` 必须 `--path` 指向目标仓自己的 `forge.yaml`。不要在工具仓根对产品仓 live apply。接入方最小例改指 `examples/acme-python/`。
 - ADR 0007 仍是**提议**，未接受。

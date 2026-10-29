@@ -42,6 +42,7 @@ from forge.apply import (
 )
 from forge.brief import REQUIRED_H2 as BODY_HEADINGS
 from forge.check import EXIT_CHECK, run_check
+from forge.credential import redact_secrets
 from forge.title import EXAMPLE, GRAMMAR, lint_title
 
 MISSING_SUBMIT_TOKEN = f"missing {SUBMIT_TOKEN_ENV}"
@@ -54,10 +55,6 @@ Pusher = Callable[[str, str], None]
 SHA_RE = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
 # Names git would DWIM onto another ref (HEAD, heads/dev -> refs/heads/dev, ...).
 AMBIGUOUS_HEAD_PREFIXES = ("heads/", "refs/", "tags/")
-
-
-def _redact_secrets(text: str) -> str:
-    return re.sub(r"(AUTHORIZATION:\s*bearer\s+)\S+", r"\1[redacted]", text, flags=re.IGNORECASE)
 
 
 def default_git_runner(
@@ -75,8 +72,8 @@ def default_git_runner(
     )
     if result.returncode != 0:
         err = (result.stderr or result.stdout or "").strip() or f"exit {result.returncode}"
-        shown = " ".join(_redact_secrets(part) for part in args)
-        raise ForgeError(EXIT_CONFIG, f"git {shown} failed: {_redact_secrets(err)}")
+        shown = " ".join(redact_secrets(part) for part in args)
+        raise ForgeError(EXIT_CONFIG, f"git {shown} failed: {redact_secrets(err)}")
     return (result.stdout or "").strip()
 
 
@@ -431,5 +428,6 @@ def run_submit(
         print(f"{action} draft PR #{number}", file=out)
         return EXIT_OK
     except ForgeError as exc:
-        print(exc.message, file=err)
+        # git stderr / API bodies may echo a remote URL or header: never the token.
+        print(redact_secrets(exc.message), file=err)
         return exc.code

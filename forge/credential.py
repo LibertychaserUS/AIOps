@@ -1,77 +1,33 @@
-"""Submit credential is FORGE_SUBMIT_TOKEN only.
+"""Secret redaction for Forge error output.
 
-Ambient gh auth, GH_TOKEN, git extraheader, GITHUB_TOKEN, and
-FORGE_GITHUB_TOKEN are not enough. Never return or print the secret value.
+The submit credential is FORGE_SUBMIT_TOKEN only (see forge/submit.py and
+docs/submit-credential.md). Nothing here reads it; this module makes sure a
+failing git / API call cannot echo it (or any other GitHub token) back.
 """
 
 from __future__ import annotations
 
-import os
 import re
-from collections.abc import Mapping
-from dataclasses import dataclass
 
-from forge import SUBMIT_TOKEN_ENV
+REDACTED = "REDACTED"
 
-_SECRET_PATTERNS = (
-    re.compile(r"gh[pousr]_[A-Za-z0-9]+"),
-    re.compile(r"github_pat_[A-Za-z0-9_]+"),
-    re.compile(r"(?i)(authorization:\s*\S+\s+)\S+"),
+# Order matters: the header / userinfo patterns keep their prefix, the bare
+# token patterns replace the whole token.
+_SECRET_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    # `AUTHORIZATION: bearer <token>` / `authorization: basic <base64>` (any scheme).
+    (re.compile(r"(?i)(authorization:\s*\S+\s+)\S+"), rf"\g<1>{REDACTED}"),
+    # `https://x-access-token:ghp_...@github.com/...` — the password part of a URL userinfo.
+    (re.compile(r"(://[^/\s@:]+:)[^@/\s]+@"), rf"\g<1>{REDACTED}@"),
+    # Classic / OAuth / user-to-server / server-to-server / refresh tokens.
+    (re.compile(r"gh[pousr]_[A-Za-z0-9_]+"), REDACTED),
+    # Fine-grained personal access tokens.
+    (re.compile(r"github_pat_[A-Za-z0-9_]+"), REDACTED),
 )
 
 
 def redact_secrets(text: str) -> str:
+    """Replace GitHub tokens, Authorization header values and URL passwords."""
     out = text
-    for pattern in _SECRET_PATTERNS:
-        if pattern.groups:
-            out = pattern.sub(r"\1REDACTED", out)
-        else:
-            out = pattern.sub("REDACTED", out)
+    for pattern, replacement in _SECRET_PATTERNS:
+        out = pattern.sub(replacement, out)
     return out
-
-
-@dataclass(frozen=True)
-class WriteCredential:
-    present: bool
-    source: str
-    detail: str
-
-    def __repr__(self) -> str:
-        return f"WriteCredential(present={self.present!r}, source={self.source!r})"
-
-
-MISSING = WriteCredential(
-    present=False,
-    source="none",
-    detail=f"missing {SUBMIT_TOKEN_ENV}",
-)
-
-MISSING_MESSAGE = (
-    f"missing {SUBMIT_TOKEN_ENV}\n"
-    "Agent/local forge submit requires this named GitHub secret "
-    "(PAT / fine-grained / GitHub App token).\n"
-    "Ambient gh auth, GH_TOKEN, git extraheader, GITHUB_TOKEN, and "
-    "FORGE_GITHUB_TOKEN are not enough.\n"
-    "Ops merge uses other permissions. Never print the token."
-)
-
-
-def probe_write_credential(
-    *,
-    environ: Mapping[str, str] | os._Environ[str] | None = None,
-    cwd: object = None,
-    host: str | None = None,
-    gh_status: object = None,
-    git_extraheader: object = None,
-) -> WriteCredential:
-    """Fail-closed: only FORGE_SUBMIT_TOKEN counts. Extra kwargs ignored."""
-    del cwd, host, gh_status, git_extraheader
-    env = os.environ if environ is None else environ
-    raw = env.get(SUBMIT_TOKEN_ENV)
-    if raw is not None and str(raw).strip():
-        return WriteCredential(
-            present=True,
-            source=SUBMIT_TOKEN_ENV,
-            detail="named submit secret (value not shown)",
-        )
-    return MISSING

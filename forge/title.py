@@ -173,6 +173,14 @@ _CC_HEADER = re.compile(
     r"(?P<subject>.*)$"
 )
 
+# Shape of one `title.scopes` entry; validated by forge.apply at config load.
+SCOPE_SHAPE = r"[a-z][a-z0-9-]*/[a-z][a-z0-9-]*"
+SCOPE_RE = re.compile(SCOPE_SHAPE)
+MAX_HEADER = 72
+# Zero-width / line-separator code points: a subject made only of these
+# looks empty on GitHub yet matches `\S`.
+INVISIBLE = frozenset("\u200b\u200c\u200d\u2028\u2029\ufeff")
+
 GRAMMAR = "type(product/actor): subject"
 EXAMPLE = "feat(overlay/dev): add cover triad and invariants"
 
@@ -194,12 +202,16 @@ def lint_title(
     """Return (0, '', parts) or (2, reason, None). Never talks to GitHub.
 
     scopes:
-      None  — current product/actor grammar
+      None  — current product/actor grammar (built-in PRODUCTS / ACTORS)
       "any" — Conventional Commits syntax only
-      list  — current grammar, scope must be in the list
+      list  — product/actor grammar, scope must be in the list (the list is
+              the accepted set; adopter products / actors are fine)
+
+    Every mode: header <= 72 characters, subject has a visible character,
+    subject does not end with `.` / `。`.
     """
     raw = "" if title is None else title
-    if "\n" in raw or "\r" in raw:
+    if any(ch in raw for ch in "\n\r\u2028\u2029"):
         return EXIT_TITLE, "PR title must be a single line", None
     text = raw
     if text.strip() == "":
@@ -212,6 +224,9 @@ def lint_title(
             f"use Conventional Commits {GRAMMAR}, not [role][product] (example: {EXAMPLE})",
             None,
         )
+
+    if len(text) > MAX_HEADER:
+        return EXIT_TITLE, f"PR title must be <= {MAX_HEADER} characters", None
 
     if scopes == "any":
         return _lint_any(text)
@@ -230,6 +245,9 @@ def lint_title(
             scope = f"{parts.product}/{parts.actor}"
             if scope not in allowed:
                 return EXIT_TITLE, f"scope {scope!r} is not in title.scopes", None
+        problem = _lint_subject(parts.subject)
+        if problem:
+            return EXIT_TITLE, problem, None
         return EXIT_OK, "", parts
 
     parsed = _CC_HEADER.fullmatch(text)
@@ -266,6 +284,22 @@ def lint_title(
     actor_token = actor.split("/", 1)[0]
     if extra:
         return EXIT_TITLE, f"scope must be product/actor only (got {scope!r})", None
+    if isinstance(scopes, list):
+        # The list is the accepted set: adopters may name products / actors
+        # outside the workshop's PRODUCTS / ACTORS (entry shape is checked at
+        # config load by forge.apply).
+        if scope not in scopes:
+            return EXIT_TITLE, f"scope {scope!r} is not in title.scopes", None
+        problem = _lint_subject(subject)
+        if problem:
+            return EXIT_TITLE, problem, None
+        return EXIT_OK, "", TitleParts(
+            type=kind,
+            product=product,
+            actor=actor_token,
+            breaking=bool(parsed.group("breaking")),
+            subject=subject,
+        )
     if product not in PRODUCTS:
         return EXIT_TITLE, f"unknown product {product!r} (use {'|'.join(PRODUCTS)})", None
     if actor_token not in ACTORS:
@@ -276,8 +310,6 @@ def lint_title(
         )
     if subject.strip() == "":
         return EXIT_TITLE, "missing subject after ': '", None
-    if isinstance(scopes, list) and f"{product}/{actor_token}" not in scopes:
-        return EXIT_TITLE, f"scope {product}/{actor_token!r} is not in title.scopes", None
     return (
         EXIT_TITLE,
         f"not Conventional Commits: expected {GRAMMAR} (example: {EXAMPLE})",
@@ -285,9 +317,16 @@ def lint_title(
     )
 
 
+def _lint_subject(subject: str) -> str:
+    """Shared subject rules for every scopes mode. Empty string = fine."""
+    if not any(not ch.isspace() and ch not in INVISIBLE for ch in subject):
+        return "missing subject after ': ' (no visible character)"
+    if subject.rstrip().endswith((".", "。")):
+        return "subject must not end with a period"
+    return ""
+
+
 def _lint_any(text: str) -> tuple[int, str, TitleParts | None]:
-    if len(text) > 72:
-        return EXIT_TITLE, "PR title must be <= 72 characters", None
     parsed = _CC_HEADER.fullmatch(text)
     if parsed is None:
         return (
@@ -301,10 +340,9 @@ def _lint_any(text: str) -> tuple[int, str, TitleParts | None]:
         return EXIT_TITLE, f"type must be lowercase (got {kind!r})", None
     if kind not in TYPES:
         return EXIT_TITLE, f"unknown type {kind!r} (use {'|'.join(TYPES)})", None
-    if subject.strip() == "":
-        return EXIT_TITLE, "missing subject after ': '", None
-    if subject.rstrip().endswith("."):
-        return EXIT_TITLE, "subject must not end with a period", None
+    problem = _lint_subject(subject)
+    if problem:
+        return EXIT_TITLE, problem, None
     scope = parsed.group("scope") or ""
     product, _, actor = scope.partition("/") if scope else ("", "", "")
     parts = TitleParts(

@@ -29,6 +29,10 @@ v1 顶层 `required_checks` / `review.min_approvals` / `review.code_owners` 对 
 
 权威字段表见合入后的 `docs/forge-config.md`。CLI 行为见 [`docs/cli.md`](../cli.md)。
 
+## 修订（2026-10-29）
+
+「`branches:` 出现则完全优先」描述的是**整表**层面：有 `branches:` 时各分支按自己那条走，不再把顶层字段整套罩到每个分支。代码（`forge/apply.py` `_parse_branch_rule`）实际是**逐键**回落：`branches.<name>` 里缺的键取顶层旧字段（`required_checks` / `review.min_approvals` / `review.code_owners`）的值，顶层也缺才取默认（`[]` / `1` / `false`）。只写 `code_owners: true` 的 `branches.main` 继承顶层 `required_checks` 与 `min_approvals`。这是接入方已经依赖的行为，改成整条覆盖会悄悄丢 checks，所以本修订只把文字改成与代码一致，不改行为；单测 `tests/forge/test_config.py` `PerFieldFallbackTests` 钉住。[`docs/forge-config.md`](../forge-config.md) 同句。
+
 ## 替代方案
 
 - 组织级 Ruleset 一次罩所有仓：以后再说，第一刀仓级。

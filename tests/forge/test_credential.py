@@ -1,98 +1,53 @@
-"""Named FORGE_SUBMIT_TOKEN only. Never talks to live GitHub. Never prints secrets."""
+"""One redactor for every Forge error path. Never prints secrets."""
 
 from __future__ import annotations
 
 import unittest
 
-from forge.credential import (
-    WriteCredential,
-    probe_write_credential,
-    redact_secrets,
-)
-
-from forge import SUBMIT_TOKEN_ENV
+from forge.credential import REDACTED, redact_secrets
 
 
-class ProbeTests(unittest.TestCase):
-    def test_named_secret_is_enough(self) -> None:
-        leak = "gho_this_must_not_appear"
-        cred = probe_write_credential(
-            environ={SUBMIT_TOKEN_ENV: leak},
-            gh_status=lambda: False,
-            git_extraheader=lambda: False,
+class RedactTests(unittest.TestCase):
+    def test_bare_tokens(self) -> None:
+        tokens = (
+            "ghp_abc123TOKEN",
+            "github_pat_11AAA_bbbCCC",
+            "gho_oauthTOKEN",
+            "ghu_userTOKEN",
+            "ghs_serverTOKEN",
+            "ghr_refreshTOKEN",
         )
-        self.assertTrue(cred.present)
-        self.assertEqual(cred.source, SUBMIT_TOKEN_ENV)
-        self.assertNotIn(leak, cred.detail)
-        self.assertNotIn(leak, repr(cred))
+        for token in tokens:
+            with self.subTest(token=token):
+                cleaned = redact_secrets(f"error: {token} rejected")
+                self.assertNotIn(token, cleaned)
+                self.assertIn(REDACTED, cleaned)
 
-    def test_github_token_alone_is_not_enough(self) -> None:
-        leak = "ghs_this_must_not_appear"
-        cred = probe_write_credential(
-            environ={"GITHUB_TOKEN": leak, "FORGE_GITHUB_TOKEN": leak},
-            gh_status=lambda: True,
-            git_extraheader=lambda: True,
+    def test_authorization_headers(self) -> None:
+        for raw in (
+            "AUTHORIZATION: bearer opaque.value",
+            "Authorization: Bearer opaque.value",
+            "AUTHORIZATION: basic b3BhcXVlLnZhbHVl",
+        ):
+            with self.subTest(raw=raw):
+                cleaned = redact_secrets(f"http.extraheader={raw}")
+                self.assertNotIn("opaque", cleaned)
+                self.assertNotIn("b3BhcXVl", cleaned)
+                self.assertRegex(cleaned, r"(?i)authorization:\s*\S+ REDACTED")
+
+    def test_url_userinfo(self) -> None:
+        raw = (
+            "fatal: unable to access "
+            "'https://x-access-token:opaque-secret@github.com/acme/app.git/': 403"
         )
-        self.assertFalse(cred.present)
-        self.assertNotIn(leak, cred.detail)
-        self.assertNotIn(leak, repr(cred))
-
-    def test_gh_token_is_not_enough(self) -> None:
-        leak = "gho_this_must_not_appear"
-        cred = probe_write_credential(
-            environ={"GH_TOKEN": leak},
-            gh_status=lambda: False,
-            git_extraheader=lambda: False,
-        )
-        self.assertFalse(cred.present)
-        self.assertNotIn(leak, cred.detail)
-
-    def test_extraheader_is_not_enough(self) -> None:
-        cred = probe_write_credential(
-            environ={},
-            gh_status=lambda: False,
-            git_extraheader=lambda: True,
-        )
-        self.assertFalse(cred.present)
-        self.assertEqual(cred.source, "none")
-
-    def test_gh_login_is_not_enough(self) -> None:
-        cred = probe_write_credential(
-            environ={},
-            gh_status=lambda: True,
-            git_extraheader=lambda: False,
-        )
-        self.assertFalse(cred.present)
-        self.assertEqual(cred.source, "none")
-
-    def test_empty_named_secret_is_not_enough(self) -> None:
-        cred = probe_write_credential(
-            environ={SUBMIT_TOKEN_ENV: "   "},
-            gh_status=lambda: True,
-            git_extraheader=lambda: True,
-        )
-        self.assertFalse(cred.present)
-
-    def test_actions_github_token_is_not_submit(self) -> None:
-        leak = "ghs_this_must_not_appear"
-        cred = probe_write_credential(
-            environ={"GITHUB_ACTIONS": "true", "GITHUB_TOKEN": leak, "GH_TOKEN": leak},
-            gh_status=lambda: True,
-            git_extraheader=lambda: True,
-        )
-        self.assertFalse(cred.present)
-        self.assertNotIn(leak, cred.detail)
-
-    def test_redact(self) -> None:
-        raw = "Authorization: Bearer ghp_abc123TOKEN and github_pat_zzz_yyy"
         cleaned = redact_secrets(raw)
-        self.assertNotIn("ghp_abc123TOKEN", cleaned)
-        self.assertNotIn("github_pat_zzz_yyy", cleaned)
-        self.assertIn("REDACTED", cleaned)
+        self.assertNotIn("opaque-secret", cleaned)
+        self.assertIn("https://x-access-token:REDACTED@github.com/acme/app.git/", cleaned)
 
-    def test_write_credential_repr_omits_detail(self) -> None:
-        cred = WriteCredential(True, SUBMIT_TOKEN_ENV, "should-not-need-secret")
-        self.assertNotIn("should-not-need-secret", repr(cred))
+    def test_plain_text_untouched(self) -> None:
+        text = "git push origin abc:refs/heads/dev failed: rejected (non-fast-forward)"
+        self.assertEqual(redact_secrets(text), text)
+        self.assertEqual(redact_secrets("https://github.com/acme/app.git"), "https://github.com/acme/app.git")
 
 
 if __name__ == "__main__":

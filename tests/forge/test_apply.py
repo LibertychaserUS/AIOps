@@ -400,10 +400,11 @@ class LiveRepoGuardTests(unittest.TestCase):
             path.write_text(
                 SIMPLE_YAML
                 + "forbidden_live_repos:\n  - \"https://github.com/Acme/Prod\"\n"
-                "  - acme/prod2.git\n  - github.com/acme/prod3/\n",
+                "  - acme/prod2.git\n  - github.com/acme/prod3/\n"
+                "  - https://github.com/acme/prod4\n",
                 encoding="utf-8",
             )
-            for repo in ("acme/prod", "ACME/prod2", "acme/prod3"):
+            for repo in ("acme/prod", "ACME/prod2", "acme/prod3", "acme/prod4"):
                 with self.subTest(repo):
                     code, _, err, fake = _apply(repo=repo, path=path)
                     self.assertEqual(code, EXIT_CONFIG, err)
