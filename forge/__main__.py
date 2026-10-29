@@ -70,6 +70,11 @@ def _parser() -> argparse.ArgumentParser:
         dest="check_state",
         help="fail if docs/STATE.md is missing or stale vs forge.yaml + git",
     )
+    status_p.add_argument(
+        "--strict",
+        action="store_true",
+        help="exit 2 when any expected ruleset is missing or drifted (needs a token)",
+    )
 
     check_p = sub.add_parser(
         "check",
@@ -317,6 +322,7 @@ def main(
             path=args.path,
             write=args.write,
             check_state=args.check_state,
+            strict=args.strict,
         )
     if args.command == "check":
         return run_check(

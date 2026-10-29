@@ -6,10 +6,12 @@ import difflib
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -125,12 +127,41 @@ class ForgeConfig:
         )
 
 
-def default_urlopen(req: urllib.request.Request, timeout: int = 30) -> Any:
-    url = req.full_url if hasattr(req, "full_url") else str(req)
+def assert_not_production_host(url: str) -> None:
     host = (urlparse(url).hostname or "").lower()
     if host.endswith("ilovelearningguide.com") or host == "ilovelearningguide.com":
         raise ForgeError(EXIT_API, "refusing production host")
-    return urllib.request.urlopen(req, timeout=timeout)
+
+
+def safe_redirect(req: urllib.request.Request, new: urllib.request.Request) -> urllib.request.Request:
+    """The request urllib would follow, after Forge's redirect rules.
+
+    https never downgrades to http (the token would travel in clear), the
+    production-host guard applies to the target as it did to the first URL,
+    and the bearer token stays on the host it was issued for.
+    """
+    old_url = urlparse(req.full_url)
+    new_url = urlparse(new.full_url)
+    if old_url.scheme == "https" and new_url.scheme != "https":
+        raise ForgeError(EXIT_API, f"refusing redirect from https to {new_url.scheme or '?'}: {new.full_url}")
+    assert_not_production_host(new.full_url)
+    if (old_url.hostname or "").lower() != (new_url.hostname or "").lower():
+        new.remove_header("Authorization")
+    return new
+
+
+class ForgeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[override]
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is None:
+            return None
+        return safe_redirect(req, new)
+
+
+def default_urlopen(req: urllib.request.Request, timeout: int = 30) -> Any:
+    url = req.full_url if hasattr(req, "full_url") else str(req)
+    assert_not_production_host(url)
+    return urllib.request.build_opener(ForgeRedirectHandler).open(req, timeout=timeout)
 
 
 def resolve_token(environ: dict[str, str] | os._Environ[str] | None = None) -> str | None:
@@ -881,6 +912,94 @@ def protect_from_ruleset(item: dict[str, Any]) -> list[str]:
     return out
 
 
+RETRY_TRIES = 3
+RETRY_BACKOFF_S = (1.0, 2.0, 4.0)
+RETRY_AFTER_CAP_S = 30.0
+IDEMPOTENT_METHODS = frozenset({"GET", "HEAD"})
+
+
+class GitHubApiError(ForgeError):
+    """A ForgeError that keeps the HTTP status, so callers can branch on 422 etc."""
+
+    def __init__(self, code: int, message: str, *, status: int | None = None) -> None:
+        super().__init__(code, message)
+        self.status = status
+
+
+def _header(headers: Any, name: str) -> str | None:
+    if headers is None:
+        return None
+    try:
+        value = headers.get(name)
+        if value is None and hasattr(headers, "items"):
+            wanted = name.lower()
+            value = next((v for k, v in headers.items() if str(k).lower() == wanted), None)
+    except (AttributeError, TypeError):
+        return None
+    return str(value) if value is not None else None
+
+
+def _retry_after_seconds(headers: Any) -> float | None:
+    raw = _header(headers, "Retry-After")
+    if raw is None:
+        return None
+    try:
+        seconds = float(raw.strip())
+    except ValueError:
+        return None
+    return max(0.0, min(seconds, RETRY_AFTER_CAP_S))
+
+
+def retry_delay(method: str, status: int, headers: Any, attempt: int) -> float | None:
+    """Seconds to wait before retrying, or None: never for writes, only 5xx / 429, bounded tries."""
+    if method.upper() not in IDEMPOTENT_METHODS:
+        return None
+    if status != 429 and status < 500:
+        return None
+    if attempt >= RETRY_TRIES:
+        return None
+    retry_after = _retry_after_seconds(headers)
+    if retry_after is not None:
+        return retry_after
+    return RETRY_BACKOFF_S[min(attempt, len(RETRY_BACKOFF_S)) - 1]
+
+
+def is_rate_limited(status: int, headers: Any, raw: bytes) -> bool:
+    if status == 429:
+        return True
+    if status != 403:
+        return False
+    if (_header(headers, "X-RateLimit-Remaining") or "").strip() == "0":
+        return True
+    text = raw.decode("utf-8", errors="replace").lower()
+    return "rate limit" in text
+
+
+def rate_limit_reset(headers: Any) -> str:
+    raw = _header(headers, "X-RateLimit-Reset")
+    try:
+        when = datetime.fromtimestamp(int(str(raw).strip()), UTC)
+    except (TypeError, ValueError, OverflowError, OSError):
+        retry_after = _header(headers, "Retry-After")
+        return f"in {retry_after.strip()}s" if retry_after else "unknown"
+    return when.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def http_error_to_forge(exc: urllib.error.HTTPError) -> GitHubApiError:
+    raw = exc.read() or b""
+    message = _api_message(raw, fallback=str(exc.reason or exc))
+    headers = getattr(exc, "headers", None)
+    if is_rate_limited(exc.code, headers, raw):
+        return GitHubApiError(
+            EXIT_API,
+            f"GitHub rate limit hit ({exc.code}): {message}; resets at {rate_limit_reset(headers)}",
+            status=exc.code,
+        )
+    if exc.code in (401, 403):
+        return GitHubApiError(EXIT_AUTH, f"GitHub auth failed ({exc.code}): {message}", status=exc.code)
+    return GitHubApiError(EXIT_API, f"GitHub API {exc.code}: {message}", status=exc.code)
+
+
 class GitHubClient:
     def __init__(
         self,
@@ -888,10 +1007,13 @@ class GitHubClient:
         *,
         urlopen: UrlOpen | None = None,
         base_url: str = DEFAULT_API,
+        sleep: Callable[[float], None] | None = None,
     ) -> None:
         self.token = token
         self.urlopen = urlopen or default_urlopen
         self.base_url = base_url.rstrip("/")
+        # Injected by tests; the backoff waits are real in production.
+        self.sleep = sleep or time.sleep
 
     def request(
         self,
@@ -927,30 +1049,35 @@ class GitHubClient:
         }
         if data is not None:
             headers["Content-Type"] = "application/json"
-        req = urllib.request.Request(url, data=data, headers=headers, method=method)
-        try:
-            with self.urlopen(req, timeout=30) as resp:
-                raw = resp.read() or b""
-                status = int(getattr(resp, "status", 200) or 200)
-                headers = getattr(resp, "headers", None)
-        except ForgeError:
-            raise
-        except urllib.error.HTTPError as exc:
-            if not_found_ok and exc.code == 404:
-                return None, None
-            raw = exc.read() or b""
-            message = _api_message(raw, fallback=str(exc.reason or exc))
-            if exc.code in (401, 403):
-                raise ForgeError(EXIT_AUTH, f"GitHub auth failed ({exc.code}): {message}") from exc
-            raise ForgeError(EXIT_API, f"GitHub API {exc.code}: {message}") from exc
-        except urllib.error.URLError as exc:
-            raise ForgeError(EXIT_API, f"GitHub API network error: {exc.reason}") from exc
+        attempt = 0
+        while True:
+            attempt += 1
+            # A fresh Request per try: urllib may mutate one it has sent.
+            req = urllib.request.Request(url, data=data, headers=headers, method=method)
+            try:
+                with self.urlopen(req, timeout=30) as resp:
+                    raw = resp.read() or b""
+                    status = int(getattr(resp, "status", 200) or 200)
+                    resp_headers = getattr(resp, "headers", None)
+                break
+            except ForgeError:
+                raise
+            except urllib.error.HTTPError as exc:
+                if not_found_ok and exc.code == 404:
+                    return None, None
+                delay = retry_delay(method, exc.code, getattr(exc, "headers", None), attempt)
+                if delay is not None:
+                    self.sleep(delay)
+                    continue
+                raise http_error_to_forge(exc) from exc
+            except urllib.error.URLError as exc:
+                raise GitHubApiError(EXIT_API, f"GitHub API network error: {exc.reason}") from exc
         if status >= 400:
-            raise ForgeError(EXIT_API, f"GitHub API {status}: {_api_message(raw)}")
+            raise GitHubApiError(EXIT_API, f"GitHub API {status}: {_api_message(raw)}", status=status)
         if not raw.strip():
-            return None, headers
+            return None, resp_headers
         try:
-            return json.loads(raw.decode("utf-8")), headers
+            return json.loads(raw.decode("utf-8")), resp_headers
         except json.JSONDecodeError as exc:
             raise ForgeError(EXIT_API, f"GitHub API returned non-JSON: {exc}") from exc
 
@@ -1076,9 +1203,22 @@ def run_apply(
                 result = client.update_ruleset(owner, name, int(existing["id"]), payload)
                 action = "updated"
             else:
-                result = client.create_ruleset(owner, name, payload)
-                action = "created"
-                existing_list.append(result)
+                try:
+                    result = client.create_ruleset(owner, name, payload)
+                    action = "created"
+                except GitHubApiError as exc:
+                    # 422 on POST: a ruleset with this name already exists (created by
+                    # someone else since we listed). Look it up again and PUT by id.
+                    if exc.status != 422:
+                        raise
+                    again = find_named_ruleset(client.list_rulesets(owner, name), str(payload["name"]))
+                    if again is None or again.get("id") is None:
+                        raise
+                    existing = again
+                    result = client.update_ruleset(owner, name, int(again["id"]), payload)
+                    action = "updated"
+                else:
+                    existing_list.append(result)
             ruleset_id = result.get("id", existing.get("id") if existing else "?")
             print(f"{action} ruleset id={ruleset_id} name={payload['name']}", file=out)
         for stale in stale_ruleset_names(config, existing_list):
