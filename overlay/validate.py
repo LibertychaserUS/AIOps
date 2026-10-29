@@ -36,6 +36,8 @@ FUNCTION_ID_RE = re.compile(r"^\S+$")
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
 H2_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
 TECHNIQUE_HEADING_RE = re.compile(r"^###\s+(functional|negative|edge)\b", re.IGNORECASE)
+SECTION_HEADING_RE = re.compile(r"^#{1,3}\s")
+FENCE_RE = re.compile(r"^\s{0,3}(```|~~~)")
 REQUIRED_TECHNIQUES = frozenset({"functional", "negative", "edge"})
 TOKEN_RE = re.compile(r"\S+")
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -180,13 +182,33 @@ def parse_function_id(heading: str) -> str | None:
     return token
 
 
+def visible_markdown(text: str) -> str:
+    """Blank out fenced code blocks. A heading inside a fence is an example, not structure."""
+    out: list[str] = []
+    fence: str | None = None
+    for line in text.splitlines():
+        match = FENCE_RE.match(line)
+        if match is not None:
+            if fence is None:
+                fence = match.group(1)
+            elif match.group(1) == fence:
+                fence = None
+            out.append("")
+            continue
+        out.append("" if fence else line)
+    return "\n".join(out)
+
+
 def cases_techniques(cases_text: str) -> dict[str, frozenset[str]]:
+    """Techniques per function_id. A technique counts only once a non-blank body line follows."""
     collected: dict[str, set[str]] = {}
     current: str | None = None
-    for line in cases_text.splitlines():
+    pending: str | None = None
+    for line in visible_markdown(cases_text).splitlines():
         heading = H2_RE.match(line)
         if heading is not None:
             current = parse_function_id(heading.group(1))
+            pending = None
             if current is not None:
                 collected.setdefault(current, set())
             continue
@@ -194,14 +216,21 @@ def cases_techniques(cases_text: str) -> dict[str, frozenset[str]]:
             continue
         technique = TECHNIQUE_HEADING_RE.match(line)
         if technique is not None:
-            collected.setdefault(current, set()).add(technique.group(1).lower())
+            pending = technique.group(1).lower()
+            continue
+        if SECTION_HEADING_RE.match(line) is not None:
+            pending = None
+            continue
+        if pending is not None and line.strip():
+            collected.setdefault(current, set()).add(pending)
+            pending = None
     return {key: frozenset(value) for key, value in collected.items()}
 
 
 def cases_function_ids(cases_text: str) -> list[str]:
     ids: list[str] = []
     seen: set[str] = set()
-    for match in H2_RE.finditer(cases_text):
+    for match in H2_RE.finditer(visible_markdown(cases_text)):
         token = parse_function_id(match.group(1))
         if token is None:
             continue
@@ -215,22 +244,27 @@ def look_like_url(text: str) -> list[str]:
     return URL_IN_TEXT_RE.findall(text)
 
 
-def forbid_host_url_hits(text: str, hosts: Iterable[str]) -> list[str]:
+def _host_re(host: str) -> re.Pattern[str]:
+    # Host boundary: bare host, any subdomain, after :// or user@. Not inside a longer label,
+    # so example.com does not match example.community or notexample.com.
+    return re.compile(r"(?<![a-z0-9.-])(?:[a-z0-9-]+\.)*" + re.escape(host) + r"(?![a-z0-9-])")
+
+
+def forbid_host_hits(text: str, hosts: Iterable[str]) -> list[str]:
+    """Hosts mentioned anywhere in text, scheme or not. Used on product_command."""
     lower = text.lower()
     hits: list[str] = []
     for host in hosts:
         host_l = host.lower().strip()
-        if not host_l:
-            continue
-        needles = (
-            f"https://{host_l}",
-            f"http://{host_l}",
-            f"https://www.{host_l}",
-            f"http://www.{host_l}",
-        )
-        if any(needle in lower for needle in needles):
+        if host_l and _host_re(host_l).search(lower) is not None:
             hits.append(host)
     return hits
+
+
+def forbid_host_url_hits(text: str, hosts: Iterable[str]) -> list[str]:
+    """Hosts inside http(s) URLs only. Used on inbox prose, where a bare mention is allowed."""
+    urls = "\n".join(look_like_url(text))
+    return forbid_host_hits(urls, hosts) if urls else []
 
 
 def is_blank(value: Any) -> bool:
@@ -253,6 +287,9 @@ def load_overlay_config(root: Path, issues: list[Issue]) -> OverlayConfig | None
         return None
     if data.get("schema") != "overlay-config/v1":
         issues.append(Issue(rel, "schema must be overlay-config/v1"))
+    # Unknown keys are errors: a typo must not silently fall back to a default.
+    for err in schema_validate(data, load_json_schema("overlay-config.schema.json"), "$"):
+        issues.append(Issue(rel, err))
 
     product = data.get("product")
     repo = ""
@@ -551,7 +588,7 @@ def validate_suite_file(
     function_ids = cases_function_ids(cases_text)
     techniques = cases_techniques(cases_text)
     seen_headings: set[str] = set()
-    for heading in H2_RE.finditer(cases_text):
+    for heading in H2_RE.finditer(visible_markdown(cases_text)):
         token = parse_function_id(heading.group(1))
         if token is not None and token in seen_headings:
             issues.append(Issue(cases_rel, f"duplicate ## {token}; function_id must be unique"))

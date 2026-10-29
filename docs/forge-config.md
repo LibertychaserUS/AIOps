@@ -12,16 +12,18 @@
 | `deny_paths` | `check` 的 deny_paths 命中即红 | `.github/workflows/ci.yml` |
 | `required_checks` | 旧字段：对每个 protect 分支套同一组 CI job 名 | `[]` |
 | `review.min_approvals` / `review.code_owners` | 旧字段：对每个 protect 分支套同一审批 | `1` / `false` |
-| `branches.<name>` | 按分支覆盖：`required_checks`、`approvals`、`code_owners`、`promote_from` | 逐键回落旧字段，再回落默认 |
+| `branches.<name>` | 按分支覆盖：`required_checks`、`approvals`、`code_owners`、`promote_from`、`merge_methods`、`last_push_approval`、`resolve_threads` | 逐键回落旧字段，再回落默认 |
 | `title.scopes` | `any` 或允许的 `product/actor` 列表 | 缺省 = 现行 `product/actor` 语法 |
 | `docs_sync` | 路径表：命中 `paths` 必须同时改任一 `require` | `[]` |
 | `forbidden_live_repos` | live `apply` / `release` 拒绝的 `OWNER/NAME` | `[]` |
 | `tag_patterns` | tag Ruleset 的 include | `[overlay-v*, forge-v*]` |
+| `checks_app_id` | required checks 绑定的 GitHub App id（`integration_id`）；`null` / `none` 不绑 | `15368`（GitHub Actions） |
+| `tag_rules.creation` | tag Ruleset 加 `creation` 规则 + 仓库 admin bypass（[ADR 0008](adr/0008-tag-creation-lock.md)，提议，opt-in） | `false` |
 | `ci` | `ci-select` 选择器（通用检查 ≠ 产品门） | 可选 |
 
 `branches:` 出现时优先于顶层 `required_checks` / `review`。旧字段继续接受，等价于给 `protect` 里每个分支套同一规则。优先是**逐键**的：`branches.<name>` 里没写的键取顶层旧字段的值（`required_checks` / `review.min_approvals` / `review.code_owners`），顶层也没写才取默认；只写 `code_owners: true` 的 `branches.main` 仍继承顶层 `required_checks` 与 `min_approvals`。见 [ADR 0004](adr/0004-per-branch-rulesets.md) 2026-10-29 修订。
 
-`branches.<name>` 只认 `required_checks`、`approvals`、`code_owners`、`promote_from`；`review` 只认 `min_approvals`、`code_owners`。拼错（`aprovals`、`min_approval`）退出 3 并给 did-you-mean，不再静默回落默认。`branches:` 里的分支必须在 `protect` 里；`promote_from` 指向的分支也必须在 `protect` 里，且不能是自己。
+`branches.<name>` 只认 `required_checks`、`approvals`、`code_owners`、`promote_from`、`merge_methods`、`last_push_approval`、`resolve_threads`；`review` 只认 `min_approvals`、`code_owners`；`tag_rules` 只认 `creation`。拼错（`aprovals`、`min_approval`）退出 3 并给 did-you-mean，不再静默回落默认。`branches:` 里的分支必须在 `protect` 里；`promote_from` 指向的分支也必须在 `protect` 里，且不能是自己。
 
 ## 按分支规则
 
@@ -39,11 +41,33 @@ branches:
     promote_from: dev
 ```
 
+| 分支键 | 写入 `pull_request` 参数 | 默认 |
+|---|---|---|
+| `required_checks` | `required_status_checks`（strict；空列表时**不写**这条规则并警告） | 顶层 `required_checks` |
+| `approvals` | `required_approving_review_count` | `review.min_approvals` |
+| `code_owners` | `require_code_owner_review` | `review.code_owners` |
+| `merge_methods` | `allowed_merge_methods`（`merge` / `squash` / `rebase` 的非空子集） | `[squash]` |
+| `last_push_approval` | `require_last_push_approval` | `approvals ≥ 1` 时 `true`，否则 `false` |
+| `resolve_threads` | `required_review_thread_resolution` | `false` |
+
+`merge_methods` 默认只放 squash，与「进保护分支默认 squash 封顶」一致（[ADR 0004](adr/0004-per-branch-rulesets.md) 修订）。要放开 merge commit 或 rebase 的仓显式写 `merge_methods: [squash, merge]`。
+
 `submit` 只推检查过的提交：`--head` 必须是当前检出分支（不收 `HEAD`、`heads/`、`refs/`、`tags/`），工作树必须干净（含未跟踪文件），推送用 `<sha>:refs/heads/<head>`。更新已有 PR 只改标题，不动正文。`FORGE_GITHUB_API` 必须是 https（仅 `127.0.0.1` / `localhost` 可 http）。
 
-`apply` 为每个保护分支写一条 Ruleset，名 `forge-protected-<branch>`，幂等按名 PUT。另写 `forge-protected-tags`，保护 `refs/tags/overlay-v*` 与 `refs/tags/forge-v*`（可配 `tag_patterns`）。`--dry-run` 打印全部 payload。`status` 逐条报告 installed / missing / drifted。
+`apply` 为每个保护分支写一条 Ruleset，名 `forge-protected-<branch>`，幂等按名 PUT。另写 `forge-protected-tags`，保护 `refs/tags/overlay-v*` 与 `refs/tags/forge-v*`（可配 `tag_patterns`）：禁止更新 / 删除 / 非快进；`tag_rules.creation: true` 时再加 `creation`，并给仓库 admin 一条 `bypass_actors`（见 [ADR 0008](adr/0008-tag-creation-lock.md)，提议；默认关）。`--dry-run` 打印全部 payload。`status` 逐条报告 installed / missing / drifted；GitHub 上还有、但已不对应任何 `protect` 分支的 `forge-protected-*`（`forge-protected-tags` 除外）另报 `stale`。`apply` 也列出 stale，但**不删**；要删去 GitHub 设置页手动删。
 
-drifted 按整条 payload 比：`name`、`target`、`enforcement`、`bypass_actors`、`conditions.ref_name.include` / `exclude`、规则类型集合、Forge 写入的每个规则参数（含 `require_last_push_approval`），以及 required checks 的 `context` + `integration_id`（排序后比，顺序不算漂移）。忽略 GitHub 生成的 `id`、`source`、`source_type`、`node_id`、时间戳、`_links`、`current_user_can_bypass`，以及 Forge 没写、GitHub 回显默认值的参数（如 `allowed_merge_methods`）。被停用（`disabled` / `evaluate`）、加了 bypass、加了 exclude 的 Ruleset 报 drifted，不再报 installed。
+`apply` / `status` 的非致命警告写 stderr、不改退出码：某分支 `code_owners: true` 但目标根下没有 `.github/CODEOWNERS`、`CODEOWNERS`、`docs/CODEOWNERS` 任一；某保护分支 `required_checks` 为空（此时不写 `required_status_checks` 规则，而不是写一条空 contexts）。`apply` 的目标根取 `--path` 所在目录（省略 `--path` 时取 cwd）；`status` 取 `--root`。
+
+### required checks 绑定 Actions app（`checks_app_id`）
+
+每条 required check 都带 `integration_id`，默认 `15368`（GitHub Actions app）。不绑时，任何有 write 权限的人都能 POST 一条同名 commit status（如 `unittest`）满足 Ruleset；绑上后只认 Actions 跑出来的同名 job。工作本与两个示例的 required checks 全是 Actions job，默认值不会卡住任何人。
+
+- check 来自别的 App（Jenkins、Buildkite 等）：写那个 App 的 id，`checks_app_id: 123456`。
+- 混用或不想绑：`checks_app_id: null`（或 `none`），回到只按名字匹配。
+
+装过旧版的仓，`status` 会把每条分支 Ruleset 报成 drifted（`integration_id` 参与比对），重新 `apply` 一次即回 installed。
+
+drifted 按整条 payload 比：`name`、`target`、`enforcement`、`bypass_actors`、`conditions.ref_name.include` / `exclude`、规则类型集合、Forge 写入的每个规则参数（含 `require_last_push_approval`、`allowed_merge_methods`、`required_review_thread_resolution`），以及 required checks 的 `context` + `integration_id`（排序后比，顺序不算漂移）。忽略 GitHub 生成的 `id`、`source`、`source_type`、`node_id`、时间戳、`_links`、`current_user_can_bypass`，以及 Forge 没写、GitHub 回显默认值的参数。被停用（`disabled` / `evaluate`）、加了 bypass、加了 exclude 的 Ruleset 报 drifted，不再报 installed。
 
 `apply` / `status` 列 Ruleset 时带 `includes_parents=false` 并按 `Link: rel="next"` 翻完所有页；只认 `source_type` 为 `Repository`（缺该字段视为本仓）的条目。组织级同名 Ruleset 不会被当成本仓的去 PUT。
 

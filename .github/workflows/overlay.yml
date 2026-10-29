@@ -35,7 +35,7 @@ on:
         type: string
         default: LibertychaserUS/AIOps
       tool_ref:
-        description: "Git ref of the tool checkout. Empty uses github.workflow_sha."
+        description: "Git ref of the tool checkout (a published overlay-v* tag or SHA). Required for adopters: inside a reusable workflow github.workflow_sha is the caller's commit, not a ref of this repo."
         type: string
         default: ""
       setup_command:
@@ -65,12 +65,18 @@ jobs:
             echo "local=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Require tool_ref
+        if: steps.pkg.outputs.local == 'false' && inputs.tool_ref == ''
+        run: |
+          echo "::error::tool_ref is required: github.workflow_sha is the caller's commit inside a reusable workflow, not a ref of the tool repository"
+          exit 1
+
       - name: Checkout Overlay product
         if: steps.pkg.outputs.local == 'false'
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.tool_repository }}
-          ref: ${{ inputs.tool_ref != '' && inputs.tool_ref || github.workflow_sha }}
+          ref: ${{ inputs.tool_ref }}
           path: _aiops
           persist-credentials: false
 
@@ -81,10 +87,12 @@ jobs:
 
       - name: Install Overlay
         run: |
+          # Tool deps first (PyYAML). The caller's requirements.txt must not shadow them.
+          if [ -f _aiops/requirements.txt ]; then
+            pip install -r _aiops/requirements.txt
+          fi
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
-          elif [ -f _aiops/requirements.txt ]; then
-            pip install -r _aiops/requirements.txt
           fi
           if [ -d _aiops/overlay ]; then
             echo "PYTHONPATH=${GITHUB_WORKSPACE}/_aiops" >> "$GITHUB_ENV"
@@ -112,12 +120,18 @@ jobs:
             echo "local=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Require tool_ref
+        if: steps.pkg.outputs.local == 'false' && inputs.tool_ref == ''
+        run: |
+          echo "::error::tool_ref is required: github.workflow_sha is the caller's commit inside a reusable workflow, not a ref of the tool repository"
+          exit 1
+
       - name: Checkout Overlay product
         if: steps.pkg.outputs.local == 'false'
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.tool_repository }}
-          ref: ${{ inputs.tool_ref != '' && inputs.tool_ref || github.workflow_sha }}
+          ref: ${{ inputs.tool_ref }}
           path: _aiops
           persist-credentials: false
 
@@ -128,10 +142,12 @@ jobs:
 
       - name: Install Overlay
         run: |
+          # Tool deps first (PyYAML). The caller's requirements.txt must not shadow them.
+          if [ -f _aiops/requirements.txt ]; then
+            pip install -r _aiops/requirements.txt
+          fi
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
-          elif [ -f _aiops/requirements.txt ]; then
-            pip install -r _aiops/requirements.txt
           fi
           if [ -d _aiops/overlay ]; then
             echo "PYTHONPATH=${GITHUB_WORKSPACE}/_aiops" >> "$GITHUB_ENV"
@@ -186,12 +202,18 @@ jobs:
             echo "local=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Require tool_ref
+        if: steps.pkg.outputs.local == 'false' && inputs.tool_ref == ''
+        run: |
+          echo "::error::tool_ref is required: github.workflow_sha is the caller's commit inside a reusable workflow, not a ref of the tool repository"
+          exit 1
+
       - name: Checkout Overlay product
         if: steps.pkg.outputs.local == 'false'
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.tool_repository }}
-          ref: ${{ inputs.tool_ref != '' && inputs.tool_ref || github.workflow_sha }}
+          ref: ${{ inputs.tool_ref }}
           path: _aiops
           persist-credentials: false
 
@@ -202,10 +224,12 @@ jobs:
 
       - name: Install Overlay
         run: |
+          # Tool deps first (PyYAML). The caller's requirements.txt must not shadow them.
+          if [ -f _aiops/requirements.txt ]; then
+            pip install -r _aiops/requirements.txt
+          fi
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
-          elif [ -f _aiops/requirements.txt ]; then
-            pip install -r _aiops/requirements.txt
           fi
           if [ -d _aiops/overlay ]; then
             echo "PYTHONPATH=${GITHUB_WORKSPACE}/_aiops" >> "$GITHUB_ENV"

@@ -1,7 +1,8 @@
 # Forge product gate. Common specs stay on ci.yml (pr-title + sop-lock).
 # This workflow always starts (no on.paths). Selector skip is success so the
 # required check name `forge-check` stays stable.
-# When selected: Forge unit tests + apply --dry-run.
+# When selected: forge check (deny_paths / suite_guard / docs_sync / pr spec +
+# the full unittest discover) + apply --dry-run.
 # Not the title gate. Not sop-lock. No live apply. No forge submit. No generate.
 
 name: forge-check
@@ -43,9 +44,15 @@ jobs:
         if: steps.sel.outputs.run != 'true'
         run: echo "selector skipped forge-check (${{ steps.sel.outputs.reason }})"
 
-      - name: forge unit tests
+      # Same checklist as the local 代推锁. pull_request lints PR_TITLE / PR_BODY;
+      # push lints the HEAD subject. Runs `unittest discover -s tests -t .`,
+      # which covers tests/forge (no separate Forge-only discover step).
+      - name: forge check
         if: steps.sel.outputs.run == 'true'
-        run: python3 -m unittest discover -s tests/forge -t . -q
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python3 -m forge check --root .
 
       - name: forge apply --dry-run
         if: steps.sel.outputs.run == 'true'

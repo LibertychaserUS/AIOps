@@ -10,8 +10,11 @@ from pathlib import Path
 
 from forge.__main__ import main
 from forge.apply import (
+    DEFAULT_CHECKS_APP_ID,
     build_branch_payload,
     build_payloads,
+    build_tag_payload,
+    config_warnings,
     load_config,
     load_ruleset_template,
     run_apply,
@@ -167,11 +170,12 @@ class DefaultPayloadTests(unittest.TestCase):
         self.assertEqual(pr["parameters"]["required_approving_review_count"], 1)
         self.assertIs(pr["parameters"]["require_code_owner_review"], False)
         self.assertIs(pr["parameters"]["dismiss_stale_reviews_on_push"], True)
+        # No required_checks: the rule is omitted rather than written with [] contexts.
         types = [rule["type"] for rule in payload["rules"]]
-        self.assertIn("required_status_checks", types)
-        check = next(rule for rule in payload["rules"] if rule["type"] == "required_status_checks")
-        self.assertIs(check["parameters"]["strict_required_status_checks_policy"], True)
-        self.assertEqual(check["parameters"]["required_status_checks"], [])
+        self.assertNotIn("required_status_checks", types)
+        self.assertEqual(pr["parameters"]["allowed_merge_methods"], ["squash"])
+        self.assertIs(pr["parameters"]["require_last_push_approval"], True)
+        self.assertIs(pr["parameters"]["required_review_thread_resolution"], False)
 
     def test_example_yaml_writes_required_status_checks(self) -> None:
         config = load_config(EXAMPLE)
@@ -366,6 +370,178 @@ class DryRunAndAuthTests(unittest.TestCase):
             self.assertEqual(before | {"forge.yaml"}, after)
             self.assertFalse((cwd / "AGENTS.md").exists())
             self.assertFalse((cwd / ".github" / "CODEOWNERS").exists())
+
+
+class HardeningTests(unittest.TestCase):
+    """checks_app_id, merge methods, tag creation, CODEOWNERS / empty-check warnings."""
+
+    def test_required_checks_bind_to_actions_app_by_default(self) -> None:
+        config = validate_config({"schema": "forge-config/v1", "required_checks": ["unit", "lint"]})
+        self.assertEqual(config.checks_app_id, DEFAULT_CHECKS_APP_ID)
+        payload = build_branch_payload(config, "main")
+        rule = next(item for item in payload["rules"] if item["type"] == "required_status_checks")
+        self.assertEqual(
+            rule["parameters"]["required_status_checks"],
+            [
+                {"context": "unit", "integration_id": 15368},
+                {"context": "lint", "integration_id": 15368},
+            ],
+        )
+
+    def test_checks_app_id_custom_and_null(self) -> None:
+        custom = validate_config(
+            {"schema": "forge-config/v1", "required_checks": ["unit"], "checks_app_id": 4242}
+        )
+        rule = next(
+            item
+            for item in build_branch_payload(custom, "main")["rules"]
+            if item["type"] == "required_status_checks"
+        )
+        self.assertEqual(rule["parameters"]["required_status_checks"][0]["integration_id"], 4242)
+        for off in (None, "null", "none"):
+            with self.subTest(off):
+                config = validate_config(
+                    {"schema": "forge-config/v1", "required_checks": ["unit"], "checks_app_id": off}
+                )
+                self.assertIsNone(config.checks_app_id)
+                rule = next(
+                    item
+                    for item in build_branch_payload(config, "main")["rules"]
+                    if item["type"] == "required_status_checks"
+                )
+                self.assertEqual(rule["parameters"]["required_status_checks"], [{"context": "unit"}])
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "forge.yaml"
+            path.write_text("schema: forge-config/v1\nchecks_app_id: null\n", encoding="utf-8")
+            self.assertIsNone(load_config(path).checks_app_id)
+        for bad in (0, -1, True, "abc"):
+            with self.subTest(bad), self.assertRaises(Exception) as ctx:
+                validate_config({"schema": "forge-config/v1", "checks_app_id": bad})
+            self.assertEqual(ctx.exception.code, EXIT_CONFIG)
+
+    def test_merge_methods_last_push_and_thread_resolution(self) -> None:
+        config = validate_config(
+            {
+                "schema": "forge-config/v1",
+                "protect": ["dev", "main"],
+                "branches": {
+                    "dev": {"approvals": 0},
+                    "main": {
+                        "approvals": 2,
+                        "merge_methods": ["squash", "merge"],
+                        "last_push_approval": False,
+                        "resolve_threads": True,
+                    },
+                },
+            }
+        )
+        dev = next(
+            r for r in build_branch_payload(config, "dev")["rules"] if r["type"] == "pull_request"
+        )["parameters"]
+        self.assertEqual(dev["allowed_merge_methods"], ["squash"])
+        self.assertIs(dev["require_last_push_approval"], False)  # approvals 0
+        self.assertIs(dev["required_review_thread_resolution"], False)
+        main = next(
+            r for r in build_branch_payload(config, "main")["rules"] if r["type"] == "pull_request"
+        )["parameters"]
+        self.assertEqual(main["allowed_merge_methods"], ["squash", "merge"])
+        self.assertIs(main["require_last_push_approval"], False)  # explicit override
+        self.assertIs(main["required_review_thread_resolution"], True)
+        for bad in ({"merge_methods": []}, {"merge_methods": ["fast-forward"]}, {"last_push_approval": "yes"}, {"resolve_threads": 1}, {"merge_method": ["squash"]}):
+            with self.subTest(bad), self.assertRaises(Exception) as ctx:
+                validate_config({"schema": "forge-config/v1", "branches": {"main": bad}})
+            self.assertEqual(ctx.exception.code, EXIT_CONFIG)
+
+    def test_legacy_review_fields_default_last_push_to_approvals(self) -> None:
+        config = validate_config({"schema": "forge-config/v1", "review": {"min_approvals": 0}})
+        pr = next(
+            r for r in build_branch_payload(config, "main")["rules"] if r["type"] == "pull_request"
+        )["parameters"]
+        self.assertIs(pr["require_last_push_approval"], False)
+
+    def test_tag_creation_is_off_by_default_and_opt_in(self) -> None:
+        default = build_tag_payload(validate_config({"schema": "forge-config/v1"}))
+        self.assertEqual([r["type"] for r in default["rules"]], ["deletion", "non_fast_forward", "update"])
+        self.assertEqual(default["bypass_actors"], [])
+        workshop = build_tag_payload(load_config(ROOT / "forge.yaml"))
+        self.assertNotIn("creation", [r["type"] for r in workshop["rules"]])
+        on = build_tag_payload(
+            validate_config({"schema": "forge-config/v1", "tag_rules": {"creation": True}})
+        )
+        self.assertIn({"type": "creation"}, on["rules"])
+        self.assertEqual(
+            on["bypass_actors"],
+            [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}],
+        )
+        with self.assertRaises(Exception) as ctx:
+            validate_config({"schema": "forge-config/v1", "tag_rules": {"creatoin": True}})
+        self.assertEqual(ctx.exception.code, EXIT_CONFIG)
+        self.assertIn("did you mean tag_rules.creation", ctx.exception.message)
+
+    def test_code_owners_without_codeowners_file_warns(self) -> None:
+        yaml_text = (
+            "schema: forge-config/v1\nprotect: [main]\nrequired_checks: [unit]\n"
+            "review:\n  min_approvals: 1\n  code_owners: true\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "forge.yaml"
+            path.write_text(yaml_text, encoding="utf-8")
+            stderr = io.StringIO()
+            code = run_apply(repo=REPO, path=path, dry_run=True, stdout=io.StringIO(), stderr=stderr)
+            self.assertEqual(code, EXIT_OK)
+            self.assertIn("warning: code_owners: true but no CODEOWNERS", stderr.getvalue())
+            for rel in (".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"):
+                with self.subTest(rel):
+                    target = root / rel
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_text("* @acme/owners\n", encoding="utf-8")
+                    self.assertEqual(config_warnings(load_config(path), root), [])
+                    target.unlink()
+
+    def test_empty_required_checks_omits_rule_and_warns(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "forge.yaml"
+            path.write_text("schema: forge-config/v1\nprotect: [main]\n", encoding="utf-8")
+            fake = FakeGitHub()
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            code = run_apply(
+                repo=REPO,
+                path=path,
+                token="t",
+                urlopen=fake.urlopen,
+                base_url=FAKE_API,
+                stdout=stdout,
+                stderr=stderr,
+            )
+            self.assertEqual(code, EXIT_OK, stderr.getvalue())
+            self.assertIn("warning: branches.main.required_checks is empty", stderr.getvalue())
+            main = next(rs for rs in fake.rulesets if rs["name"] == branch_ruleset_name("main"))
+            self.assertNotIn("required_status_checks", [r["type"] for r in main["rules"]])
+
+    def test_apply_lists_stale_rulesets_but_never_deletes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _write_simple(tmp)
+            fake = FakeGitHub()
+            fake.rulesets.append(
+                {"id": 77, "name": branch_ruleset_name("release"), "target": "branch", "rules": []}
+            )
+            stdout = io.StringIO()
+            code = run_apply(
+                repo=REPO,
+                path=path,
+                token="t",
+                urlopen=fake.urlopen,
+                base_url=FAKE_API,
+                stdout=stdout,
+                stderr=io.StringIO(),
+            )
+            self.assertEqual(code, EXIT_OK)
+            self.assertIn("stale ruleset name=forge-protected-release", stdout.getvalue())
+            self.assertNotIn("DELETE", fake.methods())
+            self.assertTrue(any(rs["id"] == 77 for rs in fake.rulesets))
 
 
 if __name__ == "__main__":

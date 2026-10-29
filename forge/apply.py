@@ -39,6 +39,14 @@ DEFAULT_PROTECT = ("main",)
 DEFAULT_PREFIXES = ("cursor/", "copilot/")
 DEFAULT_DENY = (".github/workflows/ci.yml",)
 DEFAULT_TAG_PATTERNS = ("overlay-v*", "forge-v*")
+# GitHub Actions app id: a required check must come from Actions, not from a
+# commit status anyone with write access can POST under the same name.
+DEFAULT_CHECKS_APP_ID = 15368
+DEFAULT_MERGE_METHODS = ("squash",)
+ALLOWED_MERGE_METHODS = ("merge", "squash", "rebase")
+# Repository admin role: the only bypass actor forge ever writes (tag creation).
+ADMIN_BYPASS_ACTOR = {"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}
+CODEOWNERS_LOCATIONS = (".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS")
 KNOWN_TOP_LEVEL_KEYS = (
     "schema",
     "protect",
@@ -52,6 +60,8 @@ KNOWN_TOP_LEVEL_KEYS = (
     "docs_sync",
     "forbidden_live_repos",
     "tag_patterns",
+    "checks_app_id",
+    "tag_rules",
 )
 
 
@@ -69,6 +79,15 @@ class BranchRule:
     approvals: int = 1
     code_owners: bool = False
     promote_from: str | None = None
+    merge_methods: list[str] = field(default_factory=lambda: list(DEFAULT_MERGE_METHODS))
+    # None = follow approvals (True when approvals >= 1); see last_push_required().
+    last_push_approval: bool | None = None
+    resolve_threads: bool = False
+
+    def last_push_required(self) -> bool:
+        if self.last_push_approval is None:
+            return self.approvals >= 1
+        return self.last_push_approval
 
 
 @dataclass(frozen=True)
@@ -91,6 +110,8 @@ class ForgeConfig:
     docs_sync: list[DocsSyncRule] = field(default_factory=list)
     forbidden_live_repos: list[str] = field(default_factory=list)
     tag_patterns: list[str] = field(default_factory=lambda: list(DEFAULT_TAG_PATTERNS))
+    checks_app_id: int | None = DEFAULT_CHECKS_APP_ID
+    tag_creation: bool = False
 
     def rule_for(self, branch: str) -> BranchRule:
         found = self.branches.get(branch)
@@ -265,7 +286,16 @@ def normalize_branch(name: str) -> str:
     return match.group(1)
 
 
-KNOWN_BRANCH_KEYS = ("required_checks", "approvals", "code_owners", "promote_from")
+KNOWN_BRANCH_KEYS = (
+    "required_checks",
+    "approvals",
+    "code_owners",
+    "promote_from",
+    "merge_methods",
+    "last_push_approval",
+    "resolve_threads",
+)
+KNOWN_TAG_RULES_KEYS = ("creation",)
 KNOWN_REVIEW_KEYS = ("min_approvals", "code_owners")
 
 
@@ -379,13 +409,58 @@ def _parse_branch_rule(
         promote = normalize_branch(promote_from)
     else:
         raise ForgeError(EXIT_CONFIG, f"illegal branches.{name}.promote_from: {promote_from!r}")
+    if "merge_methods" in raw:
+        methods = _string_list(raw["merge_methods"], f"branches.{name}.merge_methods", allow_empty=False)
+        for method in methods:
+            if method not in ALLOWED_MERGE_METHODS:
+                raise ForgeError(
+                    EXIT_CONFIG,
+                    f"illegal branches.{name}.merge_methods item: {method!r} "
+                    f"({' | '.join(ALLOWED_MERGE_METHODS)})",
+                )
+    else:
+        methods = list(DEFAULT_MERGE_METHODS)
+    last_push = raw.get("last_push_approval")
+    if last_push is not None and not isinstance(last_push, bool):
+        raise ForgeError(EXIT_CONFIG, f"illegal branches.{name}.last_push_approval: {last_push!r}")
+    resolve_threads = raw.get("resolve_threads", False)
+    if not isinstance(resolve_threads, bool):
+        raise ForgeError(EXIT_CONFIG, f"illegal branches.{name}.resolve_threads: {resolve_threads!r}")
     return BranchRule(
         name=name,
         required_checks=checks,
         approvals=approvals,
         code_owners=code_owners,
         promote_from=promote,
+        merge_methods=methods,
+        last_push_approval=last_push,
+        resolve_threads=resolve_threads,
     )
+
+
+def _parse_checks_app_id(raw: dict[str, Any]) -> int | None:
+    """`checks_app_id: null` / `none` unbinds required checks from the Actions app."""
+    if "checks_app_id" not in raw:
+        return DEFAULT_CHECKS_APP_ID
+    value = raw["checks_app_id"]
+    if value is None or (isinstance(value, str) and value.strip().lower() in {"none", "null"}):
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ForgeError(EXIT_CONFIG, f"illegal checks_app_id: {value!r} (positive int | null)")
+    return value
+
+
+def _parse_tag_rules(raw: Any) -> bool:
+    """tag_rules.creation (default false). Opt-in: ADR 0008 is a proposal."""
+    if raw is None:
+        return False
+    if not isinstance(raw, dict):
+        raise ForgeError(EXIT_CONFIG, "illegal tag_rules: expected a mapping")
+    _reject_unknown_keys(raw, KNOWN_TAG_RULES_KEYS, "tag_rules.")
+    creation = raw.get("creation", False)
+    if not isinstance(creation, bool):
+        raise ForgeError(EXIT_CONFIG, f"illegal tag_rules.creation: {creation!r}")
+    return creation
 
 
 def validate_config(raw: dict[str, Any]) -> ForgeConfig:
@@ -497,6 +572,8 @@ def validate_config(raw: dict[str, Any]) -> ForgeConfig:
         docs_sync=_parse_docs_sync(raw.get("docs_sync")),
         forbidden_live_repos=forbidden,
         tag_patterns=tag_patterns,
+        checks_app_id=_parse_checks_app_id(raw),
+        tag_creation=_parse_tag_rules(raw.get("tag_rules")),
     )
 
 
@@ -555,24 +632,33 @@ def build_branch_payload(config: ForgeConfig, branch: str) -> dict[str, Any]:
             params["required_approving_review_count"] = rule.approvals
             params["require_code_owner_review"] = rule.code_owners
             params["dismiss_stale_reviews_on_push"] = True
-            params.setdefault("require_last_push_approval", False)
+            params["require_last_push_approval"] = rule.last_push_required()
+            params["allowed_merge_methods"] = list(rule.merge_methods)
+            params["required_review_thread_resolution"] = rule.resolve_threads
     if not found_pr:
         raise ForgeError(EXIT_CONFIG, "ruleset template is missing pull_request")
-    check_rule = {
-        "type": "required_status_checks",
-        "parameters": {
-            "strict_required_status_checks_policy": True,
-            "required_status_checks": [{"context": name} for name in rule.required_checks],
-        },
-    }
-    replaced = False
-    for index, item in enumerate(rules):
-        if isinstance(item, dict) and item.get("type") == "required_status_checks":
-            rules[index] = check_rule
-            replaced = True
-            break
-    if not replaced:
-        rules.append(check_rule)
+    # No checks: omit the rule (an empty contexts list is a no-op GitHub may reject).
+    rules[:] = [
+        item
+        for item in rules
+        if not (isinstance(item, dict) and item.get("type") == "required_status_checks")
+    ]
+    if rule.required_checks:
+        checks: list[dict[str, Any]] = []
+        for name in rule.required_checks:
+            check: dict[str, Any] = {"context": name}
+            if config.checks_app_id is not None:
+                check["integration_id"] = config.checks_app_id
+            checks.append(check)
+        rules.append(
+            {
+                "type": "required_status_checks",
+                "parameters": {
+                    "strict_required_status_checks_policy": True,
+                    "required_status_checks": checks,
+                },
+            }
+        )
     types = {item.get("type") for item in payload["rules"] if isinstance(item, dict)}
     if "deletion" not in types or "non_fast_forward" not in types:
         raise ForgeError(EXIT_CONFIG, "ruleset template is missing deletion/non_fast_forward")
@@ -581,17 +667,24 @@ def build_branch_payload(config: ForgeConfig, branch: str) -> dict[str, Any]:
 
 def build_tag_payload(config: ForgeConfig) -> dict[str, Any]:
     includes = [f"refs/tags/{pattern}" for pattern in config.tag_patterns]
+    rules: list[dict[str, Any]] = [
+        {"type": "deletion"},
+        {"type": "non_fast_forward"},
+        {"type": "update"},
+    ]
+    bypass: list[dict[str, Any]] = []
+    if config.tag_creation:
+        # Opt-in (ADR 0008, proposal): only repository admins may create release tags,
+        # so `forge release` keeps working for them.
+        rules.append({"type": "creation"})
+        bypass.append(dict(ADMIN_BYPASS_ACTOR))
     return {
         "name": TAG_RULESET_NAME,
         "target": "tag",
         "enforcement": "active",
-        "bypass_actors": [],
+        "bypass_actors": bypass,
         "conditions": {"ref_name": {"include": includes, "exclude": []}},
-        "rules": [
-            {"type": "deletion"},
-            {"type": "non_fast_forward"},
-            {"type": "update"},
-        ],
+        "rules": rules,
     }
 
 
@@ -610,6 +703,45 @@ def build_payload(config: ForgeConfig, template: dict[str, Any] | None = None) -
 
 def expected_ruleset_names(config: ForgeConfig) -> list[str]:
     return [branch_ruleset_name(branch) for branch in config.protect] + [TAG_RULESET_NAME]
+
+
+def stale_ruleset_names(config: ForgeConfig, installed: Sequence[dict[str, Any]]) -> list[str]:
+    """`forge-protected-*` rulesets on GitHub that no current protect branch owns.
+
+    Reported only; neither apply nor status deletes them.
+    """
+    prefix = branch_ruleset_name("")
+    expected = set(expected_ruleset_names(config))
+    out: list[str] = []
+    for item in installed:
+        name = item.get("name")
+        if isinstance(name, str) and name.startswith(prefix) and name not in expected:
+            if name not in out:
+                out.append(name)
+    return out
+
+
+def codeowners_exists(root: Path) -> bool:
+    return any((root / rel).is_file() for rel in CODEOWNERS_LOCATIONS)
+
+
+def config_warnings(config: ForgeConfig, root: Path | None) -> list[str]:
+    """Non-fatal: rules that install fine but cannot bite as written."""
+    out: list[str] = []
+    for branch in config.protect:
+        rule = config.rule_for(branch)
+        if not rule.required_checks:
+            out.append(
+                f"warning: branches.{branch}.required_checks is empty; "
+                "no required_status_checks rule written"
+            )
+    if root is not None and any(config.rule_for(b).code_owners for b in config.protect):
+        if not codeowners_exists(root):
+            out.append(
+                "warning: code_owners: true but no CODEOWNERS file "
+                f"({', '.join(CODEOWNERS_LOCATIONS)}) under {root.as_posix()}"
+            )
+    return out
 
 
 RULESET_VOLATILE_KEYS = frozenset(
@@ -678,8 +810,9 @@ def ruleset_fingerprint(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def _params_match(expected: dict[str, Any], live: dict[str, Any]) -> bool:
-    # GitHub echoes defaults for parameters Forge never sends (e.g. allowed_merge_methods);
-    # every parameter Forge sends must match exactly.
+    # GitHub echoes defaults for parameters Forge never sends; every parameter Forge
+    # sends (allowed_merge_methods, require_last_push_approval, integration_id, ...)
+    # must match exactly.
     return all(live.get(key) == value for key, value in expected.items())
 
 
@@ -921,6 +1054,10 @@ def run_apply(
         config = load_config(config_path)
         assert_apply_allowed(owner, name, config.forbidden_live_repos)
         payloads = build_payloads(config)
+        # The target repo root is where its forge.yaml lives (cwd without --path).
+        root = Path(".") if config_path is None else config_path.resolve().parent
+        for line in config_warnings(config, root):
+            print(line, file=err)
         if dry_run:
             print("dry-run", file=out)
             print(json.dumps(payloads, indent=2), file=out)
@@ -944,6 +1081,8 @@ def run_apply(
                 existing_list.append(result)
             ruleset_id = result.get("id", existing.get("id") if existing else "?")
             print(f"{action} ruleset id={ruleset_id} name={payload['name']}", file=out)
+        for stale in stale_ruleset_names(config, existing_list):
+            print(f"stale ruleset name={stale} (not in protect; not deleted)", file=out)
         print(f"protect: {', '.join(config.protect)}", file=out)
         _print_copy_note(out)
         return EXIT_OK

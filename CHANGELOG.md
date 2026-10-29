@@ -11,12 +11,22 @@
 - `python -m overlay generate`：假 HTTP 可测；缺 API key 退出 3；解析失败不写文件；输出 `status: active`。`blocked` 套件拒绝，`--force` 也不清掉 `blocked`。不挂 push。提示词 `prompts/extract.md`、`prompts/generate-cases.md`（temperature 0）。
 - `overlay review` 在 `--i-am` 非空且当前分支不是 agent 前缀时写套件状态。没有 `forge.yaml` 拒绝。agent 分支不能借此清掉 `blocked`。
 - `overlay.yaml` 可选 `require_command`（缺省 false）。为 true 时，入选套件没有 `product_command` 则 `run` 退出 2、不执行。
+- `forge.yaml` 顶层 `checks_app_id`（默认 `15368` = GitHub Actions）：每条 required check 带 `integration_id`，同名 commit status 不能顶替 Actions job；`null` / `none` 不绑。
+- `branches.<name>.merge_methods`（默认 `[squash]`）、`last_push_approval`（默认 `approvals ≥ 1` 时 true）、`resolve_threads`（默认 false），写入 `allowed_merge_methods` / `require_last_push_approval` / `required_review_thread_resolution`。见 [ADR 0004](docs/adr/0004-per-branch-rulesets.md) 修订。
+- `tag_rules.creation`（默认 **false**，opt-in）：tag Ruleset 加 `creation` 并给仓库 admin 一条 bypass。[ADR 0008](docs/adr/0008-tag-creation-lock.md)（提议，未接受；工作本不开）。
+- `status` 把 GitHub 上多出来、不对应任何 `protect` 分支的 `forge-protected-*` 报 `stale`；`apply` 也列出，不删。
+- `apply` / `status`：`code_owners: true` 但没有 `.github/CODEOWNERS` / `CODEOWNERS` / `docs/CODEOWNERS` 时警告（stderr，不改退出码）。
 
 ### Fixed
 
 - `forge.yaml` 里不带引号的 URL（`- https://github.com/o/n`）与 `- a:b` 不再被误读成映射而退出 3；现在按字符串读。
 - `forge submit` 的错误输出统一经 `redact_secrets`：`ghp_` / `github_pat_` / `gho_` / `ghu_` / `ghs_` / `ghr_` token、`AUTHORIZATION: bearer|basic …`、以及 remote URL 里的 `://user:secret@host` 都会被遮蔽；原先只遮 bearer 头，漏掉 git stderr 里带 token 的 URL。
 - `forge/hooks/pr-title` 与 `forge/hooks/pre-submit` 补上子进程单测（好 / 坏标题退出码；非产品根退出 2）。
+- `overlay.yaml` 按 `schema/overlay-config.schema.json` 校验：未知 key（如拼错的 `require_comand`）报错退出 2，不再静默回落默认值。
+- 三件套检查：代码围栏里的 `##` / `### Functional` 不再算结构；每个技法段必须有非空正文才算覆盖。
+- `overlay review` / `migrate`：改写前对比改前改后的解析结果，只允许目标 key 变化（review：`status`、`blocked_reason`；migrate：`schema`、`status`、旧字段），否则拒写并留作待办；写入改为临时文件加原子替换。
+- `forbid_hosts` 按主机边界匹配：裸域名、子域名、`user@host` 都算命中，`example.com` 不再误中 `example.community`；inbox 正文仍只查 URL。`run` 先检查全部入选命令，任一命中则一条都不启动（回执记 `not_started`）。
+- 可复用工作流 `overlay.yml`：接入方未传 `tool_ref` 直接失败（`github.workflow_sha` 是调用方的提交）；总是先装 `_aiops/requirements.txt`，调用方自己的 `requirements.txt` 不再把 PyYAML 挤掉。`docs/overlay-ci.md` 所有示例补上 `tool_ref`。
 - 工作本 `unittest` 与 `forge-check` 两个 job 的 checkout 改为 `fetch-depth: 0`，让 `forge check` 在 CI 里看得到 `origin/dev`（缺基准时现在按设计变红）。
 - `overlay review`：`--reason "#123"` 这类登记号写成带引号的 YAML，不再被当成注释读成 null。`--suite` 必须是合法套件 id，`../` 不能改到 `suites/` 外的文件。
 - `overlay generate`：`packages` 逐项加引号，`@acme/web` 这类 scoped 包名不再写出解析不了的 `suite.yaml`。
@@ -77,6 +87,9 @@
 - PR 标题三种 `title.scopes` 模式（缺省 / 列表 / `any`）统一 subject 规则：整行 ≤ 72 字符、不以 `.` / `。` 结尾、subject 至少一个可见字符（零宽字符不算）。列表模式以列表为允许集，接入方可列 `infra/dev` 这类自定义 `product/actor`；每项必须是 `[a-z][a-z0-9-]*/[a-z][a-z0-9-]*`，否则读配置退出 3 并指出那一项。
 - ADR 0004 加 2026-10-29 修订：`branches.<name>` 对顶层旧字段是**逐键**回落（缺的键取顶层值，再取默认），与代码一致；`docs/forge-config.md` 同句；单测钉住。行为未改。
 - `forge/credential.py` 只剩一个 `redact_secrets`；无人调用的 `probe_write_credential` / `WriteCredential` 删除（`docs/submit-credential.md` 没有探测步骤）。
+- 工作本 `forge-check` 选中时跑 `python3 -m forge check --root .`（`pull_request` 传 `PR_TITLE` / `PR_BODY`，`push` lint HEAD subject）；deny_paths / suite_guard / docs_sync 不再只在本机成立。原来的 `forge unit tests` 步骤去掉：`forge check` 已跑全量 `unittest discover -s tests -t .`。`sop-lock` 改为要求 `forge-check.yml` 跑 `forge check`。
+- 分支 Ruleset 的 `required_status_checks` 带 `integration_id`，`pull_request` 多写 `allowed_merge_methods` / `required_review_thread_resolution`，`require_last_push_approval` 随 `approvals` 默认 true。**已装的 Ruleset 会被 `status` 报成 drifted，重新 `apply` 一次即可。**
+- 保护分支 `required_checks` 为空时不再写一条空 contexts 的 `required_status_checks`，改为省略该规则并警告。
 - 冷启动与 skill 的当前 Forge 针改为已发布的 `forge-v1.1.3`。`overlay-v2.0.0` peel 仍是 Forge 1.1.0（空根 `check` 假绿），必须第二针。不要用 GitHub Release Latest 当针。
 - `apply` 必须 `--path` 指向目标仓自己的 `forge.yaml`。不要在工具仓根对产品仓 live apply。接入方最小例改指 `examples/acme-python/`。
 - ADR 0007 仍是**提议**，未接受。

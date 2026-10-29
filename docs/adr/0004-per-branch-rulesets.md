@@ -33,6 +33,14 @@ v1 顶层 `required_checks` / `review.min_approvals` / `review.code_owners` 对 
 
 「`branches:` 出现则完全优先」描述的是**整表**层面：有 `branches:` 时各分支按自己那条走，不再把顶层字段整套罩到每个分支。代码（`forge/apply.py` `_parse_branch_rule`）实际是**逐键**回落：`branches.<name>` 里缺的键取顶层旧字段（`required_checks` / `review.min_approvals` / `review.code_owners`）的值，顶层也缺才取默认（`[]` / `1` / `false`）。只写 `code_owners: true` 的 `branches.main` 继承顶层 `required_checks` 与 `min_approvals`。这是接入方已经依赖的行为，改成整条覆盖会悄悄丢 checks，所以本修订只把文字改成与代码一致，不改行为；单测 `tests/forge/test_config.py` `PerFieldFallbackTests` 钉住。[`docs/forge-config.md`](../forge-config.md) 同句。
 
+`pull_request` 规则补齐书面契约里已经写明、但原先没锁的三个参数：
+
+- `allowed_merge_methods` ← `branches.<name>.merge_methods`，默认 `[squash]`（「进保护分支默认 squash 封顶」）。
+- `require_last_push_approval` ← `branches.<name>.last_push_approval`，默认 `approvals ≥ 1` 时 `true`：最后一推必须有人再批，agent 不能在批准后追加提交。
+- `required_review_thread_resolution` ← `branches.<name>.resolve_threads`，默认 `false`。
+
+同时每条 required check 带 `integration_id`（`checks_app_id`，默认 GitHub Actions `15368`）：同名 commit status 不再能顶替 Actions job。`required_checks` 为空的分支不写 `required_status_checks` 规则。这些默认值只把已写在文档里的契约落到 Ruleset，不新增接入方没同意的锁；三个分支键与 `checks_app_id` 都可显式改回。
+
 ## 替代方案
 
 - 组织级 Ruleset 一次罩所有仓：以后再说，第一刀仓级。
