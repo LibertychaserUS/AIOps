@@ -190,6 +190,69 @@ class ScopeModeTests(unittest.TestCase):
         self.assertIn("scope", message)
 
 
+class UnifiedGrammarTests(unittest.TestCase):
+    """Length, trailing period and visible subject hold in every scopes mode."""
+
+    MODES = (None, "any", ["overlay/dev", "infra/dev", "ci/agent"])
+
+    def test_header_over_72_fails_in_every_mode(self) -> None:
+        title = "feat(overlay/dev): " + "a" * 60
+        self.assertGreater(len(title), 72)
+        for scopes in self.MODES:
+            with self.subTest(scopes=scopes):
+                code, message, _ = lint_title(title, scopes=scopes)
+                self.assertEqual(code, EXIT_TITLE)
+                self.assertIn("72", message)
+        exactly = "feat(overlay/dev): " + "a" * (72 - len("feat(overlay/dev): "))
+        self.assertEqual(len(exactly), 72)
+        for scopes in self.MODES:
+            self.assertEqual(lint_title(exactly, scopes=scopes)[0], EXIT_OK)
+
+    def test_trailing_period_fails_in_every_mode(self) -> None:
+        for scopes in self.MODES:
+            for title in ("feat(overlay/dev): add cover.", "feat(overlay/dev): 加封面。"):
+                with self.subTest(scopes=scopes, title=title):
+                    code, message, _ = lint_title(title, scopes=scopes)
+                    self.assertEqual(code, EXIT_TITLE)
+                    self.assertIn("period", message)
+
+    def test_invisible_subject_fails_in_every_mode(self) -> None:
+        for scopes in self.MODES:
+            for ch in ("\u200b", "\u200c", "\u200d", "\ufeff", "\u200b \ufeff"):
+                with self.subTest(scopes=scopes, ch=ch):
+                    code, message, parts = lint_title(f"feat(overlay/dev): {ch}", scopes=scopes)
+                    self.assertEqual(code, EXIT_TITLE)
+                    self.assertIsNone(parts)
+                    self.assertIn("subject", message)
+
+    def test_line_separators_are_not_single_line(self) -> None:
+        for ch in ("\u2028", "\u2029"):
+            code, message, _ = lint_title(f"feat(overlay/dev): a{ch}b")
+            self.assertEqual(code, EXIT_TITLE)
+            self.assertIn("single line", message)
+
+    def test_adopter_scope_passes_when_listed(self) -> None:
+        code, message, parts = lint_title("feat(infra/dev): add runner", scopes=["infra/dev"])
+        self.assertEqual(code, EXIT_OK, message)
+        self.assertEqual((parts.product, parts.actor), ("infra", "dev"))
+        code, message, _ = lint_title("feat(infra/dev): add runner", scopes=["overlay/dev"])
+        self.assertEqual(code, EXIT_TITLE)
+        self.assertIn("title.scopes", message)
+        code, message, _ = lint_title("feat(infra/dev): add runner")
+        self.assertEqual(code, EXIT_TITLE)
+        self.assertIn("product", message)
+
+    def test_workshop_promote_title_passes_workshop_scopes(self) -> None:
+        from forge.apply import load_config
+        from forge.promote import promote_title
+
+        scopes = load_config(ROOT / "forge.yaml").title_scopes
+        title = promote_title("dev", "main", "0123abcd", scopes)
+        self.assertTrue(title.startswith("chore(ci/agent): "))
+        code, message, _ = lint_title(title, scopes=scopes)
+        self.assertEqual(code, EXIT_OK, message)
+
+
 class RegexLockTests(unittest.TestCase):
     def test_published_pattern_is_the_program_lock(self) -> None:
         self.assertEqual(TITLE_RE.pattern, TITLE_PATTERN)

@@ -1,6 +1,6 @@
 # forge.yaml 配置
 
-权威说明。字段名与 `schema: forge-config/v1` 一致。未知顶层键会红，并给出 did-you-mean。`ci`、`ci.products.<name>`、`ci.select` 下的未知键同样退出 3。同一映射里重复的键退出 3（不再后写覆盖前写）。
+权威说明。字段名与 `schema: forge-config/v1` 一致。未知顶层键会红，并给出 did-you-mean。`ci`、`ci.products.<name>`、`ci.select` 下的未知键同样退出 3。文件由 PyYAML（safe loader）解析：任一层级重复的键退出 3（不再后写覆盖前写）；空文件退出 3（`empty document`）；语法错误一行报出并退出 3。不带引号的 `1.0`、`2026-01-01`、`yes` / `on` 一律按字符串读（分支名、check 名、tag 模式），只有 `true` / `false` 与整数按类型读。
 
 ## 全字段
 
@@ -12,7 +12,7 @@
 | `deny_paths` | `check` 的 deny_paths 命中即红 | `.github/workflows/ci.yml` |
 | `required_checks` | 旧字段：对每个 protect 分支套同一组 CI job 名 | `[]` |
 | `review.min_approvals` / `review.code_owners` | 旧字段：对每个 protect 分支套同一审批 | `1` / `false` |
-| `branches.<name>` | 按分支覆盖：`required_checks`、`approvals`、`code_owners`、`promote_from`、`merge_methods`、`last_push_approval`、`resolve_threads` | 无则回落旧字段 |
+| `branches.<name>` | 按分支覆盖：`required_checks`、`approvals`、`code_owners`、`promote_from`、`merge_methods`、`last_push_approval`、`resolve_threads` | 逐键回落旧字段，再回落默认 |
 | `title.scopes` | `any` 或允许的 `product/actor` 列表 | 缺省 = 现行 `product/actor` 语法 |
 | `docs_sync` | 路径表：命中 `paths` 必须同时改任一 `require` | `[]` |
 | `forbidden_live_repos` | live `apply` / `release` 拒绝的 `OWNER/NAME` | `[]` |
@@ -21,7 +21,7 @@
 | `tag_rules.creation` | tag Ruleset 加 `creation` 规则 + 仓库 admin bypass（[ADR 0008](adr/0008-tag-creation-lock.md)，提议，opt-in） | `false` |
 | `ci` | `ci-select` 选择器（通用检查 ≠ 产品门） | 可选 |
 
-`branches:` 出现时优先于顶层 `required_checks` / `review`。旧字段继续接受，等价于给 `protect` 里每个分支套同一规则。
+`branches:` 出现时优先于顶层 `required_checks` / `review`。旧字段继续接受，等价于给 `protect` 里每个分支套同一规则。优先是**逐键**的：`branches.<name>` 里没写的键取顶层旧字段的值（`required_checks` / `review.min_approvals` / `review.code_owners`），顶层也没写才取默认；只写 `code_owners: true` 的 `branches.main` 仍继承顶层 `required_checks` 与 `min_approvals`。见 [ADR 0004](adr/0004-per-branch-rulesets.md) 2026-10-29 修订。
 
 `branches.<name>` 只认 `required_checks`、`approvals`、`code_owners`、`promote_from`、`merge_methods`、`last_push_approval`、`resolve_threads`；`review` 只认 `min_approvals`、`code_owners`；`tag_rules` 只认 `creation`。拼错（`aprovals`、`min_approval`）退出 3 并给 did-you-mean，不再静默回落默认。`branches:` 里的分支必须在 `protect` 里；`promote_from` 指向的分支也必须在 `protect` 里，且不能是自己。
 
@@ -81,8 +81,11 @@ GitHub 客户端（`apply` / `status` / `submit` / `promote` / `release` / `ops-
 
 ## title.scopes
 
-- `any`：只查 Conventional Commits 语法（type、可选 scope、冒号空格、subject 非空、长度 ≤ 72、不以句号结尾）。
-- 列表：现行 `type(product/actor): subject`，且 scope 必须在列表里。
+- `any`：只查 Conventional Commits 语法（type、可选 scope、冒号空格）。
+- 列表：`type(product/actor): subject`，且 scope 必须在列表里。列表就是允许集：接入方可以写工作本以外的产品 / 角色（如 `infra/dev`），列出即通过。每一项必须是 `[a-z][a-z0-9-]*/[a-z][a-z0-9-]*`，否则读配置时退出 3 并指出那一项（`illegal title.scopes item: 'Infra/dev'`）。
+- 缺省：`type(product/actor): subject`，product 限 `forge|overlay|ci|docs`，actor 限 `dev|admin|agent`。
+
+三种模式共用同一组 subject 规则：整行 ≤ 72 字符；subject 至少含一个可见字符（空白与零宽字符 U+200B / U+200C / U+200D / U+2028 / U+2029 / U+FEFF 不算）；不以 `.` 或 `。` 结尾；单行、首尾无空白。
 
 本工作本列出允许 scope，保留现在行为。接入方可写 `any`。
 
@@ -99,7 +102,7 @@ PR 规格机器检查是 `python -m forge pr-title`（`forge check` 嵌同一把
 | `--title` / `--body` 已给（含 `""`） | arg | lint；空参数仍红 |
 | 非空 `PR_TITLE` / `PR_BODY` | env | lint |
 | `GITHUB_EVENT_NAME=pull_request` 且标题/正文空白或未设 | 空 env | 标题红 `empty PR title`；有 `docs/pr-brief.md` 时正文红（缺六个标题） |
-| `push`，或 Actions 把标题写成空串（环境已设、不是 `pull_request`） | HEAD 提交第一行 | lint 该 subject（事件 JSON `head_commit.message`，否则 `git log -1`）。HEAD 是合并提交（两个以上父提交，如把 dev 并进功能分支）时，lint first-parent 上最近一个非合并提交的 subject；合并提交本身不算改动 |
+| `push`，或 Actions 把标题写成空串（环境已设、不是 `pull_request`） | HEAD 提交第一行 | lint 该 subject（事件 JSON `head_commit.message`，否则 `git log -1`）。HEAD 是合并提交（两个以上父提交，如把 dev 并进功能分支）且事件 JSON 的 `head_commit` 就是这个 HEAD（或没有事件 JSON）时，lint first-parent 上最近一个非合并提交的 subject；合并提交本身不算改动。事件 JSON 指向别的提交时仍以事件为准 |
 | 本地、无事件、环境未设 | 省略 | `forge check` skip 该步 |
 
 CI job `pr-title` 仍只挂 `pull_request`。`forge check` 在 push 上**不**卸掉标题锁：锁的是提交 subject，不是跳过。叶子 `FN-forge-pr-title`，invariant `INV-pr-spec-event-states`。
@@ -172,4 +175,4 @@ glob 命中一个目录时，目录下的文件一并命中。路径相对 `--ro
 
 live `apply` / `release` / `promote` 总是**同时**检查配置列表与源码内置的 `FORBIDDEN_REPOS`（`forge/__init__.py`），大小写不敏感。用目标仓自己的 `forge.yaml`（常为 `[]`）或不带 `--path` 时，内置禁仓照样拒绝。
 
-条目先规范化：去掉 `https://github.com/`、`github.com/` 前缀，去掉末尾 `.git` 与 `/`，转小写。规范化后仍不是 `OWNER/NAME` 的条目退出 3。YAML 里写 URL 要加引号（`- "https://github.com/o/n"`），否则冒号会被当成映射，同样退出 3。
+条目先规范化：去掉 `https://github.com/`、`github.com/` 前缀，去掉末尾 `.git` 与 `/`，转小写。规范化后仍不是 `OWNER/NAME` 的条目退出 3。不带引号的 URL（`- https://github.com/o/n`）按 YAML 规则是字符串，直接可用；加不加引号都行。

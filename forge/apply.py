@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+import yaml
+
 from forge import (
     COPY_FILES_NOTE,
     EXIT_API,
@@ -28,6 +30,7 @@ from forge import (
     TAG_RULESET_NAME,
     branch_ruleset_name,
 )
+from forge.title import SCOPE_RE, SCOPE_SHAPE
 
 UrlOpen = Callable[..., Any]
 
@@ -230,179 +233,64 @@ def assert_submit_allowed(owner: str, name: str) -> None:
         raise ForgeError(EXIT_CONFIG, f"refusing to submit to {owner}/{name}")
 
 
-def _strip_comment(line: str) -> str:
-    in_single = False
-    in_double = False
-    out: list[str] = []
-    for ch in line:
-        if ch == "'" and not in_double:
-            in_single = not in_single
-        elif ch == '"' and not in_single:
-            in_double = not in_double
-        elif ch == "#" and not in_single and not in_double:
-            break
-        out.append(ch)
-    return "".join(out).rstrip()
-
-
-def _parse_scalar(text: str) -> Any:
-    if text in {"true", "True"}:
-        return True
-    if text in {"false", "False"}:
-        return False
-    if text in {"null", "Null", "~"}:
-        return None
-    if len(text) >= 2 and (
-        (text[0] == text[-1] == '"') or (text[0] == text[-1] == "'")
-    ):
-        return text[1:-1]
-    if re.fullmatch(r"-?[0-9]+", text):
-        return int(text)
-    if text.startswith("[") and text.endswith("]"):
-        inner = text[1:-1].strip()
-        if not inner:
-            return []
-        return [_parse_scalar(part.strip()) for part in inner.split(",") if part.strip()]
-    return text
-
-
 class _YamlError(ValueError):
     pass
 
 
+class _StrictLoader(yaml.SafeLoader):
+    """SafeLoader for forge.yaml: duplicate keys are refused at every level.
+
+    Plain scalars keep forge-config/v1 typing: ints and ``true`` / ``false``
+    resolve, everything else stays a string. ``1.0``, ``2026-01-01``, ``yes``,
+    ``on`` are branch / check / tag names here, not floats, dates or booleans.
+    """
+
+    def construct_mapping(self, node: yaml.Node, deep: bool = False) -> dict[Any, Any]:
+        if isinstance(node, yaml.MappingNode):
+            seen: set[Any] = set()
+            for key_node, _ in node.value:
+                key = self.construct_object(key_node, deep=deep)
+                try:
+                    duplicate = key in seen
+                except TypeError:
+                    continue  # unhashable key: SafeLoader reports it below
+                if duplicate:
+                    raise _YamlError(f"line {key_node.start_mark.line + 1}: duplicate key {key}")
+                seen.add(key)
+        return super().construct_mapping(node, deep=deep)
+
+
+_StrictLoader.yaml_implicit_resolvers = {
+    first: [
+        (tag, regexp)
+        for tag, regexp in resolvers
+        if tag
+        not in {
+            "tag:yaml.org,2002:bool",
+            "tag:yaml.org,2002:float",
+            "tag:yaml.org,2002:timestamp",
+        }
+    ]
+    for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
+_StrictLoader.add_implicit_resolver(
+    "tag:yaml.org,2002:bool",
+    re.compile(r"^(?:true|True|TRUE|false|False|FALSE)$"),
+    list("tTfF"),
+)
+
+
 def parse_simple_yaml(text: str) -> dict[str, Any]:
-    """Parse the indent-based YAML subset used by forge-config/v1."""
-    rows: list[tuple[int, int, str]] = []
-    for lineno, raw in enumerate(text.splitlines(), 1):
-        if "\t" in raw:
-            raise _YamlError(f"line {lineno}: tabs are not allowed")
-        stripped = _strip_comment(raw)
-        if not stripped.strip():
-            continue
-        indent = len(stripped) - len(stripped.lstrip(" "))
-        rows.append((lineno, indent, stripped.strip()))
-    if not rows:
+    """Parse forge.yaml with PyYAML (safe loader, strict keys). Top level must be a mapping."""
+    try:
+        value = yaml.load(text, Loader=_StrictLoader)
+    except yaml.YAMLError as exc:
+        raise _YamlError(" ".join(str(exc).split())) from exc
+    if value is None:
         raise _YamlError("empty document")
-    value, next_i = _parse_block(rows, 0, rows[0][1])
-    if next_i != len(rows):
-        raise _YamlError(f"line {rows[next_i][0]}: trailing content")
     if not isinstance(value, dict):
         raise _YamlError("document must be a mapping")
     return value
-
-
-def _parse_block(rows: list[tuple[int, int, str]], i: int, indent: int) -> tuple[Any, int]:
-    _, _, content = rows[i]
-    if content.startswith("- ") or content == "-":
-        return _parse_list(rows, i, indent)
-    return _parse_map(rows, i, indent)
-
-
-def _parse_map(
-    rows: list[tuple[int, int, str]], i: int, indent: int
-) -> tuple[dict[str, Any], int]:
-    result: dict[str, Any] = {}
-    while i < len(rows):
-        lineno, ind, content = rows[i]
-        if ind < indent:
-            break
-        if ind > indent:
-            raise _YamlError(f"line {lineno}: unexpected indent")
-        if content.startswith("- ") or content == "-":
-            raise _YamlError(f"line {lineno}: expected a mapping entry")
-        if ":" not in content:
-            raise _YamlError(f"line {lineno}: expected key:")
-        key, _, rest = content.partition(":")
-        key = key.strip()
-        rest = rest.strip()
-        if not key:
-            raise _YamlError(f"line {lineno}: empty key")
-        if key in result:
-            raise _YamlError(f"line {lineno}: duplicate key {key}")
-        if rest:
-            result[key] = _parse_scalar(rest)
-            i += 1
-            continue
-        if i + 1 >= len(rows) or rows[i + 1][1] <= indent:
-            result[key] = None
-            i += 1
-            continue
-        child, i = _parse_block(rows, i + 1, rows[i + 1][1])
-        result[key] = child
-    return result, i
-
-
-def _parse_list(rows: list[tuple[int, int, str]], i: int, indent: int) -> tuple[list[Any], int]:
-    result: list[Any] = []
-    while i < len(rows):
-        lineno, ind, content = rows[i]
-        if ind < indent:
-            break
-        if ind > indent:
-            raise _YamlError(f"line {lineno}: unexpected indent")
-        if not content.startswith("- ") and content != "-":
-            raise _YamlError(f"line {lineno}: expected a list item")
-        rest = content[1:].strip()
-        if rest:
-            if ":" in rest and not rest.startswith("[") and not rest.startswith("'") and not rest.startswith('"'):
-                mapping, i = _parse_list_mapping_item(rows, i, indent, rest)
-                result.append(mapping)
-                continue
-            result.append(_parse_scalar(rest))
-            i += 1
-            continue
-        if i + 1 >= len(rows) or rows[i + 1][1] <= indent:
-            result.append(None)
-            i += 1
-            continue
-        child, i = _parse_block(rows, i + 1, rows[i + 1][1])
-        result.append(child)
-    return result, i
-
-
-def _parse_list_mapping_item(
-    rows: list[tuple[int, int, str]], i: int, indent: int, rest: str
-) -> tuple[dict[str, Any], int]:
-    """Parse `- key: value` plus sibling keys indented further than the dash."""
-    key, _, value = rest.partition(":")
-    key = key.strip()
-    value = value.strip()
-    mapping: dict[str, Any] = {}
-    _, ind, _ = rows[i]
-    if value:
-        mapping[key] = _parse_scalar(value)
-        i += 1
-    elif i + 1 < len(rows) and rows[i + 1][1] > ind:
-        child, i = _parse_block(rows, i + 1, rows[i + 1][1])
-        mapping[key] = child
-    else:
-        mapping[key] = None
-        i += 1
-    while i < len(rows):
-        lineno2, ind2, content2 = rows[i]
-        if ind2 <= indent:
-            break
-        if content2.startswith("- ") or content2 == "-":
-            break
-        if ":" not in content2:
-            raise _YamlError(f"line {lineno2}: expected key:")
-        k, _, r = content2.partition(":")
-        k, r = k.strip(), r.strip()
-        if not k:
-            raise _YamlError(f"line {lineno2}: empty key")
-        if k in mapping:
-            raise _YamlError(f"line {lineno2}: duplicate key {k}")
-        if r:
-            mapping[k] = _parse_scalar(r)
-            i += 1
-            continue
-        if i + 1 >= len(rows) or rows[i + 1][1] <= ind2:
-            mapping[k] = None
-            i += 1
-            continue
-        child, i = _parse_block(rows, i + 1, rows[i + 1][1])
-        mapping[k] = child
-    return mapping, i
 
 
 def _string_list(value: Any, field: str, *, allow_empty: bool) -> list[str]:
@@ -499,7 +387,14 @@ def _parse_title_scopes(raw: Any) -> str | list[str] | None:
         if scopes != "any":
             raise ForgeError(EXIT_CONFIG, f"illegal title.scopes: {scopes!r} (any | list)")
         return "any"
-    return _string_list(scopes, "title.scopes", allow_empty=False)
+    entries = _string_list(scopes, "title.scopes", allow_empty=False)
+    for entry in entries:
+        # Adopter products / actors are allowed; the shape is not negotiable.
+        if not SCOPE_RE.fullmatch(entry):
+            raise ForgeError(
+                EXIT_CONFIG, f"illegal title.scopes item: {entry!r} (use {SCOPE_SHAPE})"
+            )
+    return entries
 
 
 def _parse_docs_sync(raw: Any) -> list[DocsSyncRule]:

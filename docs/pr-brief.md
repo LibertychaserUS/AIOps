@@ -96,7 +96,7 @@ type(product/actor): subject
 ^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)\((forge|overlay|ci|docs)/(dev|admin|agent)\)!?: \S.*$
 ```
 
-另：必须单行；首尾不得空白。
+另：必须单行；首尾不得空白；整行 ≤ 72 字符；subject 至少一个可见字符（零宽字符不算）；不以 `.` / `。` 结尾。`title.scopes` 为列表时 product / actor 以列表为准（接入方可列 `infra/dev` 这类自定义 scope），见 [`forge-config.md`](forge-config.md)。
 
 | 槽 | 取值 | 写什么 |
 |---|---|---|

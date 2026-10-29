@@ -22,14 +22,16 @@
 
 ### Fixed
 
-- `forge check` / `pr-title` 在 `push` 事件上：HEAD 是合并提交（把保护分支并进功能分支）时，改 lint first-parent 上最近的非合并提交 subject，不再因 `Merge branch 'dev' into …` 报红；功能提交 subject 不合规仍红。
+- `forge check` / `pr-title` 在 `push` 事件上：HEAD 是合并提交（把保护分支并进功能分支）且事件 `head_commit` 就是该 HEAD 时，改 lint first-parent 上最近的非合并提交 subject，不再因 `Merge branch 'dev' into …` 报红；功能提交 subject 不合规仍红。
+- `forge.yaml` 里不带引号的 URL（`- https://github.com/o/n`）与 `- a:b` 不再被误读成映射而退出 3；现在按字符串读。
+- `forge submit` 的错误输出统一经 `redact_secrets`：`ghp_` / `github_pat_` / `gho_` / `ghu_` / `ghs_` / `ghr_` token、`AUTHORIZATION: bearer|basic …`、以及 remote URL 里的 `://user:secret@host` 都会被遮蔽；原先只遮 bearer 头，漏掉 git stderr 里带 token 的 URL。
+- `forge/hooks/pr-title` 与 `forge/hooks/pre-submit` 补上子进程单测（好 / 坏标题退出码；非产品根退出 2）。
 - GitHub 客户端：幂等 GET 遇 5xx / 429 最多重试 3 次（1s、2s 退避；有 `Retry-After` 按其秒数，封顶 30s）；POST / PUT / PATCH / DELETE 永不重试。
 - GitHub 客户端：`X-RateLimit-Remaining: 0` 或正文含 `rate limit` 的 403 报限流（退出 4，附 `X-RateLimit-Reset` 的重置时间），不再误报「auth failed」。
 - GitHub 客户端：跨主机重定向去掉 `Authorization`；https 跳 http 拒绝；生产域名守卫同样适用于重定向目标，不只看第一个 URL。
 - `forge status` 取 Ruleset 详情失败时报 API 错误（退出 4），不再回落到列表项后误报 drifted。
 - `forge apply` 创建 Ruleset 收到 422（同名已存在）时按名重查并 PUT 到已有 id，不再直接退出 4。假 GitHub 对重名 POST 也返回 422。
 - `ci-select` 新增真实 git 单测：移出产品的重命名、根提交（无 `HEAD~1` → 全跑）、`--root` 子目录、非 ASCII 路径。
-
 - `overlay.yaml` 按 `schema/overlay-config.schema.json` 校验：未知 key（如拼错的 `require_comand`）报错退出 2，不再静默回落默认值。
 - 三件套检查：代码围栏里的 `##` / `### Functional` 不再算结构；每个技法段必须有非空正文才算覆盖。
 - `overlay review` / `migrate`：改写前对比改前改后的解析结果，只允许目标 key 变化（review：`status`、`blocked_reason`；migrate：`schema`、`status`、旧字段），否则拒写并留作待办；写入改为临时文件加原子替换。
@@ -94,6 +96,10 @@
 
 ### Changed
 
+- `forge.yaml` 改由 PyYAML（safe loader）解析，替换手写的 YAML 子集解析器。任一层级重复键仍退出 3；空文件仍报 `empty document`；未知键 did-you-mean 不变。不带引号的 `1.0` / `2026-01-01` / `yes` / `on` 按字符串读，`true` / `false` 与整数按类型读；`code_owners: yes` 照旧退出 3。
+- PR 标题三种 `title.scopes` 模式（缺省 / 列表 / `any`）统一 subject 规则：整行 ≤ 72 字符、不以 `.` / `。` 结尾、subject 至少一个可见字符（零宽字符不算）。列表模式以列表为允许集，接入方可列 `infra/dev` 这类自定义 `product/actor`；每项必须是 `[a-z][a-z0-9-]*/[a-z][a-z0-9-]*`，否则读配置退出 3 并指出那一项。
+- ADR 0004 加 2026-10-29 修订：`branches.<name>` 对顶层旧字段是**逐键**回落（缺的键取顶层值，再取默认），与代码一致；`docs/forge-config.md` 同句；单测钉住。行为未改。
+- `forge/credential.py` 只剩一个 `redact_secrets`；无人调用的 `probe_write_credential` / `WriteCredential` 删除（`docs/submit-credential.md` 没有探测步骤）。
 - 工作本 `forge-check` 选中时跑 `python3 -m forge check --root .`（`pull_request` 传 `PR_TITLE` / `PR_BODY`，`push` lint HEAD subject）；deny_paths / suite_guard / docs_sync 不再只在本机成立。原来的 `forge unit tests` 步骤去掉：`forge check` 已跑全量 `unittest discover -s tests -t .`。`sop-lock` 改为要求 `forge-check.yml` 跑 `forge check`。
 - 分支 Ruleset 的 `required_status_checks` 带 `integration_id`，`pull_request` 多写 `allowed_merge_methods` / `required_review_thread_resolution`，`require_last_push_approval` 随 `approvals` 默认 true。**已装的 Ruleset 会被 `status` 报成 drifted，重新 `apply` 一次即可。**
 - 保护分支 `required_checks` 为空时不再写一条空 contexts 的 `required_status_checks`，改为省略该规则并警告。

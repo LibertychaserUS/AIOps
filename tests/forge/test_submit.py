@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 
 from forge.__main__ import main
+from forge.apply import ForgeError
 from forge.check import EXIT_CHECK
 from forge.submit import (
     BODY_HEADINGS,
@@ -604,6 +605,44 @@ class WorkshopCiTests(unittest.TestCase):
         ):
             text = (root / ".github" / "workflows" / name).read_text(encoding="utf-8")
             self.assertNotIn("python -m forge submit", text)
+
+
+
+class RedactionTests(unittest.TestCase):
+    def test_git_failure_redacts_token_in_remote_url(self) -> None:
+        leak = "ghp_mustNotAppear123"
+        url = f"https://x-access-token:{leak}@github.com/acme/app.git"
+        with tempfile.TemporaryDirectory() as tmp:
+            subprocess.run(["git", "init", "-q", tmp], check=True)
+            default_git_runner(["remote", "add", "origin", url], cwd=tmp)
+            # Second add fails locally (no network); the failing argv carries the URL.
+            with self.assertRaises(ForgeError) as ctx:
+                default_git_runner(["remote", "add", "origin", url], cwd=tmp)
+        self.assertEqual(ctx.exception.code, EXIT_CONFIG)
+        self.assertNotIn(leak, ctx.exception.message)
+        self.assertIn("REDACTED", ctx.exception.message)
+
+    def test_run_submit_redacts_error_messages(self) -> None:
+        leak = "ghp_mustNotAppear456"
+
+        def boom(args, cwd=None, env=None):
+            raise ForgeError(EXIT_CONFIG, f"remote https://x:{leak}@github.com/a/b.git refused")
+
+        out = io.StringIO()
+        err = io.StringIO()
+        code = run_submit(
+            repo="acme/app",
+            head="feature",
+            title=EXAMPLE,
+            environ={SUBMIT_TOKEN_ENV: "tok"},
+            git_runner=boom,
+            stdout=out,
+            stderr=err,
+            dry_run=True,
+        )
+        self.assertEqual(code, EXIT_CONFIG)
+        self.assertNotIn(leak, err.getvalue())
+        self.assertNotIn(leak, out.getvalue())
 
 
 if __name__ == "__main__":
