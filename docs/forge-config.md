@@ -96,7 +96,7 @@ PR 规格机器检查是 `python -m forge pr-title`（`forge check` 嵌同一把
 | `--title` / `--body` 已给（含 `""`） | arg | lint；空参数仍红 |
 | 非空 `PR_TITLE` / `PR_BODY` | env | lint |
 | `GITHUB_EVENT_NAME=pull_request` 且标题/正文空白或未设 | 空 env | 标题红 `empty PR title`；有 `docs/pr-brief.md` 时正文红（缺六个标题） |
-| `push`，或 Actions 把标题写成空串（环境已设、不是 `pull_request`） | HEAD 提交第一行 | lint 该 subject（事件 JSON `head_commit.message`，否则 `git log -1`） |
+| `push`，或 Actions 把标题写成空串（环境已设、不是 `pull_request`） | HEAD 提交第一行 | lint 该 subject（事件 JSON `head_commit.message`，否则 `git log -1`）。HEAD 是合并提交（两个以上父提交，如把 dev 并进功能分支）时，lint first-parent 上最近一个非合并提交的 subject；合并提交本身不算改动 |
 | 本地、无事件、环境未设 | 省略 | `forge check` skip 该步 |
 
 CI job `pr-title` 仍只挂 `pull_request`。`forge check` 在 push 上**不**卸掉标题锁：锁的是提交 subject，不是跳过。叶子 `FN-forge-pr-title`，invariant `INV-pr-spec-event-states`。
