@@ -28,6 +28,7 @@ python -m forge pr-title --title "feat(overlay/dev): add cover triad and invaria
 | `--title` / `--body` 已给（含 `""`） | 参数 | lint；空参数仍红 |
 | 非空 `PR_TITLE` / `PR_BODY` | 环境 | lint |
 | `pull_request` + 空白或未设 | 空规格 | 标题红；有本文件时正文缺六个 `##` 也红 |
+| `push`，头提交恰好两个父提交，且没给标题 | merge | 不 lint；`forge check` 该步 skip |
 | `push` 或 Actions 空串（环境已设、不是 `pull_request`） | HEAD 提交第一行 | lint 该 subject |
 | 本地、无事件、环境未设 | 省略 | `forge check` 该步 skip |
 

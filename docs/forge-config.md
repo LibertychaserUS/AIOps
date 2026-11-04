@@ -57,10 +57,11 @@ PR 规格机器检查是 `python -m forge pr-title`（`forge check` 嵌同一把
 | `--title` / `--body` 已给（含 `""`） | arg | lint；空参数仍红 |
 | 非空 `PR_TITLE` / `PR_BODY` | env | lint |
 | `GITHUB_EVENT_NAME=pull_request` 且标题/正文空白或未设 | 空 env | 标题红 `empty PR title`；有 `docs/pr-brief.md` 时正文红（缺六个标题） |
+| `push`，头提交恰好两个父提交（事件 JSON `head_commit.id`，否则 HEAD），且没给标题 | merge | 不 lint；`forge check` 该步 skip。判断不了（id 非法、提交不存在、浅克隆）按下一行走 |
 | `push`，或 Actions 把标题写成空串（环境已设、不是 `pull_request`） | HEAD 提交第一行 | lint 该 subject（事件 JSON `head_commit.message`，否则 `git log -1`） |
 | 本地、无事件、环境未设 | 省略 | `forge check` skip 该步 |
 
-CI job `pr-title` 仍只挂 `pull_request`。`forge check` 在 push 上**不**卸掉标题锁：锁的是提交 subject，不是跳过。叶子 `FN-forge-pr-title`，invariant `INV-pr-spec-event-states`。
+CI job `pr-title` 仍只挂 `pull_request`。`forge check` 在 push 上**不**卸掉标题锁：锁的是提交 subject，不是跳过；唯一例外是上表的合并提交。接入方要让它生效，product checkout 不能是 `fetch-depth: 1`。叶子 `FN-forge-pr-title`，invariant `INV-pr-spec-event-states`。
 
 `forge check --root` 必须是产品根：至少有 `forge.yaml` 或 `overlay.yaml`。两者都没有 → 退出 2，不要当成绿。`pip install -r requirements.txt` 装 PyYAML，以及工作本风格门 ruff（`unittest` 里跑，不是新的 CI job）。**不会** 给出 `forge` 命令；用 `PYTHONPATH` + `python3 -m forge`。Overlay 与 Forge 是两针：`overlay-v2.0.0` / `forge-v1.1.3`。只 checkout Overlay 针会拿到 Forge 1.1.0（空根假绿）。`1.1.2` 上 CI `push` 不要写入空的 `PR_TITLE`；`1.1.3` 起 lock 提交 subject。
 

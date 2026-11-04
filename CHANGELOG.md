@@ -6,6 +6,15 @@
 
 ## [Unreleased]
 
+## [forge-1.1.5]
+
+包含 `forge-1.1.4` 的全部改动。`forge-1.1.4` 没有单独打 tag。
+
+### Changed
+
+- `forge check` / `pr-title` 在 `push` 上：头提交是合并提交（恰好两个父提交）且没有给标题时，跳过标题校验。`Merge branch …`、`merge: …` 不再必红。`forge check` 其他步骤照跑；`ci-select` 仍能拿到它的 subject。
+- 其他状态不变：PR 标题、普通提交、显式 `--title`、非空 `PR_TITLE` 照旧校验。判断不了时（事件里的提交 id 不对、提交不存在、浅克隆看不到父提交）照旧校验。三个及以上父提交也照旧校验。
+
 ## [forge-1.1.4]
 
 ### Fixed

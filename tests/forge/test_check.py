@@ -174,6 +174,47 @@ class TitleStepTests(unittest.TestCase):
         self.assertIn("commit:", stdout.getvalue())
         self.assertIn(EXAMPLE, stdout.getvalue())
 
+    def test_push_merge_commit_skips_title_step_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_minimal_forge(root)
+            env = {
+                **os.environ,
+                "GIT_CONFIG_GLOBAL": "/dev/null",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_AUTHOR_NAME": "t",
+                "GIT_AUTHOR_EMAIL": "t@example.com",
+                "GIT_COMMITTER_NAME": "t",
+                "GIT_COMMITTER_EMAIL": "t@example.com",
+            }
+
+            def git(*args: str) -> None:
+                subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, env=env)
+
+            git("init", "-q", "-b", "main")
+            git("add", ".")
+            git("commit", "-q", "-m", "wip base")
+            git("checkout", "-q", "-b", "side")
+            git("commit", "-q", "--allow-empty", "-m", "wip side")
+            git("checkout", "-q", "main")
+            git("commit", "-q", "--allow-empty", "-m", "wip main")
+            git("merge", "-q", "--no-ff", "-m", "Merge branch 'side'", "side")
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            code = run_check(
+                root,
+                title=None,
+                stdout=stdout,
+                stderr=stderr,
+                environ={"PR_TITLE": "", "GITHUB_EVENT_NAME": "push"},
+                run_unittests=False,
+                overlay_validate=_ok,
+                overlay_cover=_ok,
+                schema_runner=_ok,
+            )
+        self.assertEqual(code, EXIT_OK, stdout.getvalue() + stderr.getvalue())
+        self.assertRegex(stdout.getvalue(), r"pr-title\s+skip\s+merge commit on push: Merge branch 'side'")
+
     def test_pull_request_blank_pr_title_is_red(self) -> None:
         stdout = io.StringIO()
         stderr = io.StringIO()

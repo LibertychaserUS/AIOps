@@ -546,7 +546,7 @@ def run_check(
 
     Title/body source is event-aware (``resolve_spec_title`` /
     ``resolve_spec_body``). Local omit skips. pull_request + blank fails.
-    push lints the HEAD commit subject; it does not skip the title lock.
+    push lints the HEAD commit subject, except a two-parent merge commit.
     """
     out = sys.stdout if stdout is None else stdout
     err = sys.stderr if stderr is None else stderr
@@ -589,7 +589,9 @@ def run_check(
         steps.append(Step("overlay validate", "skip", "no overlay.yaml"))
         steps.append(Step("overlay cover", "skip", "no overlay.yaml"))
 
-    if resolved_title is not None:
+    if title_ref.source == "merge":
+        steps.append(Step("pr-title", "skip", f"merge commit on push: {resolved_title}"))
+    elif resolved_title is not None:
         buf_err = io.StringIO()
         code = run_pr_title(
             title=resolved_title,

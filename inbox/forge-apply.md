@@ -20,7 +20,7 @@ Forge apply on this workshop prints a Ruleset payload in dry-run and does not wr
 - FN-forge-apply `apply --dry-run` prints the payload, exits 0, and does not POST or PUT.
 - FN-forge-submit `submit --dry-run` without FORGE_SUBMIT_TOKEN exits 2 (fail closed). With the named secret set, it prints the intended remote branch + PR title/body headings and does not push. Red `forge check` refuses submit.
 - FN-forge-check `python -m forge check` is the local pre-submit gate. Red means no push and no PR.
-- FN-forge-pr-title PR spec source is event × env × arg. `push` lints the HEAD commit; `pull_request` + blank `PR_TITLE` / `PR_BODY` fails. Blank env is not a skip.
+- FN-forge-pr-title PR spec source is event × env × arg. `push` lints the HEAD commit, except a two-parent merge commit, which skips the title; `pull_request` + blank `PR_TITLE` / `PR_BODY` fails. Blank env is not a skip.
 - FN-forge-sop-lock `sop-lock` reddens when a decidable skill SOP is violated.
 
 # Out of scope

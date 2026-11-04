@@ -22,6 +22,7 @@ from typing import TextIO
 from forge import EXIT_OK
 
 EXIT_TITLE = 2
+SHA_RE = re.compile(r"[0-9a-f]{40,64}")
 
 
 def optional_text(value: str | None) -> str | None:
@@ -59,6 +60,8 @@ class SpecRef:
       arg — ``--title`` / ``--body`` (including explicit empty)
       env — non-blank ``PR_TITLE`` / ``PR_BODY``
       commit — push (or Actions-empty title) uses HEAD subject
+      merge — push whose head commit has two parents; text is its subject,
+        kept for ci-select, but the title is not linted
       omitted — local, no event, env unset
     """
 
@@ -70,19 +73,55 @@ def event_name(environ: Mapping[str, str]) -> str:
     return (environ.get("GITHUB_EVENT_NAME") or "").strip().lower()
 
 
+def _event_head_commit(environ: Mapping[str, str]) -> dict | None:
+    """``head_commit`` of the Actions event payload, when there is one."""
+    raw_path = environ.get("GITHUB_EVENT_PATH")
+    if not raw_path:
+        return None
+    try:
+        payload = json.loads(Path(raw_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    commit = payload.get("head_commit") if isinstance(payload, dict) else None
+    return commit if isinstance(commit, dict) else None
+
+
+def head_commit_is_merge(root: Path | str | None, environ: Mapping[str, str]) -> bool:
+    """True only when the pushed head commit provably has two parents.
+
+    The event's ``head_commit.id`` wins, then HEAD. The payload carries no
+    parents, so git has to answer. Any doubt (no root, malformed id, unknown
+    commit, a shallow clone that hides the parents) is False: the title is
+    linted as usual.
+    """
+    if root is None:
+        return False
+    commit = _event_head_commit(environ)
+    rev = "HEAD"
+    if commit is not None:
+        sha = commit.get("id")
+        if not isinstance(sha, str) or SHA_RE.fullmatch(sha) is None:
+            return False
+        rev = sha
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
+    proc = subprocess.run(
+        ["git", "-C", str(root), "rev-list", "--parents", "-n", "1", rev],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    if proc.returncode != 0:
+        return False
+    # "<commit> <parent1> <parent2>"
+    return len(proc.stdout.split()) == 3
+
+
 def head_commit_subject(root: Path | str | None, environ: Mapping[str, str]) -> str | None:
     """First line of the push head commit. Event JSON wins, then git."""
-    raw_path = environ.get("GITHUB_EVENT_PATH")
-    if raw_path:
-        try:
-            payload = json.loads(Path(raw_path).read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            payload = None
-        if isinstance(payload, dict):
-            commit = payload.get("head_commit")
-            message = commit.get("message") if isinstance(commit, dict) else None
-            if isinstance(message, str) and message.strip():
-                return message.splitlines()[0].strip()
+    commit = _event_head_commit(environ)
+    message = commit.get("message") if commit is not None else None
+    if isinstance(message, str) and message.strip():
+        return message.splitlines()[0].strip()
     if root is None:
         return None
     env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
@@ -109,6 +148,7 @@ def resolve_spec_title(
     """Title source by event. Do not skip push: that state is in the spec.
 
     pull_request + blank PR_TITLE → empty (lint fails).
+    push with a two-parent head commit and no title given → merge (not linted).
     push or Actions-empty title (env set, not pull_request) → HEAD subject.
     local unset, no event → omitted (check skips).
     """
@@ -122,6 +162,8 @@ def resolve_spec_title(
         # On a pull_request event the title spec is present. Blank or unset
         # is empty — lint fails. Do not skip; skip was the old hole.
         return SpecRef("", "env")
+    if event == "push" and head_commit_is_merge(root, environ):
+        return SpecRef(head_commit_subject(root, environ), "merge")
     if event == "push" or raw is not None:
         commit = head_commit_subject(root, environ)
         if commit is not None:
@@ -328,9 +370,10 @@ def run_pr_title(
 ) -> int:
     """CLI entry. Reads --title or PR_TITLE. Exit 0 pass / 2 fail.
 
-    Spec source is event-aware (see ``resolve_spec_title``). push does not
-    skip: blank ``PR_TITLE`` lints the HEAD commit subject. pull_request +
-    blank title fails. Explicit ``--title ""`` still fails.
+    Spec source is event-aware (see ``resolve_spec_title``). push lints the
+    HEAD commit subject on blank ``PR_TITLE``, except a two-parent merge
+    commit. pull_request + blank title fails. Explicit ``--title ""`` still
+    fails.
     """
     import os
     import sys
@@ -349,7 +392,7 @@ def run_pr_title(
             except ForgeError:
                 resolved_scopes = None
     spec = resolve_spec_title(title, env, root)
-    if spec.source == "omitted" or spec.text is None:
+    if spec.source in ("omitted", "merge") or spec.text is None:
         return EXIT_OK
     code, message, _parts = lint_title(spec.text, scopes=resolved_scopes)
     if code != EXIT_OK:

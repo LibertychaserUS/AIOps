@@ -93,6 +93,10 @@ Old fixtures only locked a good `--title`, `--title ""`, and a missing actor. Th
 - INV-pr-spec-event-states
 - Steps: env `PR_TITLE=` `GITHUB_EVENT_NAME=push`; event JSON `head_commit.message` first line is a conventional title; `python -m forge check --root .`
 - Expected: pr-title ok with `commit: <subject>`; not skip; exit 0 when the subject lints
+- Title: push of a two-parent merge commit skips the title
+- INV-pr-spec-event-states
+- Steps: env `PR_TITLE=` `GITHUB_EVENT_NAME=push`; head commit `Merge branch 'x' into dev` with two parents; `python -m forge check --root .`
+- Expected: pr-title skip `merge commit on push`; other steps still run; exit 0 if they pass
 - Title: local omit skips
 - Steps: no `--title`, no `PR_TITLE`, no `GITHUB_EVENT_NAME`; `python -m forge check --root .`
 - Expected: pr-title skip `no spec`; exit 0 if other steps ok
@@ -108,6 +112,10 @@ Old fixtures only locked a good `--title`, `--title ""`, and a missing actor. Th
 - Title: pull_request + blank `PR_BODY` fails six headings
 - Steps: workshop root (has `docs/pr-brief.md`); good title; `PR_BODY=` `GITHUB_EVENT_NAME=pull_request`; `python -m forge check --root .`
 - Expected: pr-body FAIL missing headings; exit 2
+- Title: merge skip does not leak past a two-parent push head
+- INV-pr-spec-event-states
+- Steps: `pull_request` on a merge checkout with blank title; push of a plain commit titled `Merge branch 'x'`; push of a three-parent merge; push with `--title "bad"`; shallow clone hiding the parents
+- Expected: exit 2 in every case; not skip
 - Title: push with empty `PR_TITLE` and no readable commit fails
 - Steps: temp root without git and without `GITHUB_EVENT_PATH`; `PR_TITLE=` `GITHUB_EVENT_NAME=push`
 - Expected: empty PR title; exit 2; not skip

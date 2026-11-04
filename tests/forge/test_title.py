@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,6 +19,7 @@ from forge.title import (
     TITLE_PATTERN,
     TITLE_RE,
     TYPES,
+    head_commit_is_merge,
     lint_title,
     optional_text,
     resolve_arg_or_env,
@@ -405,6 +408,173 @@ class SpecEventStateTests(unittest.TestCase):
         )
         self.assertEqual(spec.source, "env")
         self.assertEqual(spec.text, "")
+
+
+class PushMergeCommitTests(unittest.TestCase):
+    """push + two-parent head commit: title not linted. Everything else still is."""
+
+    MERGE_TITLES = (
+        "Merge branch 'fix/x' into dev",
+        "Merge pull request #1 from a/b",
+        "merge: bring dev up to date",
+    )
+
+    def _git(self, root: Path, *args: str) -> str:
+        env = {
+            **os.environ,
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_AUTHOR_NAME": "t",
+            "GIT_AUTHOR_EMAIL": "t@example.com",
+            "GIT_COMMITTER_NAME": "t",
+            "GIT_COMMITTER_EMAIL": "t@example.com",
+        }
+        return subprocess.run(
+            ["git", "-C", str(root), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=env,
+        ).stdout.strip()
+
+    def _repo(self, tmp: str, merge_subject: str = "Merge branch 'fix/x' into dev") -> Path:
+        """main: base → merge of side branch at HEAD."""
+        root = Path(tmp) / "repo"
+        root.mkdir()
+        self._git(root, "init", "-q", "-b", "main")
+        self._git(root, "commit", "-q", "--allow-empty", "-m", "wip base")
+        self._git(root, "checkout", "-q", "-b", "side")
+        self._git(root, "commit", "-q", "--allow-empty", "-m", "wip side")
+        self._git(root, "checkout", "-q", "main")
+        self._git(root, "commit", "-q", "--allow-empty", "-m", "wip main")
+        self._git(root, "merge", "-q", "--no-ff", "-m", merge_subject, "side")
+        return root
+
+    def _event(self, tmp: str, **head_commit: str) -> str:
+        path = Path(tmp) / "event.json"
+        path.write_text(json.dumps({"head_commit": head_commit}), encoding="utf-8")
+        return str(path)
+
+    def _lint(self, root: Path, environ: dict[str, str], title: str | None = None) -> int:
+        return run_pr_title(
+            title=title,
+            environ=environ,
+            stdout=io.StringIO(),
+            stderr=io.StringIO(),
+            root=root,
+            scopes="any",
+        )
+
+    def test_push_merge_commit_skips_lint_whatever_its_subject(self) -> None:
+        for subject in self.MERGE_TITLES:
+            with self.subTest(subject=subject), tempfile.TemporaryDirectory() as tmp:
+                root = self._repo(tmp, subject)
+                environ = {"PR_TITLE": "", "GITHUB_EVENT_NAME": "push"}
+                spec = resolve_spec_title(None, environ, root=root)
+                self.assertEqual(spec.source, "merge")
+                self.assertEqual(spec.text, subject)
+                self.assertEqual(self._lint(root, environ), EXIT_OK)
+
+    def test_event_head_commit_id_decides(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            merge_sha = self._git(root, "rev-parse", "HEAD")
+            event = self._event(tmp, id=merge_sha, message="Merge branch 'fix/x' into dev")
+            environ = {"GITHUB_EVENT_NAME": "push", "GITHUB_EVENT_PATH": event}
+            self.assertEqual(self._lint(root, environ), EXIT_OK)
+
+    def test_event_naming_a_plain_commit_is_linted_even_if_head_is_a_merge(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            plain_sha = self._git(root, "rev-parse", "HEAD^1")
+            event = self._event(tmp, id=plain_sha, message="wip main")
+            environ = {"GITHUB_EVENT_NAME": "push", "GITHUB_EVENT_PATH": event}
+            self.assertEqual(resolve_spec_title(None, environ, root=root).source, "commit")
+            self.assertEqual(self._lint(root, environ), EXIT_TITLE)
+
+    def test_doubt_about_the_head_commit_is_linted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            for commit in (
+                {"message": "wip"},
+                {"id": "not-a-sha", "message": "wip"},
+                {"id": "--all", "message": "wip"},
+                {"id": "0" * 40, "message": "wip"},
+            ):
+                with self.subTest(commit=commit):
+                    event = self._event(tmp, **commit)
+                    environ = {"GITHUB_EVENT_NAME": "push", "GITHUB_EVENT_PATH": event}
+                    self.assertFalse(head_commit_is_merge(root, environ))
+                    self.assertEqual(self._lint(root, environ), EXIT_TITLE)
+            self.assertFalse(head_commit_is_merge(None, {}))
+
+    def test_shallow_clone_hiding_the_parents_is_linted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            origin = self._repo(tmp)
+            clone = Path(tmp) / "shallow"
+            subprocess.run(
+                ["git", "clone", "-q", "--depth", "1", origin.as_uri(), str(clone)],
+                check=True,
+                capture_output=True,
+            )
+            environ = {"PR_TITLE": "", "GITHUB_EVENT_NAME": "push"}
+            self.assertEqual(self._lint(clone, environ), EXIT_TITLE)
+
+    def test_push_plain_commit_is_still_linted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            self._git(root, "commit", "-q", "--allow-empty", "-m", "Merge branch 'fake'")
+            environ = {"PR_TITLE": "", "GITHUB_EVENT_NAME": "push"}
+            self.assertEqual(self._lint(root, environ), EXIT_TITLE)
+            self._git(root, "commit", "-q", "--allow-empty", "-m", "fix: real change")
+            self.assertEqual(self._lint(root, environ), EXIT_OK)
+
+    def test_octopus_merge_is_still_linted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            base = self._git(root, "rev-parse", "HEAD^1")
+            for name in ("other", "third"):
+                self._git(root, "checkout", "-q", "-b", name, base)
+                self._git(root, "commit", "-q", "--allow-empty", "-m", f"wip {name}")
+            self._git(root, "checkout", "-q", "main")
+            self._git(root, "commit", "-q", "--allow-empty", "-m", "wip tip")
+            self._git(root, "merge", "-q", "--no-ff", "-m", "Merge three", "other", "third")
+            self.assertEqual(len(self._git(root, "rev-list", "--parents", "-n", "1", "HEAD").split()), 4)
+            environ = {"PR_TITLE": "", "GITHUB_EVENT_NAME": "push"}
+            self.assertEqual(self._lint(root, environ), EXIT_TITLE)
+
+    def test_pull_request_on_a_merge_checkout_keeps_its_rules(self) -> None:
+        # actions/checkout puts a pull_request job on refs/pull/N/merge: HEAD has two parents.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            self.assertEqual(
+                self._lint(root, {"PR_TITLE": "", "GITHUB_EVENT_NAME": "pull_request"}),
+                EXIT_TITLE,
+            )
+            self.assertEqual(
+                self._lint(root, {"PR_TITLE": "bad title", "GITHUB_EVENT_NAME": "pull_request"}),
+                EXIT_TITLE,
+            )
+            self.assertEqual(
+                self._lint(root, {"PR_TITLE": "fix: ok", "GITHUB_EVENT_NAME": "pull_request"}),
+                EXIT_OK,
+            )
+
+    def test_given_title_on_push_is_still_linted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            environ = {"PR_TITLE": "", "GITHUB_EVENT_NAME": "push"}
+            self.assertEqual(self._lint(root, environ, title="bad title"), EXIT_TITLE)
+            self.assertEqual(self._lint(root, environ, title=""), EXIT_TITLE)
+            self.assertEqual(
+                self._lint(root, {"PR_TITLE": "bad title", "GITHUB_EVENT_NAME": "push"}),
+                EXIT_TITLE,
+            )
+
+    def test_merge_without_event_name_is_still_linted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            self.assertEqual(self._lint(root, {"PR_TITLE": ""}), EXIT_TITLE)
 
 
 class WorkshopConfigTests(unittest.TestCase):
