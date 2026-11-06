@@ -13,13 +13,14 @@ from __future__ import annotations
 import json
 import os
 import re
-import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO
 
 from forge import EXIT_OK
+from forge.gitutil import git_log as _git_log
+from forge.gitutil import head_is_merge as head_is_merge
 
 EXIT_TITLE = 2
 
@@ -68,27 +69,6 @@ class SpecRef:
 
 def event_name(environ: Mapping[str, str]) -> str:
     return (environ.get("GITHUB_EVENT_NAME") or "").strip().lower()
-
-
-def _git_log(root: Path | str, *args: str) -> str | None:
-    env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
-    proc = subprocess.run(
-        ["git", "-C", str(root), "-c", "commit.gpgsign=false", "log", *args],
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-    if proc.returncode != 0:
-        return None
-    return proc.stdout
-
-
-def head_is_merge(root: Path | str | None) -> bool:
-    """True when HEAD has two or more parents (a base-branch merge, not a change)."""
-    if root is None:
-        return False
-    parents = _git_log(root, "-1", "--format=%P")
-    return bool(parents) and len(parents.split()) >= 2
 
 
 def _event_head_subject(environ: Mapping[str, str]) -> str | None:
@@ -408,7 +388,6 @@ def run_pr_title(
     skip: blank ``PR_TITLE`` lints the HEAD commit subject. pull_request +
     blank title fails. Explicit ``--title ""`` still fails.
     """
-    import os
     import sys
     from pathlib import Path
 

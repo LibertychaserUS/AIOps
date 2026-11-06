@@ -96,6 +96,9 @@
 
 ### Changed
 
+- 内部重构：`forge/config.py`（`ForgeConfig` / `load_config` / 键白名单，从 `apply.py` 搬出）、`forge/gitutil.py`（check / status / ci-select / title 共用的 git 助手合成一份）、`forge/checks/` 注册表（每个 check 一个模块，`CHECKS` 显式有序元组，runner 统一「缺 forge.yaml 则 skip / 没 git 则红 / 看不到 base 不得绿」）；行为不变，`forge check` 清单与 `apply --dry-run` 输出逐字节一致，旧 import 路径（`forge.apply.load_config`、`forge.check.resolve_protect_ref` 等）全部保留。`GitHubClient` 仍在 `apply.py`，下一刀再搬。
+- [ADR 0009](docs/adr/0009-check-registry.md)（已接受，2026-11-06）：check 扩展点是封闭注册表 + 配置开关 + 契约测试（`tests/forge/test_checks_registry.py`），拒绝动态插件 / 远程钩子 / 配置内嵌代码；接入方自定义门走 GitHub required checks，不在 `forge.yaml` 声明 check。
+- `sop-lock`（仅工作本根）新增一条：`forge/checks/__init__.py` 不得 `importlib` / `pkgutil` / entry points，`CHECKS` 必须是元组字面量。
 - `forge.yaml` 改由 PyYAML（safe loader）解析，替换手写的 YAML 子集解析器。任一层级重复键仍退出 3；空文件仍报 `empty document`；未知键 did-you-mean 不变。不带引号的 `1.0` / `2026-01-01` / `yes` / `on` 按字符串读，`true` / `false` 与整数按类型读；`code_owners: yes` 照旧退出 3。
 - PR 标题三种 `title.scopes` 模式（缺省 / 列表 / `any`）统一 subject 规则：整行 ≤ 72 字符、不以 `.` / `。` 结尾、subject 至少一个可见字符（零宽字符不算）。列表模式以列表为允许集，接入方可列 `infra/dev` 这类自定义 `product/actor`；每项必须是 `[a-z][a-z0-9-]*/[a-z][a-z0-9-]*`，否则读配置退出 3 并指出那一项。
 - ADR 0004 加 2026-10-29 修订：`branches.<name>` 对顶层旧字段是**逐键**回落（缺的键取顶层值，再取默认），与代码一致；`docs/forge-config.md` 同句；单测钉住。行为未改。

@@ -340,7 +340,7 @@ class GitMissingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "forge.yaml").write_text(FORGE_YAML, encoding="utf-8")
-            with mock.patch("forge.check.subprocess.run", side_effect=FileNotFoundError("git")):
+            with mock.patch("forge.gitutil.subprocess.run", side_effect=FileNotFoundError("git")):
                 code, out = _check(root)
             self.assertEqual(code, EXIT_CHECK, out)
             self.assertIn("cannot run git", out)

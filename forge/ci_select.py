@@ -7,7 +7,6 @@ it or the changed paths hit that product. Unknown check names skip.
 
 from __future__ import annotations
 
-import subprocess
 import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -16,6 +15,7 @@ from typing import Any, TextIO
 
 from forge import EXIT_CONFIG, EXIT_OK
 from forge.apply import ForgeError, _check_ci_keys, parse_simple_yaml
+from forge.gitutil import GitUnavailable, git_paths
 from forge.title import lint_title, resolve_spec_title
 
 DEFAULT_COMMON = ("pr-title", "sop-lock")
@@ -160,17 +160,9 @@ def git_changed(root: Path) -> list[str] | None:
     still selects that product. -z avoids core.quotePath escaping non-ASCII paths.
     """
     try:
-        proc = subprocess.run(
-            ["git", "-C", str(root), "diff", "--name-only", "--no-renames", "--relative", "-z", "HEAD~1", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except OSError:
+        return git_paths(root, "diff", "--name-only", "--no-renames", "--relative", "HEAD~1", "HEAD")
+    except GitUnavailable:
         return None
-    if proc.returncode != 0:
-        return None
-    return [item for item in proc.stdout.split("\0") if item.strip()]
 
 
 def select_products(

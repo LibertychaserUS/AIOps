@@ -10,6 +10,7 @@ from pathlib import Path
 from forge.__main__ import main
 from forge.sop_lock import (
     EXIT_SOP,
+    check_check_registry,
     check_codeowners,
     codeowners_covers,
     collect_issues,
@@ -340,6 +341,53 @@ class ExitCodeTests(unittest.TestCase):
             code = run_sop_lock(root, stdout=stdout, stderr=stderr)
             self.assertEqual(code, EXIT_SOP)
             self.assertTrue(stderr.getvalue())
+
+
+class CheckRegistryLockTests(unittest.TestCase):
+    """ADR 0009: forge/checks/__init__.py stays a closed tuple, no runtime discovery."""
+
+    def test_workshop_registry_is_green(self) -> None:
+        self.assertEqual(check_check_registry(ROOT), [])
+
+    def _workshop_like(self, root: Path, registry: str | None) -> None:
+        _write(root / "overlay" / "__init__.py", '__version__ = "0"\n')
+        _write(root / "forge" / "__init__.py", '__version__ = "0"\n')
+        _write(root / "skills" / "use-overlay" / "SKILL.md", "# use-overlay\n")
+        _write(root / "docs" / "sop.md", "# sop\n")
+        if registry is not None:
+            _write(root / "forge" / "checks" / "__init__.py", registry)
+
+    def test_importlib_or_pkgutil_is_red(self) -> None:
+        for body in (
+            "import importlib\nCHECKS = (\n)\n",
+            "from importlib import metadata\nCHECKS = (\n)\n",
+            "import pkgutil\nCHECKS = (\n)\n",
+            "from importlib.metadata import entry_points\nCHECKS = (\n)\n",
+        ):
+            with self.subTest(body=body), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                self._workshop_like(root, body)
+                issues = check_check_registry(root)
+                self.assertTrue(issues, body)
+                self.assertTrue(all(issue.path == "forge/checks/__init__.py" for issue in issues))
+
+    def test_non_tuple_registry_is_red(self) -> None:
+        for body in ("CHECKS = [\n]\n", "CHECKS = tuple(discover())\n", "CHECKS: list = []\n"):
+            with self.subTest(body=body), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                self._workshop_like(root, body)
+                messages = [issue.message for issue in check_check_registry(root)]
+                self.assertTrue(any("tuple literal" in message for message in messages), messages)
+
+    def test_missing_registry_is_red_and_adopter_root_is_not_checked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._workshop_like(root, None)
+            self.assertEqual(len(check_check_registry(root)), 1)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root / "forge" / "checks" / "__init__.py", "import importlib\n")
+            self.assertEqual(check_check_registry(root), [])
 
 
 if __name__ == "__main__":

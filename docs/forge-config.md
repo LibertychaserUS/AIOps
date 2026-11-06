@@ -111,6 +111,10 @@ CI job `pr-title` 仍只挂 `pull_request`。`forge check` 在 push 上**不**�
 
 工作本 `forge check` 跑与 CI 相同的 `python -m unittest discover -s tests -t .`。没有 `overlay/__init__.py` 的接入方根不跑这套单测。
 
+### 怎么加一个 check
+
+`forge check` 的清单是 `forge/checks/__init__.py` 里的 `CHECKS` 元组，按顺序跑：`overlay validate`、`overlay cover`、`pr-title`、`pr-body`、`deny_paths`、`suite_guard`、`docs_sync`、`sop-lock`、`schema/check.py`、`unittest`（后三项仅工作本根）。封闭注册表（[ADR 0009](adr/0009-check-registry.md)）：不扫目录、不读 entry points、不在 `forge.yaml` 里声明自定义 check；接入方要加自己的门，走 GitHub required checks（`branches.<name>.required_checks`）。工作本加一个 check 是四件事，缺一不合：`forge/checks/<name>.py` 一个模块（`name` / `needs` / `applies` / `run`）；`CHECKS` 元组加一项（位置就是打印顺序）；`tests/forge/` 一个提到该名字的测试；本文或 `docs/cli.md` 一行说明。`tests/forge/test_checks_registry.py` 的契约测试与 `sop-lock` 钉住这四件事。runner 统一三条纪律，模块声明 `needs` 即继承：`forge.yaml`（缺则 skip，读不了则红）、`git`（没有 git 该行红、退出 2，不抛栈）、`base`（看不到 base 不得绿）。
+
 `ci-select`：产品门在标题选中它，**或**变更路径命中 `ci.products.<name>.paths` 时跑。标题 `docs` 不能挡住已经碰到的产品 diff。未声明的检查名仍是 skip-success。变更路径取 `HEAD~1..HEAD`，相对 `--root`（monorepo 子目录同 `check`），`--no-renames`：把文件移出产品目录仍选中该产品。算不出变更路径（浅克隆没有 `HEAD~1`、没有 git）时全部产品都跑，有标题也一样。
 
 `pr-title` 读不了 `forge.yaml`（解析失败、字段非法）时退出 3，不会悄悄退回默认 scope 语法。
