@@ -16,7 +16,7 @@
 - `sop-lock`（仅工作本根）：`.github/CODEOWNERS` 必须存在且给 `suites/**`、`forge.yaml`、`overlay.yaml` 指定 owner。分支前缀只是约定，CODEOWNERS + Ruleset 才是锁。工作本 CODEOWNERS 补上 `forge.yaml @LibertychaserUS`。
 - `forge.yaml` 顶层 `checks_app_id`（默认 `15368` = GitHub Actions）：每条 required check 带 `integration_id`，同名 commit status 不能顶替 Actions job；`null` / `none` 不绑。
 - `branches.<name>.merge_methods`（默认 `[squash]`）、`last_push_approval`（默认 `approvals ≥ 1` 时 true）、`resolve_threads`（默认 false），写入 `allowed_merge_methods` / `require_last_push_approval` / `required_review_thread_resolution`。见 [ADR 0004](docs/adr/0004-per-branch-rulesets.md) 修订。
-- `tag_rules.creation`（默认 **false**，opt-in）：tag Ruleset 加 `creation` 并给仓库 admin 一条 bypass。[ADR 0008](docs/adr/0008-tag-creation-lock.md)（提议，未接受；工作本不开）。
+- `tag_rules.creation`（默认 **false**，opt-in）：tag Ruleset 加 `creation` 并给仓库 admin 一条 bypass。[ADR 0008](docs/adr/0008-tag-creation-lock.md)（2026-11-06 决定：维持 opt-in、默认关、不改默认；工作本不开）。
 - `status` 把 GitHub 上多出来、不对应任何 `protect` 分支的 `forge-protected-*` 报 `stale`；`apply` 也列出，不删。
 - `apply` / `status`：`code_owners: true` 但没有 `.github/CODEOWNERS` / `CODEOWNERS` / `docs/CODEOWNERS` 时警告（stderr，不改退出码）。
 
