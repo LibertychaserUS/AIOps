@@ -1,7 +1,11 @@
 # 0008 tag 创建锁
 
-- 状态：提议
+- 状态：已决定（2026-11-06）：**维持 opt-in，默认关，不改默认**
 - 日期：2026-10-29
+
+## 决议（2026-11-06）
+
+维护者决定不开这把锁：`tag_rules.creation` 保留为可选字段、默认 `false`，工作本不开，下一个 major 也**不**把默认改成 `true`（下文「决定（提议）」第 3 条作废）。tag 照常可以由有写权限的人创建；`forge release` 的 CHANGELOG / 版本号 / 已有 Release 检查是唯一的发布门。接入方若要锁，自行在 forge.yaml 开 `tag_rules.creation: true`。
 
 ## 背景
 

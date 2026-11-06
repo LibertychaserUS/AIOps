@@ -18,7 +18,7 @@
 | `forbidden_live_repos` | live `apply` / `release` 拒绝的 `OWNER/NAME` | `[]` |
 | `tag_patterns` | tag Ruleset 的 include | `[overlay-v*, forge-v*]` |
 | `checks_app_id` | required checks 绑定的 GitHub App id（`integration_id`）；`null` / `none` 不绑 | `15368`（GitHub Actions） |
-| `tag_rules.creation` | tag Ruleset 加 `creation` 规则 + 仓库 admin bypass（[ADR 0008](adr/0008-tag-creation-lock.md)，提议，opt-in） | `false` |
+| `tag_rules.creation` | tag Ruleset 加 `creation` 规则 + 仓库 admin bypass（[ADR 0008](adr/0008-tag-creation-lock.md)，已决定维持 opt-in、默认关） | `false` |
 | `ci` | `ci-select` 选择器（通用检查 ≠ 产品门） | 可选 |
 
 `branches:` 出现时优先于顶层 `required_checks` / `review`。旧字段继续接受，等价于给 `protect` 里每个分支套同一规则。优先是**逐键**的：`branches.<name>` 里没写的键取顶层旧字段的值（`required_checks` / `review.min_approvals` / `review.code_owners`），顶层也没写才取默认；只写 `code_owners: true` 的 `branches.main` 仍继承顶层 `required_checks` 与 `min_approvals`。见 [ADR 0004](adr/0004-per-branch-rulesets.md) 2026-10-29 修订。
@@ -54,7 +54,7 @@ branches:
 
 `submit` 只推检查过的提交：`--head` 必须是当前检出分支（不收 `HEAD`、`heads/`、`refs/`、`tags/`），工作树必须干净（含未跟踪文件），推送用 `<sha>:refs/heads/<head>`。更新已有 PR 只改标题，不动正文。`FORGE_GITHUB_API` 必须是 https（仅 `127.0.0.1` / `localhost` 可 http）。
 
-`apply` 为每个保护分支写一条 Ruleset，名 `forge-protected-<branch>`，幂等按名 PUT。另写 `forge-protected-tags`，保护 `refs/tags/overlay-v*` 与 `refs/tags/forge-v*`（可配 `tag_patterns`）：禁止更新 / 删除 / 非快进；`tag_rules.creation: true` 时再加 `creation`，并给仓库 admin 一条 `bypass_actors`（见 [ADR 0008](adr/0008-tag-creation-lock.md)，提议；默认关）。`--dry-run` 打印全部 payload。`status` 逐条报告 installed / missing / drifted；GitHub 上还有、但已不对应任何 `protect` 分支的 `forge-protected-*`（`forge-protected-tags` 除外）另报 `stale`。`apply` 也列出 stale，但**不删**；要删去 GitHub 设置页手动删。
+`apply` 为每个保护分支写一条 Ruleset，名 `forge-protected-<branch>`，幂等按名 PUT。另写 `forge-protected-tags`，保护 `refs/tags/overlay-v*` 与 `refs/tags/forge-v*`（可配 `tag_patterns`）：禁止更新 / 删除 / 非快进；`tag_rules.creation: true` 时再加 `creation`，并给仓库 admin 一条 `bypass_actors`（见 [ADR 0008](adr/0008-tag-creation-lock.md)，已决定默认关、不改默认）。`--dry-run` 打印全部 payload。`status` 逐条报告 installed / missing / drifted；GitHub 上还有、但已不对应任何 `protect` 分支的 `forge-protected-*`（`forge-protected-tags` 除外）另报 `stale`。`apply` 也列出 stale，但**不删**；要删去 GitHub 设置页手动删。
 
 `apply` / `status` 的非致命警告写 stderr、不改退出码：某分支 `code_owners: true` 但目标根下没有 `.github/CODEOWNERS`、`CODEOWNERS`、`docs/CODEOWNERS` 任一；某保护分支 `required_checks` 为空（此时不写 `required_status_checks` 规则，而不是写一条空 contexts）。`apply` 的目标根取 `--path` 所在目录（省略 `--path` 时取 cwd）；`status` 取 `--root`。
 
