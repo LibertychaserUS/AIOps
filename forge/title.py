@@ -97,14 +97,34 @@ def _git_subject(root: Path | str, *args: str) -> str | None:
     return text or None
 
 
+_SQUASH_SUFFIX = re.compile(r"\s*\(#\d+\)$")
+
+
+def strip_squash_suffix(subject: str) -> str:
+    """Drop the ``(#N)`` GitHub appends to squash / merge commit subjects.
+
+    The PR title was linted at ``<= 72`` without that suffix; the suffix is
+    GitHub's bookkeeping, not the author's header, so the push lint on the
+    protected branch must not count it.
+    """
+    return _SQUASH_SUFFIX.sub("", subject).rstrip()
+
+
 def head_commit_subject(root: Path | str | None, environ: Mapping[str, str]) -> str | None:
     """First line of the push head commit. Event JSON wins, then git.
+
+    A trailing ``(#N)`` (GitHub squash / merge suffix) is stripped before lint.
 
     When the event's head commit is this checkout's HEAD and HEAD is a merge
     (the protect branch merged into the feature branch), the merge is plumbing,
     not the change: lint the newest first-parent non-merge commit instead,
     which is the subject the agent actually wrote.
     """
+    subject = _raw_head_commit_subject(root, environ)
+    return strip_squash_suffix(subject) if subject is not None else None
+
+
+def _raw_head_commit_subject(root: Path | str | None, environ: Mapping[str, str]) -> str | None:
     event_subject = _event_head_subject(environ)
     if root is not None and head_is_merge(root):
         git_head = _git_subject(root)

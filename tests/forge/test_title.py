@@ -27,6 +27,7 @@ from forge.title import (
     resolve_spec_body,
     resolve_spec_title,
     run_pr_title,
+    strip_squash_suffix,
 )
 
 from forge import EXIT_OK
@@ -441,6 +442,53 @@ class SpecEventStateTests(unittest.TestCase):
             )
             self.assertEqual(spec.source, "commit")
             self.assertEqual(spec.text, EXAMPLE)
+
+    def test_push_strips_squash_suffix_before_lint(self) -> None:
+        # GitHub squash merge appends " (#N)"; a 72-char PR title becomes 78
+        # on the protected branch. That suffix is not the author's header.
+        long_title = "refactor(forge/agent): " + "x" * (72 - len("refactor(forge/agent): "))
+        self.assertEqual(len(long_title), 72)
+        with tempfile.TemporaryDirectory() as tmp:
+            event = Path(tmp) / "event.json"
+            event.write_text(
+                json.dumps({"head_commit": {"message": f"{long_title} (#20)\n\nbody"}}),
+                encoding="utf-8",
+            )
+            environ = {
+                "PR_TITLE": "",
+                "GITHUB_EVENT_NAME": "push",
+                "GITHUB_EVENT_PATH": str(event),
+            }
+            spec = resolve_spec_title(None, environ, root=tmp)
+            self.assertEqual(spec.source, "commit")
+            self.assertEqual(spec.text, long_title)
+            code = run_pr_title(
+                title=None,
+                environ=environ,
+                stdout=io.StringIO(),
+                stderr=io.StringIO(),
+                root=tmp,
+            )
+            self.assertEqual(code, EXIT_OK)
+
+    def test_strip_squash_suffix_only_trailing_pr_number(self) -> None:
+        cases = [
+            ("fix(forge/agent): a (#12)", "fix(forge/agent): a"),
+            ("fix(forge/agent): a  (#12)", "fix(forge/agent): a"),
+            ("fix(forge/agent): a (#12) more", "fix(forge/agent): a (#12) more"),
+            ("fix(forge/agent): a (12)", "fix(forge/agent): a (12)"),
+            ("fix(forge/agent): a #12", "fix(forge/agent): a #12"),
+            ("fix(forge/agent): a", "fix(forge/agent): a"),
+        ]
+        for raw, want in cases:
+            with self.subTest(raw=raw):
+                self.assertEqual(strip_squash_suffix(raw), want)
+
+    def test_explicit_title_keeps_squash_suffix(self) -> None:
+        # Only commit-sourced titles are stripped; a PR title or --title is linted as written.
+        spec = resolve_spec_title("fix(forge/agent): a (#12)", {})
+        self.assertEqual(spec.source, "arg")
+        self.assertEqual(spec.text, "fix(forge/agent): a (#12)")
 
     def test_push_bad_commit_subject_fails_lint(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
