@@ -101,7 +101,7 @@ PR 的 review 和 merge 由 **GitHub Ruleset + 有写权限的人** 管理。RBA
 | Agent 政策 | 产品仓 `AGENTS.md`（贴 `forge/agent-policy.md` 文本） |
 | 状态页 | `docs/STATE.md`（生成） |
 
-`check`（不写 GitHub）：overlay validate / cover；pr-title / pr-body 按事件取值（本地未设才 skip；`pull_request` 空白红；`push` lint HEAD 提交）；deny_paths；`suite_guard`（agent 分支把套件改成 `blocked`，或清掉已有 `blocked` → 红）；`docs_sync`；工作本另加 sop-lock / schema / 与 CI 相同的 `python -m unittest discover -s tests -t .`。接入方根目录（没有 `overlay/__init__.py`）不跑这套工作本单测，也不打印 workshop-only skip。
+`check`（不写 GitHub）：overlay validate / cover；pr-title / pr-body 按事件取值（本地未设才 skip；`pull_request` 空白红；`push` lint HEAD 提交）；deny_paths；`suite_guard`（agent 分支把套件改成 `blocked`，或清掉已有 `blocked` → 红）；`docs_sync`；工作本另加 sop-lock / schema / 与 CI 相同的 `python -m unittest discover -s tests -t .`。接入方根目录（没有 `overlay/__init__.py`）不跑这套工作本单测，也不打印 workshop-only skip。这些步骤是 `forge/checks/` 里一张**封闭的有序注册表**（源码内显式元组，不做动态插件），见 [ADR 0009](adr/0009-check-registry.md)。
 
 `submit`：`--head` 必须是当前检出分支、工作树必须干净（否则退出 3）；先 `check`；必须 `FORGE_SUBMIT_TOKEN`（缺则含 `--dry-run` 也红）；把检查过的 sha 推到 `refs/heads/<head>` 并开 draft PR，已有则只改标题；base = `protect[0]`；`--base` 必须在 `protect`。永不 merge，永不 approve，永不 apply。`gh auth login` / `GH_TOKEN` / extraheader / `GITHUB_TOKEN` 都不够。见 [`submit-credential.md`](submit-credential.md)。
 

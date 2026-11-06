@@ -102,7 +102,7 @@ PR 规格机器检查是 `python -m forge pr-title`（`forge check` 嵌同一把
 | `--title` / `--body` 已给（含 `""`） | arg | lint；空参数仍红 |
 | 非空 `PR_TITLE` / `PR_BODY` | env | lint |
 | `GITHUB_EVENT_NAME=pull_request` 且标题/正文空白或未设 | 空 env | 标题红 `empty PR title`；有 `docs/pr-brief.md` 时正文红（缺六个标题） |
-| `push`，或 Actions 把标题写成空串（环境已设、不是 `pull_request`） | HEAD 提交第一行 | lint 该 subject（事件 JSON `head_commit.message`，否则 `git log -1`）。HEAD 是合并提交（两个以上父提交，如把 dev 并进功能分支）且事件 JSON 的 `head_commit` 就是这个 HEAD（或没有事件 JSON）时，lint first-parent 上最近一个非合并提交的 subject；合并提交本身不算改动。事件 JSON 指向别的提交时仍以事件为准 |
+| `push`，或 Actions 把标题写成空串（环境已设、不是 `pull_request`） | HEAD 提交第一行 | lint 该 subject（事件 JSON `head_commit.message`，否则 `git log -1`）。HEAD 是合并提交（两个以上父提交，如把 dev 并进功能分支）且事件 JSON 的 `head_commit` 就是这个 HEAD（或没有事件 JSON）时，lint first-parent 上最近一个非合并提交的 subject；合并提交本身不算改动。事件 JSON 指向别的提交时仍以事件为准。commit 来源的 subject 先去掉尾部 ` (#N)`（GitHub squash / merge 合并自动追加的 PR 号）再 lint，PR 标题刚好 72 字符时合入保护分支的 push 不再误红；`--title` / `PR_TITLE` 不去 |
 | 本地、无事件、环境未设 | 省略 | `forge check` skip 该步 |
 
 CI job `pr-title` 仍只挂 `pull_request`。`forge check` 在 push 上**不**卸掉标题锁：锁的是提交 subject，不是跳过。叶子 `FN-forge-pr-title`，invariant `INV-pr-spec-event-states`。
@@ -110,6 +110,10 @@ CI job `pr-title` 仍只挂 `pull_request`。`forge check` 在 push 上**不**�
 `forge check --root` 必须是产品根：至少有 `forge.yaml` 或 `overlay.yaml`。两者都没有 → 退出 2，不要当成绿。`pip install -r requirements.txt` 装 PyYAML，以及工作本风格门 ruff（`unittest` 里跑，不是新的 CI job）。**不会** 给出 `forge` 命令；用 `PYTHONPATH` + `python3 -m forge`。Overlay 与 Forge 是两针：`overlay-v2.0.0` / `forge-v1.1.3`。只 checkout Overlay 针会拿到 Forge 1.1.0（空根假绿）。`1.1.2` 上 CI `push` 不要写入空的 `PR_TITLE`；`1.1.3` 起 lock 提交 subject。
 
 工作本 `forge check` 跑与 CI 相同的 `python -m unittest discover -s tests -t .`。没有 `overlay/__init__.py` 的接入方根不跑这套单测。
+
+### 怎么加一个 check
+
+`forge check` 的清单是 `forge/checks/__init__.py` 里的 `CHECKS` 元组，按顺序跑：`overlay validate`、`overlay cover`、`pr-title`、`pr-body`、`deny_paths`、`suite_guard`、`docs_sync`、`sop-lock`、`schema/check.py`、`unittest`（后三项仅工作本根）。封闭注册表（[ADR 0009](adr/0009-check-registry.md)）：不扫目录、不读 entry points、不在 `forge.yaml` 里声明自定义 check；接入方要加自己的门，走 GitHub required checks（`branches.<name>.required_checks`）。工作本加一个 check 是四件事，缺一不合：`forge/checks/<name>.py` 一个模块（`name` / `needs` / `applies` / `run`）；`CHECKS` 元组加一项（位置就是打印顺序）；`tests/forge/` 一个提到该名字的测试；本文或 `docs/cli.md` 一行说明。`tests/forge/test_checks_registry.py` 的契约测试与 `sop-lock` 钉住这四件事。runner 统一三条纪律，模块声明 `needs` 即继承：`forge.yaml`（缺则 skip，读不了则红）、`git`（没有 git 该行红、退出 2，不抛栈）、`base`（看不到 base 不得绿）。
 
 `ci-select`：产品门在标题选中它，**或**变更路径命中 `ci.products.<name>.paths` 时跑。标题 `docs` 不能挡住已经碰到的产品 diff。未声明的检查名仍是 skip-success。变更路径取 `HEAD~1..HEAD`，相对 `--root`（monorepo 子目录同 `check`），`--no-renames`：把文件移出产品目录仍选中该产品。算不出变更路径（浅克隆没有 `HEAD~1`、没有 git）时全部产品都跑，有标题也一样。
 

@@ -826,6 +826,34 @@ def check_release_workflow(root: Path) -> list[Issue]:
     return issues
 
 
+# forge check steps are a closed in-tree registry (ADR 0009): no runtime discovery.
+REGISTRY_REL = "forge/checks/__init__.py"
+REGISTRY_BANNED_RE = (
+    (re.compile(r"^\s*(?:import|from)\s+importlib\b", re.MULTILINE), "importlib"),
+    (re.compile(r"^\s*(?:import|from)\s+pkgutil\b", re.MULTILINE), "pkgutil"),
+    (re.compile(r"\bentry_points\b"), "entry_points"),
+    (re.compile(r"\b__import__\s*\("), "__import__"),
+)
+REGISTRY_TUPLE_RE = re.compile(r"^CHECKS\s*(?::\s*tuple\[[^\]]*\]\s*)?=\s*\($", re.MULTILINE)
+
+
+def check_check_registry(root: Path) -> list[Issue]:
+    """forge/checks/__init__.py: CHECKS is a tuple literal, nothing is discovered at runtime."""
+    if not is_workshop_root(root):
+        return []
+    path = root / REGISTRY_REL
+    if not path.is_file():
+        return [Issue(REGISTRY_REL, "missing check registry (ADR 0009)")]
+    text = path.read_text(encoding="utf-8")
+    issues: list[Issue] = []
+    for pattern, name in REGISTRY_BANNED_RE:
+        if pattern.search(text):
+            issues.append(Issue(REGISTRY_REL, f"must not use {name}; CHECKS is a closed tuple (ADR 0009)"))
+    if REGISTRY_TUPLE_RE.search(text) is None:
+        issues.append(Issue(REGISTRY_REL, "CHECKS must be defined as a tuple literal (ADR 0009)"))
+    return issues
+
+
 def collect_issues(root: Path) -> list[Issue]:
     root = root.resolve()
     issues: list[Issue] = []
@@ -839,6 +867,7 @@ def collect_issues(root: Path) -> list[Issue]:
         issues.extend(check_submit_custody_docs(root))
         issues.extend(check_release_workflow(root))
         issues.extend(check_codeowners(root))
+        issues.extend(check_check_registry(root))
     issues.extend(check_workshop_docs_and_checks(root))
     issues.sort(key=lambda item: (item.path, item.message))
     return issues

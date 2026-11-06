@@ -13,13 +13,14 @@ from __future__ import annotations
 import json
 import os
 import re
-import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO
 
 from forge import EXIT_OK
+from forge.gitutil import git_log as _git_log
+from forge.gitutil import head_is_merge as head_is_merge
 
 EXIT_TITLE = 2
 
@@ -70,27 +71,6 @@ def event_name(environ: Mapping[str, str]) -> str:
     return (environ.get("GITHUB_EVENT_NAME") or "").strip().lower()
 
 
-def _git_log(root: Path | str, *args: str) -> str | None:
-    env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
-    proc = subprocess.run(
-        ["git", "-C", str(root), "-c", "commit.gpgsign=false", "log", *args],
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-    if proc.returncode != 0:
-        return None
-    return proc.stdout
-
-
-def head_is_merge(root: Path | str | None) -> bool:
-    """True when HEAD has two or more parents (a base-branch merge, not a change)."""
-    if root is None:
-        return False
-    parents = _git_log(root, "-1", "--format=%P")
-    return bool(parents) and len(parents.split()) >= 2
-
-
 def _event_head_subject(environ: Mapping[str, str]) -> str | None:
     raw_path = environ.get("GITHUB_EVENT_PATH")
     if not raw_path:
@@ -117,14 +97,34 @@ def _git_subject(root: Path | str, *args: str) -> str | None:
     return text or None
 
 
+_SQUASH_SUFFIX = re.compile(r"\s*\(#\d+\)$")
+
+
+def strip_squash_suffix(subject: str) -> str:
+    """Drop the ``(#N)`` GitHub appends to squash / merge commit subjects.
+
+    The PR title was linted at ``<= 72`` without that suffix; the suffix is
+    GitHub's bookkeeping, not the author's header, so the push lint on the
+    protected branch must not count it.
+    """
+    return _SQUASH_SUFFIX.sub("", subject).rstrip()
+
+
 def head_commit_subject(root: Path | str | None, environ: Mapping[str, str]) -> str | None:
     """First line of the push head commit. Event JSON wins, then git.
+
+    A trailing ``(#N)`` (GitHub squash / merge suffix) is stripped before lint.
 
     When the event's head commit is this checkout's HEAD and HEAD is a merge
     (the protect branch merged into the feature branch), the merge is plumbing,
     not the change: lint the newest first-parent non-merge commit instead,
     which is the subject the agent actually wrote.
     """
+    subject = _raw_head_commit_subject(root, environ)
+    return strip_squash_suffix(subject) if subject is not None else None
+
+
+def _raw_head_commit_subject(root: Path | str | None, environ: Mapping[str, str]) -> str | None:
     event_subject = _event_head_subject(environ)
     if root is not None and head_is_merge(root):
         git_head = _git_subject(root)
@@ -408,7 +408,6 @@ def run_pr_title(
     skip: blank ``PR_TITLE`` lints the HEAD commit subject. pull_request +
     blank title fails. Explicit ``--title ""`` still fails.
     """
-    import os
     import sys
     from pathlib import Path
 
